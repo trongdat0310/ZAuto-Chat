@@ -1,0 +1,17 @@
+node_modules/
+.env
+
+data/credentials.json
+data/groups.json
+data/group-settings.json
+data/filter-settings.json
+data/messages.json
+data/firebase-service-account.json
+data/devices.json
+data/users.json
+data/user-data/
+data/revoked-tokens.json
+
+.env
+
+*.log

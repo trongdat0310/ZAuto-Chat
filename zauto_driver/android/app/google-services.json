@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "853733959938",
+    "project_id": "zauto-driver-20e6b",
+    "storage_bucket": "zauto-driver-20e6b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:853733959938:android:82b91d6ade08732c1cba1b",
+        "android_client_info": {
+          "package_name": "com.example.zauto_driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCurqf8_QITIYlpNGM8eANLt2ZFpgXljYY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
