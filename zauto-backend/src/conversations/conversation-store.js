@@ -570,8 +570,90 @@ function normalizeUnreadCount(
 function sortConversations(
   conversations
 ) {
+
   conversations.sort(
     (a, b) => {
+
+      // ========================================
+      // 1. PINNED LUON LEN TREN
+      // ========================================
+
+      const aPinned =
+        a?.pinned === true;
+
+      const bPinned =
+        b?.pinned === true;
+
+
+      if (
+        aPinned !==
+        bPinned
+      ) {
+
+        return aPinned
+          ? -1
+          : 1;
+      }
+
+
+      // ========================================
+      // 2. NEU CA HAI DEU PIN
+      //
+      // NHOM GHIM GAN NHAT LEN TREN.
+      // ========================================
+
+      if (
+        aPinned &&
+        bPinned
+      ) {
+
+        const aPinnedAt =
+          Date.parse(
+            a?.pinnedAt ??
+            ""
+          );
+
+
+        const bPinnedAt =
+          Date.parse(
+            b?.pinnedAt ??
+            ""
+          );
+
+
+        const safeAPinnedAt =
+          Number.isFinite(
+            aPinnedAt
+          )
+            ? aPinnedAt
+            : 0;
+
+
+        const safeBPinnedAt =
+          Number.isFinite(
+            bPinnedAt
+          )
+            ? bPinnedAt
+            : 0;
+
+
+        if (
+          safeAPinnedAt !==
+          safeBPinnedAt
+        ) {
+
+          return (
+            safeBPinnedAt -
+            safeAPinnedAt
+          );
+        }
+      }
+
+
+      // ========================================
+      // 3. BINH THUONG:
+      // TIN MOI NHAT LEN TREN
+      // ========================================
 
       const aTime =
         Number(
@@ -590,15 +672,18 @@ function sortConversations(
       if (
         aTime !== bTime
       ) {
+
         return bTime - aTime;
       }
 
 
       return String(
-        a.name ?? ""
+        a.name ??
+        ""
       ).localeCompare(
         String(
-          b.name ?? ""
+          b.name ??
+          ""
         ),
         "vi"
       );
@@ -682,6 +767,14 @@ export function syncConversationGroups(
         totalMember:
           group.totalMember ??
           old?.totalMember ??
+          null,
+
+        pinned:
+          old?.pinned ===
+          true,
+
+        pinnedAt:
+          old?.pinnedAt ??
           null,
 
         lastMessageId:
@@ -1929,6 +2022,12 @@ export function saveConversationMessage(
       totalMember:
         null,
 
+      pinned:
+        false,
+
+      pinnedAt:
+        null,
+
       lastIsSelf:
         null,
 
@@ -2701,6 +2800,93 @@ export function markUserConversationRead(
   };
 }
 
+// ========================================
+// PIN / UNPIN CONVERSATION
+// ========================================
+
+export function setUserConversationPinned(
+  userId,
+  groupId,
+  pinned
+) {
+
+  const safeGroupId =
+    String(
+      groupId ??
+      ""
+    ).trim();
+
+
+  if (!safeGroupId) {
+
+    return null;
+  }
+
+
+  const file =
+    indexFile(
+      userId
+    );
+
+
+  const conversations =
+    readJson(
+      file,
+      []
+    );
+
+
+  const conversation =
+    conversations.find(
+      item =>
+        String(
+          item.groupId
+        ) ===
+        safeGroupId
+    );
+
+
+  if (!conversation) {
+
+    return null;
+  }
+
+
+  const shouldPin =
+    pinned === true;
+
+
+  conversation.pinned =
+    shouldPin;
+
+
+  conversation.pinnedAt =
+    shouldPin
+      ? new Date()
+          .toISOString()
+      : null;
+
+
+  conversation.updatedAt =
+    new Date()
+      .toISOString();
+
+
+  sortConversations(
+    conversations
+  );
+
+
+  writeJsonAtomic(
+    file,
+    conversations
+  );
+
+
+  return {
+    ...conversation,
+  };
+}
 
 export function getUserConversationList(
   userId
@@ -2732,6 +2918,29 @@ export function getUserConversationList(
     const conversation
     of conversations
   ) {
+
+    // ========================================
+    // PIN MIGRATION
+    // ========================================
+
+    if (
+      !Object.prototype
+        .hasOwnProperty
+        .call(
+          conversation,
+          "pinned"
+        )
+    ) {
+
+      conversation.pinned =
+        false;
+
+      conversation.pinnedAt =
+        null;
+
+      changed =
+        true;
+    }
 
     // ========================================
     // unreadCount

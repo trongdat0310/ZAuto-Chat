@@ -142,6 +142,7 @@ import {
   syncConversationGroups,
   getUserConversationMessageContext,
   markUserConversationRead,
+  setUserConversationPinned,
 } from "./conversations/conversation-store.js";
 
 import {
@@ -3801,6 +3802,136 @@ app.post(
           code:
             error?.code ??
             null,
+        });
+    }
+  }
+);
+
+// ========================================
+// PIN / UNPIN CONVERSATION
+// ========================================
+
+app.patch(
+  "/api/me/conversations/:groupId/pin",
+
+  requireAuth,
+
+  (
+    req,
+    res
+  ) => {
+
+    try {
+
+      const groupId =
+        String(
+          req.params.groupId ??
+          ""
+        ).trim();
+
+
+      if (!groupId) {
+
+        return res
+          .status(400)
+          .json({
+            success:
+              false,
+
+            error:
+              "Group ID khong hop le.",
+          });
+      }
+
+
+      const pinned =
+        req.body?.pinned;
+
+
+      if (
+        typeof pinned !==
+        "boolean"
+      ) {
+
+        return res
+          .status(400)
+          .json({
+            success:
+              false,
+
+            error:
+              "pinned phai la boolean.",
+          });
+      }
+
+
+      const conversation =
+        setUserConversationPinned(
+          req.user.id,
+          groupId,
+          pinned
+        );
+
+
+      if (!conversation) {
+
+        return res
+          .status(404)
+          .json({
+            success:
+              false,
+
+            error:
+              "Khong tim thay hoi thoai.",
+          });
+      }
+
+
+      // ========================================
+      // REALTIME CHO CAC THIET BI KHAC
+      // ========================================
+
+      broadcastUserEvent(
+        req.user.id,
+        "conversation_pinned",
+        {
+          groupId,
+
+          pinned:
+            conversation.pinned,
+
+          pinnedAt:
+            conversation.pinnedAt,
+        }
+      );
+
+
+      return res.json({
+        success:
+          true,
+
+        conversation,
+      });
+
+    } catch (error) {
+
+      console.error(
+        "[CONVERSATION PIN] ERROR:",
+        req.user.id,
+        req.params.groupId,
+        error
+      );
+
+
+      return res
+        .status(500)
+        .json({
+          success:
+            false,
+
+          error:
+            error?.message ??
+            String(error),
         });
     }
   }

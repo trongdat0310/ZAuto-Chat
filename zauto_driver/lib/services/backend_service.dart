@@ -1146,9 +1146,116 @@ class BackendService {
         .toList();
   }
 
+  Future<Map<String, dynamic>>
+  setConversationPinned({
+    required String groupId,
+    required bool pinned,
+  }) async {
+
+    final safeGroupId =
+    groupId.trim();
+
+
+    if (
+    safeGroupId.isEmpty
+    ) {
+
+      throw Exception(
+        'Group ID không hợp lệ',
+      );
+    }
+
+
+    final headers =
+    await auth
+        .authHeaders();
+
+
+    final encodedGroupId =
+    Uri.encodeComponent(
+      safeGroupId,
+    );
+
+
+    final response =
+    await http.patch(
+
+      Uri.parse(
+        '$baseUrl/api/me/conversations/'
+            '$encodedGroupId/pin',
+      ),
+
+      headers: {
+        ...headers,
+
+        'Content-Type':
+        'application/json',
+      },
+
+      body:
+      jsonEncode({
+        'pinned':
+        pinned,
+      }),
+    );
+
+
+    dynamic decoded;
+
+
+    try {
+
+      decoded =
+          jsonDecode(
+            response.body,
+          );
+
+    } catch (_) {
+
+      decoded =
+      null;
+    }
+
+
+    if (
+    response.statusCode !=
+        200 ||
+        decoded is! Map ||
+        decoded['success'] !=
+            true
+    ) {
+
+      throw Exception(
+
+        decoded is Map
+            ? (
+            decoded['error'] ??
+                'Không thể thay đổi trạng thái ghim'
+        ).toString()
+
+            : 'Không thể thay đổi trạng thái ghim',
+      );
+    }
+
+
+    final rawConversation =
+    decoded[
+    'conversation'
+    ];
+
+
+    return rawConversation
+    is Map
+        ? Map<String, dynamic>
+        .from(
+      rawConversation,
+    )
+        : <String, dynamic>{};
+  }
+
   // ========================================
-// MARK CONVERSATION AS READ
-// ========================================
+  // MARK CONVERSATION AS READ
+  // ========================================
 
   Future<Map<String, dynamic>>
   markConversationRead({

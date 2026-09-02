@@ -146,6 +146,8 @@ class _MessagesPageState
                 type !=
                     'conversation_read' &&
                 type !=
+                    'conversation_pinned' &&
+                type !=
                     'new_trip'
                 ) {
                   return;
@@ -574,6 +576,233 @@ class _MessagesPageState
   }
 
 
+  Future<void>
+  toggleConversationPin(
+      Map<String, dynamic> conversation,
+      ) async {
+
+    final groupId =
+    conversation[
+    'groupId'
+    ]
+        ?.toString()
+        .trim();
+
+
+    if (
+    groupId == null ||
+        groupId.isEmpty
+    ) {
+
+      return;
+    }
+
+
+    final currentlyPinned =
+        conversation[
+        'pinned'
+        ] ==
+            true;
+
+
+    final nextPinned =
+    !currentlyPinned;
+
+
+    // ========================================
+    // OPTIMISTIC UI
+    //
+    // Bam xong nhay len/xuong ngay.
+    // ========================================
+
+    setState(() {
+
+      conversation[
+      'pinned'
+      ] =
+          nextPinned;
+
+
+      conversation[
+      'pinnedAt'
+      ] =
+      nextPinned
+          ? DateTime
+          .now()
+          .toIso8601String()
+          : null;
+
+
+      _sortLocalConversations();
+    });
+
+
+    try {
+
+      await backend
+          .setConversationPinned(
+
+        groupId:
+        groupId,
+
+        pinned:
+        nextPinned,
+      );
+
+
+      if (!mounted) {
+        return;
+      }
+
+
+      ScaffoldMessenger
+          .of(context)
+          .showSnackBar(
+
+        SnackBar(
+
+          duration:
+          const Duration(
+            milliseconds:
+            1200,
+          ),
+
+          content:
+          Text(
+            nextPinned
+                ? 'Đã ghim nhóm'
+                : 'Đã bỏ ghim nhóm',
+          ),
+        ),
+      );
+
+    } catch (error) {
+
+      if (!mounted) {
+        return;
+      }
+
+
+      // Backend fail -> reload lai truth.
+      await loadData(
+        showLoading:
+        false,
+      );
+
+
+      if (!mounted) {
+        return;
+      }
+
+
+      ScaffoldMessenger
+          .of(context)
+          .showSnackBar(
+
+        SnackBar(
+          content:
+          Text(
+            'Không thể cập nhật ghim: $error',
+          ),
+        ),
+      );
+    }
+  }
+
+  void _sortLocalConversations() {
+
+    conversations.sort(
+          (
+          a,
+          b,
+          ) {
+
+        final aPinned =
+            a['pinned'] ==
+                true;
+
+
+        final bPinned =
+            b['pinned'] ==
+                true;
+
+
+        if (
+        aPinned !=
+            bPinned
+        ) {
+
+          return aPinned
+              ? -1
+              : 1;
+        }
+
+
+        if (
+        aPinned &&
+            bPinned
+        ) {
+
+          final aPinnedAt =
+              DateTime.tryParse(
+                a['pinnedAt']
+                    ?.toString() ??
+                    '',
+              )
+                  ?.millisecondsSinceEpoch ??
+                  0;
+
+
+          final bPinnedAt =
+              DateTime.tryParse(
+                b['pinnedAt']
+                    ?.toString() ??
+                    '',
+              )
+                  ?.millisecondsSinceEpoch ??
+                  0;
+
+
+          if (
+          aPinnedAt !=
+              bPinnedAt
+          ) {
+
+            return bPinnedAt
+                .compareTo(
+              aPinnedAt,
+            );
+          }
+        }
+
+
+        final aTime =
+            int.tryParse(
+              a['lastMessageAt']
+                  ?.toString() ??
+                  '',
+            ) ??
+                0;
+
+
+        final bTime =
+            int.tryParse(
+              b['lastMessageAt']
+                  ?.toString() ??
+                  '',
+            ) ??
+                0;
+
+
+        return bTime
+            .compareTo(
+          aTime,
+        );
+      },
+    );
+  }
+
+
   // ========================================
   // OPEN CHAT
   // ========================================
@@ -795,14 +1024,92 @@ class _MessagesPageState
     );
   }
 
+  Future<void>
+  _showConversationActions(
+      Map<String, dynamic> conversation,
+      ) async {
+
+    final pinned =
+        conversation[
+        'pinned'
+        ] ==
+            true;
+
+
+    await showModalBottomSheet<void>(
+
+      context:
+      context,
+
+      showDragHandle:
+      true,
+
+      builder:
+          (
+          sheetContext,
+          ) {
+
+        return SafeArea(
+
+          child:
+          Column(
+
+            mainAxisSize:
+            MainAxisSize.min,
+
+            children: [
+
+              ListTile(
+
+                leading:
+                Icon(
+                  pinned
+                      ? Icons
+                      .push_pin_outlined
+
+                      : Icons
+                      .push_pin_rounded,
+                ),
+
+                title:
+                Text(
+                  pinned
+                      ? 'Bỏ ghim nhóm'
+                      : 'Ghim nhóm',
+                ),
+
+                onTap:
+                    () {
+
+                  Navigator
+                      .of(
+                    sheetContext,
+                  )
+                      .pop();
+
+
+                  toggleConversationPin(
+                    conversation,
+                  );
+                },
+              ),
+
+
+              const SizedBox(
+                height:
+                8,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
 
   // ========================================
   // CONVERSATION ITEM
   // ========================================
-
-  // ========================================
-// CONVERSATION ITEM
-// ========================================
 
   Widget buildConversationItem(
       Map<String, dynamic> conversation,
@@ -848,6 +1155,12 @@ class _MessagesPageState
     enabledGroupIds.contains(
       groupId,
     );
+
+    final pinned =
+        conversation[
+        'pinned'
+        ] ==
+            true;
 
 
     // ========================================
@@ -951,6 +1264,13 @@ class _MessagesPageState
       onTap:
           () =>
           openConversation(
+            conversation,
+          ),
+
+
+      onLongPress:
+          () =>
+          _showConversationActions(
             conversation,
           ),
 
@@ -1076,6 +1396,31 @@ class _MessagesPageState
                         ),
                       ),
 
+                      if (
+                      pinned
+                      )
+                        Padding(
+
+                          padding:
+                          const EdgeInsets.only(
+                            left:
+                            6,
+                          ),
+
+                          child:
+                          Icon(
+
+                            Icons
+                                .push_pin_rounded,
+
+                            size:
+                            16,
+
+                            color:
+                            colorScheme
+                                .primary,
+                          ),
+                        ),
 
                       if (
                       notifying
