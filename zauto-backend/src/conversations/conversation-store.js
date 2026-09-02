@@ -231,10 +231,8 @@ function isDisplayableConversationMessage(
   // ========================================
 
   if (
-    typeof content ===
-      "string" &&
-    content.trim().length >
-      0
+    typeof content === "string" &&
+    content.trim().length > 0
   ) {
 
     return true;
@@ -243,76 +241,76 @@ function isDisplayableConversationMessage(
 
   // ========================================
   // MESSAGE TYPE
-  //
-  // Runtime Zalo hien tai tra:
-  // chat.photo
-  // chat.sticker
-  // chat.video.msg
-  //
-  // Khong chi tra so 31/32/44...
   // ========================================
 
   const msgType =
     String(
-      data?.msgType ??
-      ""
+      data?.msgType ?? ""
     )
       .trim()
       .toLowerCase();
 
 
   // ========================================
-  // PHOTO
+  // CURRENT ZALO MESSAGE TYPES
   // ========================================
 
+  const displayableTypes =
+    new Set([
+
+      // PHOTO
+      "chat.photo",
+
+      // STICKER
+      "chat.sticker",
+
+      // VIDEO
+      "chat.video",
+      "chat.video.msg",
+
+      // FILE
+      "chat.file",
+      "chat.file.msg",
+      "share.file",
+
+      // GIF
+      "chat.gif",
+
+      // VOICE / AUDIO
+      "chat.voice",
+      "chat.voice.msg",
+      "chat.audio",
+    ]);
+
+
   if (
-    msgType ===
-      "chat.photo" ||
-    msgType ===
-      "32"
+    displayableTypes.has(
+      msgType
+    )
   ) {
 
-    if (
-      content &&
-      typeof content ===
-        "object"
-    ) {
-
-      const href =
-        typeof content.href ===
-          "string"
-          ? content.href.trim()
-          : "";
-
-
-      const thumb =
-        typeof content.thumb ===
-          "string"
-          ? content.thumb.trim()
-          : "";
-
-
-      return Boolean(
-        href ||
-        thumb
-      );
-    }
-
-
-    return false;
+    return true;
   }
 
 
   // ========================================
-  // GIU HO TRO CAC TYPE CU
+  // OLD NUMERIC MESSAGE TYPES
+  // ========================================
   //
-  // Chua render chung trong Flutter,
-  // nhung khong pha logic cu.
+  // Giữ tương thích với dữ liệu cũ.
+  //
+  // 31 = voice
+  // 32 = photo
+  // 44 = video
+  // 46 = file
+  // 49 = gif
+  //
   // ========================================
 
   const legacyTypes =
     new Set([
       "31",
+      "32",
       "44",
       "46",
       "49",
@@ -454,8 +452,22 @@ function messagePreview(
     // FILE
     // ========================================
 
+    case "share.file":
     case "chat.file":
     case "chat.file.msg":
+
+      if (
+        content &&
+        typeof content ===
+          "object" &&
+        typeof content.title ===
+          "string" &&
+        content.title.trim()
+      ) {
+
+        return `[Tệp] ${content.title.trim()}`;
+      }
+
 
       return "[Tệp]";
 
@@ -991,6 +1003,545 @@ function extractPhotoMediaMetadata(
   };
 }
 
+// ========================================
+// GENERIC MEDIA METADATA
+//
+// DUNG CHO:
+// - sticker
+// - video
+// - file
+//
+// KHONG THAY THE PHOTO.
+// PHOTO VAN DUNG:
+// extractPhotoMediaMetadata()
+// ========================================
+
+function extractConversationMediaMetadata(
+  data
+) {
+
+  const msgType =
+    String(
+      data?.msgType ??
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const content =
+    data?.content &&
+    typeof data.content ===
+      "object"
+      ? data.content
+      : {};
+
+
+  // ========================================
+  // PARAMS
+  //
+  // ZALO CO THE TRA:
+  // - JSON STRING
+  // - OBJECT
+  // ========================================
+
+  let params =
+    {};
+
+
+  if (
+    typeof content.params ===
+      "string" &&
+    content.params.trim()
+  ) {
+
+    try {
+
+      params =
+        JSON.parse(
+          content.params
+        );
+
+    } catch (_) {
+
+      params =
+        {};
+    }
+
+  } else if (
+    content.params &&
+    typeof content.params ===
+      "object"
+  ) {
+
+    params =
+      content.params;
+  }
+
+
+  // ========================================
+  // STICKER
+  //
+  // PAYLOAD THUC TE:
+  //
+  // content: {
+  //   id: 8,
+  //   catId: 0,
+  //   type: 7
+  // }
+  //
+  // CHUA CO URL.
+  // SE ENRICH SAU O WORKER.
+  // ========================================
+
+  if (
+    msgType ===
+    "chat.sticker"
+  ) {
+
+    const stickerId =
+      content?.id != null
+        ? String(
+            content.id
+          )
+        : null;
+
+
+    const stickerCategoryId =
+      content?.catId != null
+        ? String(
+            content.catId
+          )
+        : null;
+
+
+    const stickerType =
+      Number(
+        content?.type
+      );
+
+
+    // ========================================
+    // STICKER DETAIL
+    //
+    // worker da enrich:
+    //
+    // content.stickerDetail = [
+    //   {
+    //     stickerUrl,
+    //     stickerSpriteUrl,
+    //     stickerWebpUrl,
+    //     totalFrames,
+    //     duration,
+    //     ...
+    //   }
+    // ]
+    // ========================================
+
+    const rawStickerDetail =
+      content?.stickerDetail;
+
+
+    const stickerDetail =
+      Array.isArray(
+        rawStickerDetail
+      )
+        ? (
+            rawStickerDetail[0] ??
+            null
+          )
+        : (
+            rawStickerDetail &&
+            typeof rawStickerDetail ===
+              "object"
+              ? rawStickerDetail
+              : null
+          );
+
+
+    const stickerUrl =
+      (
+        typeof stickerDetail
+          ?.stickerWebpUrl ===
+          "string" &&
+        stickerDetail
+          .stickerWebpUrl
+          .trim()
+      )
+        ? stickerDetail
+            .stickerWebpUrl
+            .trim()
+        : (
+            typeof stickerDetail
+              ?.stickerUrl ===
+              "string" &&
+            stickerDetail
+              .stickerUrl
+              .trim()
+              ? stickerDetail
+                  .stickerUrl
+                  .trim()
+              : null
+          );
+
+
+    const stickerSpriteUrl =
+      typeof stickerDetail
+        ?.stickerSpriteUrl ===
+        "string" &&
+      stickerDetail
+        .stickerSpriteUrl
+        .trim()
+        ? stickerDetail
+            .stickerSpriteUrl
+            .trim()
+        : null;
+
+
+    const totalFrames =
+      Number(
+        stickerDetail
+          ?.totalFrames
+      );
+
+
+    const duration =
+      Number(
+        stickerDetail
+          ?.duration
+      );
+
+
+    return {
+
+      mediaType:
+        "sticker",
+
+      // URL sticker chinh.
+      mediaUrl:
+        stickerUrl,
+
+      // Khong dung sprite lam thumbnail.
+      mediaThumbUrl:
+        null,
+
+      mediaWidth:
+        null,
+
+      mediaHeight:
+        null,
+
+      mediaDuration:
+        Number.isFinite(
+          duration
+        ) &&
+        duration >= 0
+          ? duration
+          : null,
+
+      mediaFileSize:
+        null,
+
+      fileName:
+        null,
+
+      fileExtension:
+        null,
+
+
+      // ========================================
+      // STICKER METADATA
+      // ========================================
+
+      stickerId,
+
+      stickerCategoryId,
+
+      stickerType:
+        Number.isFinite(
+          stickerType
+        )
+          ? stickerType
+          : null,
+
+      stickerSpriteUrl,
+
+      stickerTotalFrames:
+        Number.isFinite(
+          totalFrames
+        ) &&
+        totalFrames >= 0
+          ? totalFrames
+          : null,
+    };
+  }
+
+
+  // ========================================
+  // VIDEO
+  //
+  // PAYLOAD THUC TE:
+  //
+  // content.href
+  // content.thumb
+  //
+  // params:
+  // {
+  //   duration: 16000,
+  //   video_height: 1280,
+  //   fileSize: 4592853,
+  //   video_width: 720,
+  //   video_rotation: 0
+  // }
+  // ========================================
+
+  if (
+    msgType ===
+      "chat.video" ||
+    msgType ===
+      "chat.video.msg" ||
+    msgType ===
+      "44"
+  ) {
+
+    const width =
+      Number(
+        params.video_width ??
+        params.videoWidth ??
+        content.width
+      );
+
+
+    const height =
+      Number(
+        params.video_height ??
+        params.videoHeight ??
+        content.height
+      );
+
+
+    const duration =
+      Number(
+        params.duration ??
+        content.duration
+      );
+
+
+    const fileSize =
+      Number(
+        params.fileSize ??
+        params.file_size ??
+        content.fileSize
+      );
+
+
+    return {
+
+      mediaType:
+        "video",
+
+      mediaUrl:
+        typeof content.href ===
+          "string" &&
+        content.href.trim()
+          ? content.href.trim()
+          : null,
+
+      mediaThumbUrl:
+        typeof content.thumb ===
+          "string" &&
+        content.thumb.trim()
+          ? content.thumb.trim()
+          : null,
+
+      mediaWidth:
+        Number.isFinite(
+          width
+        ) &&
+        width > 0
+          ? width
+          : null,
+
+      mediaHeight:
+        Number.isFinite(
+          height
+        ) &&
+        height > 0
+          ? height
+          : null,
+
+      mediaDuration:
+        Number.isFinite(
+          duration
+        ) &&
+        duration >= 0
+          ? duration
+          : null,
+
+      mediaFileSize:
+        Number.isFinite(
+          fileSize
+        ) &&
+        fileSize >= 0
+          ? fileSize
+          : null,
+
+      fileName:
+        null,
+
+      fileExtension:
+        null,
+
+      stickerId:
+        null,
+
+      stickerCategoryId:
+        null,
+
+      stickerType:
+        null,
+    };
+  }
+
+
+  // ========================================
+  // FILE
+  //
+  // PAYLOAD THUC TE:
+  //
+  // content.title
+  // content.href
+  // content.thumb
+  //
+  // params:
+  // {
+  //   fileSize: "243794",
+  //   fileExt: "pdf"
+  // }
+  // ========================================
+
+  if (
+    msgType ===
+      "share.file" ||
+    msgType ===
+      "chat.file" ||
+    msgType ===
+      "chat.file.msg" ||
+    msgType ===
+      "46"
+  ) {
+
+    const fileSize =
+      Number(
+        params.fileSize ??
+        params.file_size ??
+        content.fileSize
+      );
+
+
+    const fileName =
+      typeof content.title ===
+        "string" &&
+      content.title.trim()
+        ? content.title.trim()
+        : null;
+
+
+    let fileExtension =
+      null;
+
+
+    if (
+      typeof params.fileExt ===
+        "string" &&
+      params.fileExt.trim()
+    ) {
+
+      fileExtension =
+        params.fileExt
+          .trim()
+          .toLowerCase();
+
+    } else if (
+      fileName &&
+      fileName.includes(".")
+    ) {
+
+      const pieces =
+        fileName.split(".");
+
+
+      const last =
+        pieces[
+          pieces.length - 1
+        ];
+
+
+      if (last) {
+
+        fileExtension =
+          last
+            .trim()
+            .toLowerCase();
+      }
+    }
+
+
+    return {
+
+      mediaType:
+        "file",
+
+      mediaUrl:
+        typeof content.href ===
+          "string" &&
+        content.href.trim()
+          ? content.href.trim()
+          : null,
+
+      mediaThumbUrl:
+        typeof content.thumb ===
+          "string" &&
+        content.thumb.trim()
+          ? content.thumb.trim()
+          : null,
+
+      mediaWidth:
+        null,
+
+      mediaHeight:
+        null,
+
+      mediaDuration:
+        null,
+
+      mediaFileSize:
+        Number.isFinite(
+          fileSize
+        ) &&
+        fileSize >= 0
+          ? fileSize
+          : null,
+
+      fileName,
+
+      fileExtension,
+
+      stickerId:
+        null,
+
+      stickerCategoryId:
+        null,
+
+      stickerType:
+        null,
+    };
+  }
+
+
+  return null;
+}
+
 
 // ========================================
 // SAVE GROUP MESSAGE
@@ -1130,10 +1681,15 @@ export function saveConversationMessage(
       data
     );
 
-    const photoMedia =
-      extractPhotoMediaMetadata(
-        data
-      );
+  const photoMedia =
+    extractPhotoMediaMetadata(
+      data
+    );
+
+  const genericMedia =
+    extractConversationMediaMetadata(
+      data
+    );
 
 
   const record = {
@@ -1171,24 +1727,98 @@ export function saveConversationMessage(
       // PHOTO / ALBUM
       // ========================================
 
+      mediaType:
+        genericMedia
+          ?.mediaType ??
+        (
+          photoMedia
+            ? "photo"
+            : null
+        ),
+
+
       mediaUrl:
         photoMedia
           ?.mediaUrl ??
+        genericMedia
+          ?.mediaUrl ??
         null,
+
 
       mediaThumbUrl:
         photoMedia
           ?.mediaThumbUrl ??
+        genericMedia
+          ?.mediaThumbUrl ??
         null,
+
 
       mediaWidth:
         photoMedia
           ?.mediaWidth ??
+        genericMedia
+          ?.mediaWidth ??
         null,
+
 
       mediaHeight:
         photoMedia
           ?.mediaHeight ??
+        genericMedia
+          ?.mediaHeight ??
+        null,
+
+
+      mediaDuration:
+        genericMedia
+          ?.mediaDuration ??
+        null,
+
+
+      mediaFileSize:
+        genericMedia
+          ?.mediaFileSize ??
+        null,
+
+
+      fileName:
+        genericMedia
+          ?.fileName ??
+        null,
+
+
+      fileExtension:
+        genericMedia
+          ?.fileExtension ??
+        null,
+
+
+      stickerId:
+        genericMedia
+          ?.stickerId ??
+        null,
+
+
+      stickerCategoryId:
+        genericMedia
+          ?.stickerCategoryId ??
+        null,
+
+
+      stickerType:
+        genericMedia
+          ?.stickerType ??
+        null,
+
+      stickerSpriteUrl:
+        genericMedia
+          ?.stickerSpriteUrl ??
+        null,
+
+
+      stickerTotalFrames:
+        genericMedia
+          ?.stickerTotalFrames ??
         null,
 
       mediaGroupId:

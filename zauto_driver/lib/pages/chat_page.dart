@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import '../config/app_config.dart';
 import '../services/backend_service.dart';
 import 'dart:async';
+import 'package:video_player/video_player.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class _SwipeReplyWrapper
     extends StatefulWidget {
@@ -1290,6 +1292,912 @@ class _PhotoViewerPageState
   }
 }
 
+class _VideoViewerPage
+    extends StatefulWidget {
+
+  final String videoUrl;
+
+
+  const _VideoViewerPage({
+    required this.videoUrl,
+  });
+
+
+  @override
+  State<_VideoViewerPage>
+  createState() =>
+      _VideoViewerPageState();
+}
+
+
+class _VideoViewerPageState
+    extends State<_VideoViewerPage> {
+
+  late final VideoPlayerController
+  controller;
+
+
+  bool initialized =
+  false;
+
+
+  bool failed =
+  false;
+
+
+  bool controlsVisible =
+  true;
+
+
+  Timer?
+  hideControlsTimer;
+
+
+  @override
+  void initState() {
+
+    super.initState();
+
+
+    controller =
+        VideoPlayerController
+            .networkUrl(
+          Uri.parse(
+            widget.videoUrl,
+          ),
+        );
+
+
+    controller
+        .addListener(
+      _handleVideoChanged,
+    );
+
+
+    _initialize();
+  }
+
+
+  Future<void>
+  _initialize() async {
+
+    try {
+
+      await controller
+          .initialize();
+
+
+      if (!mounted) {
+        return;
+      }
+
+
+      await controller
+          .setLooping(
+        false,
+      );
+
+
+      setState(() {
+
+        initialized =
+        true;
+      });
+
+
+      await controller
+          .play();
+
+
+      _scheduleHideControls();
+
+    } catch (error) {
+
+      debugPrint(
+        'VIDEO INIT ERROR: $error',
+      );
+
+
+      if (!mounted) {
+        return;
+      }
+
+
+      setState(() {
+
+        failed =
+        true;
+      });
+    }
+  }
+
+
+  void _handleVideoChanged() {
+
+    if (!mounted) {
+      return;
+    }
+
+
+    if (
+    !initialized
+    ) {
+      return;
+    }
+
+
+    setState(() {
+      // Update:
+      // - progress
+      // - play state
+      // - duration
+    });
+  }
+
+
+  void _scheduleHideControls() {
+
+    hideControlsTimer
+        ?.cancel();
+
+
+    if (
+    !controller
+        .value
+        .isPlaying
+    ) {
+
+      return;
+    }
+
+
+    hideControlsTimer =
+        Timer(
+
+          const Duration(
+            seconds:
+            3,
+          ),
+
+              () {
+
+            if (!mounted) {
+              return;
+            }
+
+
+            setState(() {
+
+              controlsVisible =
+              false;
+            });
+          },
+        );
+  }
+
+
+  void _toggleControls() {
+
+    setState(() {
+
+      controlsVisible =
+      !controlsVisible;
+    });
+
+
+    if (
+    controlsVisible
+    ) {
+
+      _scheduleHideControls();
+    }
+  }
+
+
+  Future<void>
+  _togglePlay() async {
+
+    if (
+    !initialized
+    ) {
+      return;
+    }
+
+
+    if (
+    controller
+        .value
+        .isPlaying
+    ) {
+
+      await controller
+          .pause();
+
+
+      hideControlsTimer
+          ?.cancel();
+
+
+      if (
+      mounted
+      ) {
+
+        setState(() {
+
+          controlsVisible =
+          true;
+        });
+      }
+
+    } else {
+
+      await controller
+          .play();
+
+
+      if (
+      mounted
+      ) {
+
+        setState(() {
+
+          controlsVisible =
+          true;
+        });
+      }
+
+
+      _scheduleHideControls();
+    }
+  }
+
+
+  String _formatVideoTime(
+      Duration duration,
+      ) {
+
+    final totalSeconds =
+        duration
+            .inSeconds;
+
+
+    final hours =
+        totalSeconds ~/
+            3600;
+
+
+    final minutes =
+        (
+            totalSeconds %
+                3600
+        ) ~/
+            60;
+
+
+    final seconds =
+        totalSeconds %
+            60;
+
+
+    final minuteText =
+    minutes
+        .toString()
+        .padLeft(
+      2,
+      '0',
+    );
+
+
+    final secondText =
+    seconds
+        .toString()
+        .padLeft(
+      2,
+      '0',
+    );
+
+
+    if (
+    hours >
+        0
+    ) {
+
+      return '$hours:$minuteText:$secondText';
+    }
+
+
+    return '$minuteText:$secondText';
+  }
+
+
+  Future<void>
+  _seekTo(
+      double value,
+      ) async {
+
+    if (
+    !initialized
+    ) {
+      return;
+    }
+
+
+    final duration =
+        controller
+            .value
+            .duration;
+
+
+    if (
+    duration
+        .inMilliseconds <=
+        0
+    ) {
+
+      return;
+    }
+
+
+    final targetMs =
+    (
+        duration
+            .inMilliseconds *
+            value
+    ).round();
+
+
+    await controller
+        .seekTo(
+      Duration(
+        milliseconds:
+        targetMs,
+      ),
+    );
+
+
+    _scheduleHideControls();
+  }
+
+
+  @override
+  void dispose() {
+
+    hideControlsTimer
+        ?.cancel();
+
+
+    controller
+        .removeListener(
+      _handleVideoChanged,
+    );
+
+
+    controller
+        .dispose();
+
+
+    super.dispose();
+  }
+
+
+  @override
+  Widget build(
+      BuildContext context,
+      ) {
+
+    return Scaffold(
+
+      backgroundColor:
+      Colors.black,
+
+
+      body:
+      SafeArea(
+
+        child:
+        failed
+
+            ? const Center(
+
+          child:
+          Column(
+
+            mainAxisSize:
+            MainAxisSize.min,
+
+            children: [
+
+              Icon(
+                Icons
+                    .error_outline_rounded,
+
+                color:
+                Colors.white70,
+
+                size:
+                48,
+              ),
+
+
+              SizedBox(
+                height:
+                12,
+              ),
+
+
+              Text(
+                'Không thể phát video',
+
+                style:
+                TextStyle(
+                  color:
+                  Colors.white,
+                ),
+              ),
+            ],
+          ),
+        )
+
+            : !initialized
+
+            ? const Center(
+
+          child:
+          CircularProgressIndicator(
+
+            color:
+            Colors.white,
+          ),
+        )
+
+            : GestureDetector(
+
+          behavior:
+          HitTestBehavior.opaque,
+
+
+          onTap:
+          _toggleControls,
+
+
+          child:
+          Stack(
+
+            children: [
+
+              // ========================================
+              // VIDEO
+              // ========================================
+
+              Positioned.fill(
+
+                child:
+                Center(
+
+                  child:
+                  AspectRatio(
+
+                    aspectRatio:
+                    controller
+                        .value
+                        .aspectRatio >
+                        0
+                        ? controller
+                        .value
+                        .aspectRatio
+                        : 16 / 9,
+
+                    child:
+                    VideoPlayer(
+                      controller,
+                    ),
+                  ),
+                ),
+              ),
+
+
+              // ========================================
+              // CONTROLS OVERLAY
+              // ========================================
+
+              Positioned.fill(
+
+                child:
+                AnimatedOpacity(
+
+                  duration:
+                  const Duration(
+                    milliseconds:
+                    180,
+                  ),
+
+
+                  opacity:
+                  controlsVisible
+                      ? 1
+                      : 0,
+
+
+                  child:
+                  IgnorePointer(
+
+                    ignoring:
+                    !controlsVisible,
+
+
+                    child:
+                    Stack(
+
+                      children: [
+
+                        // ========================================
+                        // DARK OVERLAY
+                        // ========================================
+
+                        const Positioned.fill(
+
+                          child:
+                          ColoredBox(
+
+                            color:
+                            Color(
+                              0x33000000,
+                            ),
+                          ),
+                        ),
+
+
+                        // ========================================
+                        // BACK
+                        // ========================================
+
+                        Positioned(
+
+                          top:
+                          8,
+
+                          left:
+                          8,
+
+                          child:
+                          Material(
+
+                            color:
+                            const Color(
+                              0x66000000,
+                            ),
+
+                            shape:
+                            const CircleBorder(),
+
+                            child:
+                            IconButton(
+
+                              tooltip:
+                              'Quay lại',
+
+                              onPressed:
+                                  () {
+
+                                Navigator.of(
+                                  context,
+                                ).pop();
+                              },
+
+                              icon:
+                              const Icon(
+
+                                Icons
+                                    .arrow_back_rounded,
+
+                                color:
+                                Colors.white,
+
+                                size:
+                                28,
+                              ),
+                            ),
+                          ),
+                        ),
+
+
+                        // ========================================
+                        // PLAY / PAUSE
+                        // ========================================
+
+                        Center(
+
+                          child:
+                          Material(
+
+                            color:
+                            const Color(
+                              0xAA000000,
+                            ),
+
+                            shape:
+                            const CircleBorder(),
+
+                            child:
+                            InkWell(
+
+                              customBorder:
+                              const CircleBorder(),
+
+                              onTap:
+                              _togglePlay,
+
+                              child:
+                              SizedBox(
+
+                                width:
+                                72,
+
+                                height:
+                                72,
+
+                                child:
+                                Icon(
+
+                                  controller
+                                      .value
+                                      .isPlaying
+                                      ? Icons
+                                      .pause_rounded
+
+                                      : Icons
+                                      .play_arrow_rounded,
+
+                                  size:
+                                  46,
+
+                                  color:
+                                  Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+
+
+                        // ========================================
+                        // BOTTOM CONTROLS
+                        // ========================================
+
+                        Positioned(
+
+                          left:
+                          14,
+
+                          right:
+                          14,
+
+                          bottom:
+                          14,
+
+                          child:
+                          _buildVideoBottomControls(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+
+  Widget _buildVideoBottomControls() {
+
+    final position =
+        controller
+            .value
+            .position;
+
+
+    final duration =
+        controller
+            .value
+            .duration;
+
+
+    final durationMs =
+        duration
+            .inMilliseconds;
+
+
+    final positionMs =
+        position
+            .inMilliseconds;
+
+
+    final progress =
+    durationMs >
+        0
+        ? (
+        positionMs /
+            durationMs
+    )
+        .clamp(
+      0.0,
+      1.0,
+    )
+        .toDouble()
+
+        : 0.0;
+
+
+    return Container(
+
+      padding:
+      const EdgeInsets
+          .fromLTRB(
+        12,
+        8,
+        12,
+        7,
+      ),
+
+      decoration:
+      BoxDecoration(
+
+        color:
+        const Color(
+          0x99000000,
+        ),
+
+        borderRadius:
+        BorderRadius.circular(
+          12,
+        ),
+      ),
+
+      child:
+      Column(
+
+        mainAxisSize:
+        MainAxisSize.min,
+
+        children: [
+
+          // ========================================
+          // SEEK BAR
+          // ========================================
+
+          SliderTheme(
+
+            data:
+            SliderTheme.of(
+              context,
+            ).copyWith(
+
+              trackHeight:
+              3,
+
+              thumbShape:
+              const RoundSliderThumbShape(
+                enabledThumbRadius:
+                6,
+              ),
+
+              overlayShape:
+              const RoundSliderOverlayShape(
+                overlayRadius:
+                14,
+              ),
+            ),
+
+
+            child:
+            Slider(
+
+              value:
+              progress,
+
+              min:
+              0,
+
+              max:
+              1,
+
+              onChanged:
+                  (
+                  value,
+                  ) {
+
+                _seekTo(
+                  value,
+                );
+              },
+            ),
+          ),
+
+
+          Row(
+
+            children: [
+
+              IconButton(
+
+                visualDensity:
+                VisualDensity.compact,
+
+                padding:
+                EdgeInsets.zero,
+
+                constraints:
+                const BoxConstraints(
+
+                  minWidth:
+                  36,
+
+                  minHeight:
+                  36,
+                ),
+
+                onPressed:
+                _togglePlay,
+
+                icon:
+                Icon(
+
+                  controller
+                      .value
+                      .isPlaying
+                      ? Icons
+                      .pause_rounded
+
+                      : Icons
+                      .play_arrow_rounded,
+
+                  color:
+                  Colors.white,
+
+                  size:
+                  24,
+                ),
+              ),
+
+
+              const SizedBox(
+                width:
+                6,
+              ),
+
+
+              Text(
+
+                '${_formatVideoTime(position)} / '
+                    '${_formatVideoTime(duration)}',
+
+                style:
+                const TextStyle(
+
+                  color:
+                  Colors.white,
+
+                  fontSize:
+                  12,
+
+                  fontWeight:
+                  FontWeight.w500,
+                ),
+              ),
+
+
+              const Spacer(),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ========================================
 // MOT ANH TRONG FULL SCREEN VIEWER
 //
@@ -1862,7 +2770,6 @@ class _ChatPageState
   final ImagePicker
   imagePicker =
   ImagePicker();
-
 
   bool sendingPhoto =
   false;
@@ -3774,6 +4681,200 @@ class _ChatPageState
 
         _scheduleMarkConversationRead();
       }
+    }
+  }
+
+  Future<void> _openVideo(
+      Map<String, dynamic> message,
+      ) async {
+
+    final url =
+    _messageMediaUrl(
+      message,
+    );
+
+
+    debugPrint(
+      'OPEN VIDEO CALLED: '
+          'mediaUrl=$url',
+    );
+
+
+    if (
+    url == null ||
+        url.isEmpty
+    ) {
+
+      _showTopNotice(
+        'Video không có đường dẫn',
+      );
+
+
+      debugPrint(
+        'OPEN VIDEO ABORT: EMPTY URL',
+      );
+
+
+      return;
+    }
+
+
+    final uri =
+    Uri.tryParse(
+      url,
+    );
+
+
+    if (
+    uri == null ||
+        !uri.hasScheme
+    ) {
+
+      _showTopNotice(
+        'Đường dẫn video không hợp lệ',
+      );
+
+
+      debugPrint(
+        'OPEN VIDEO ABORT: INVALID URL',
+      );
+
+
+      return;
+    }
+
+
+    try {
+
+      debugPrint(
+        'OPEN VIDEO NAVIGATING...',
+      );
+
+
+      await Navigator.of(
+        context,
+      ).push(
+
+        MaterialPageRoute<void>(
+
+          builder:
+              (
+              context,
+              ) {
+
+            return _VideoViewerPage(
+
+              videoUrl:
+              url,
+            );
+          },
+        ),
+      );
+
+
+      debugPrint(
+        'OPEN VIDEO PAGE CLOSED',
+      );
+
+    } catch (error) {
+
+      debugPrint(
+        'OPEN VIDEO NAVIGATION ERROR: '
+            '$error',
+      );
+
+
+      if (!mounted) {
+        return;
+      }
+
+
+      _showTopNotice(
+        'Không thể mở video',
+      );
+    }
+  }
+
+  Future<void> _openFileMessage(
+      Map<String, dynamic> message,
+      ) async {
+
+    final rawUrl =
+    _messageMediaUrl(
+      message,
+    );
+
+
+    if (
+    rawUrl == null ||
+        rawUrl.isEmpty
+    ) {
+
+      _showTopNotice(
+        'Tệp không có đường dẫn',
+      );
+
+
+      return;
+    }
+
+
+    final uri =
+    Uri.tryParse(
+      rawUrl,
+    );
+
+
+    if (
+    uri == null
+    ) {
+
+      _showTopNotice(
+        'Đường dẫn tệp không hợp lệ',
+      );
+
+
+      return;
+    }
+
+
+    try {
+
+      final opened =
+      await launchUrl(
+
+        uri,
+
+        mode:
+        LaunchMode.externalApplication,
+      );
+
+
+      if (
+      !opened &&
+          mounted
+      ) {
+
+        _showTopNotice(
+          'Không thể mở tệp',
+        );
+      }
+
+    } catch (error) {
+
+      debugPrint(
+        'OPEN FILE ERROR: $error',
+      );
+
+
+      if (!mounted) {
+        return;
+      }
+
+
+      _showTopNotice(
+        'Không thể mở tệp',
+      );
     }
   }
 
@@ -6297,6 +7398,7 @@ class _ChatPageState
       'chat.video',
       'chat.video.msg',
 
+      'share.file',
       'chat.file',
       'chat.file.msg',
 
@@ -7205,6 +8307,209 @@ class _ChatPageState
             '32';
   }
 
+  bool _isStickerMessage(
+      Map<String, dynamic> message,
+      ) {
+
+    final mediaType =
+        message['mediaType']
+            ?.toString()
+            .trim()
+            .toLowerCase() ??
+            '';
+
+
+    final msgType =
+        message['msgType']
+            ?.toString()
+            .trim()
+            .toLowerCase() ??
+            '';
+
+
+    return mediaType ==
+        'sticker' ||
+        msgType ==
+            'chat.sticker';
+  }
+
+
+  bool _isVideoMessage(
+      Map<String, dynamic> message,
+      ) {
+
+    final mediaType =
+        message['mediaType']
+            ?.toString()
+            .trim()
+            .toLowerCase() ??
+            '';
+
+
+    final msgType =
+        message['msgType']
+            ?.toString()
+            .trim()
+            .toLowerCase() ??
+            '';
+
+
+    return mediaType ==
+        'video' ||
+        msgType ==
+            'chat.video' ||
+        msgType ==
+            'chat.video.msg' ||
+        msgType ==
+            '44';
+  }
+
+
+  bool _isFileMessage(
+      Map<String, dynamic> message,
+      ) {
+
+    final mediaType =
+        message['mediaType']
+            ?.toString()
+            .trim()
+            .toLowerCase() ??
+            '';
+
+
+    final msgType =
+        message['msgType']
+            ?.toString()
+            .trim()
+            .toLowerCase() ??
+            '';
+
+
+    return mediaType ==
+        'file' ||
+        msgType ==
+            'share.file' ||
+        msgType ==
+            'chat.file' ||
+        msgType ==
+            'chat.file.msg' ||
+        msgType ==
+            '46';
+  }
+
+
+  String? _messageMediaUrl(
+      Map<String, dynamic> message,
+      ) {
+
+    final value =
+    message['mediaUrl']
+        ?.toString()
+        .trim();
+
+
+    if (
+    value == null ||
+        value.isEmpty
+    ) {
+
+      return null;
+    }
+
+
+    return value;
+  }
+
+
+  String? _messageMediaThumbUrl(
+      Map<String, dynamic> message,
+      ) {
+
+    final value =
+    message['mediaThumbUrl']
+        ?.toString()
+        .trim();
+
+
+    if (
+    value == null ||
+        value.isEmpty
+    ) {
+
+      return null;
+    }
+
+
+    return value;
+  }
+
+
+  String _formatFileSize(
+      dynamic value,
+      ) {
+
+    final bytes =
+    int.tryParse(
+      value
+          ?.toString() ??
+          '',
+    );
+
+
+    if (
+    bytes == null ||
+        bytes <= 0
+    ) {
+
+      return '';
+    }
+
+
+    if (
+    bytes <
+        1024
+    ) {
+
+      return '$bytes B';
+    }
+
+
+    final kb =
+        bytes /
+            1024;
+
+
+    if (
+    kb <
+        1024
+    ) {
+
+      return '${kb.toStringAsFixed(1)} KB';
+    }
+
+
+    final mb =
+        kb /
+            1024;
+
+
+    if (
+    mb <
+        1024
+    ) {
+
+      return '${mb.toStringAsFixed(1)} MB';
+    }
+
+
+    final gb =
+        mb /
+            1024;
+
+
+    return '${gb.toStringAsFixed(1)} GB';
+  }
+
   Map<String, dynamic>
   _photoParams(
       Map<String, dynamic> message,
@@ -7787,6 +9092,692 @@ class _ChatPageState
                 );
               },
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStickerMessage(
+      Map<String, dynamic> message,
+      ) {
+
+    final stickerUrl =
+    _messageMediaUrl(
+      message,
+    );
+
+
+    if (
+    stickerUrl == null
+    ) {
+
+      return const SizedBox(
+        width:
+        130,
+
+        height:
+        130,
+
+        child:
+        Center(
+          child:
+          Icon(
+            Icons
+                .emoji_emotions_outlined,
+
+            size:
+            42,
+
+            color:
+            Color(
+              0xFF87939D,
+            ),
+          ),
+        ),
+      );
+    }
+
+
+    return SizedBox(
+
+      width:
+      130,
+
+      height:
+      130,
+
+      child:
+      Image.network(
+
+        stickerUrl,
+
+        fit:
+        BoxFit.contain,
+
+        gaplessPlayback:
+        true,
+
+        loadingBuilder:
+            (
+            context,
+            child,
+            loadingProgress,
+            ) {
+
+          if (
+          loadingProgress ==
+              null
+          ) {
+
+            return child;
+          }
+
+
+          return const Center(
+
+            child:
+            SizedBox(
+
+              width:
+              24,
+
+              height:
+              24,
+
+              child:
+              CircularProgressIndicator(
+                strokeWidth:
+                2,
+              ),
+            ),
+          );
+        },
+
+        errorBuilder:
+            (
+            context,
+            error,
+            stackTrace,
+            ) {
+
+          return const Center(
+
+            child:
+            Icon(
+
+              Icons
+                  .broken_image_outlined,
+
+              size:
+              36,
+
+              color:
+              Color(
+                0xFF87939D,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildVideoMessage(
+      Map<String, dynamic> message,
+      ) {
+
+    final thumbUrl =
+    _messageMediaThumbUrl(
+      message,
+    );
+
+
+    final videoUrl =
+    _messageMediaUrl(
+      message,
+    );
+
+
+    final width =
+    double.tryParse(
+      message['mediaWidth']
+          ?.toString() ??
+          '',
+    );
+
+
+    final height =
+    double.tryParse(
+      message['mediaHeight']
+          ?.toString() ??
+          '',
+    );
+
+
+    const maxWidth =
+    280.0;
+
+
+    const maxHeight =
+    390.0;
+
+
+    double displayWidth =
+    260;
+
+
+    double displayHeight =
+    200;
+
+
+    if (
+    width != null &&
+        height != null &&
+        width > 0 &&
+        height > 0
+    ) {
+
+      final scale =
+      math.min(
+        maxWidth /
+            width,
+
+        maxHeight /
+            height,
+      );
+
+
+      displayWidth =
+          width *
+              scale;
+
+
+      displayHeight =
+          height *
+              scale;
+    }
+
+
+    return Material(
+
+      color:
+      Colors.transparent,
+
+
+      child:
+      InkWell(
+
+        borderRadius:
+        BorderRadius.circular(
+          12,
+        ),
+
+
+        // ========================================
+        // BAM VIDEO
+        // ========================================
+
+        onTap:
+            () {
+
+          debugPrint(
+            'VIDEO TAP: '
+                'url=$videoUrl',
+          );
+
+
+          _openVideo(
+            message,
+          );
+        },
+
+
+        child:
+        ClipRRect(
+
+          borderRadius:
+          BorderRadius.circular(
+            12,
+          ),
+
+
+          child:
+          SizedBox(
+
+            width:
+            displayWidth,
+
+            height:
+            displayHeight,
+
+
+            child:
+            Stack(
+
+              fit:
+              StackFit.expand,
+
+
+              children: [
+
+                // ========================================
+                // THUMBNAIL
+                // ========================================
+
+                if (
+                thumbUrl !=
+                    null
+                )
+
+                  Image.network(
+
+                    thumbUrl,
+
+                    fit:
+                    BoxFit.cover,
+
+
+                    errorBuilder:
+                        (
+                        context,
+                        error,
+                        stackTrace,
+                        ) {
+
+                      return Container(
+
+                        color:
+                        const Color(
+                          0xFFE0E5E9,
+                        ),
+
+                        alignment:
+                        Alignment.center,
+
+                        child:
+                        const Icon(
+                          Icons
+                              .videocam_outlined,
+
+                          size:
+                          46,
+                        ),
+                      );
+                    },
+                  )
+
+                else
+
+                  Container(
+
+                    color:
+                    const Color(
+                      0xFFE0E5E9,
+                    ),
+
+                    alignment:
+                    Alignment.center,
+
+                    child:
+                    const Icon(
+
+                      Icons
+                          .videocam_outlined,
+
+                      size:
+                      46,
+                    ),
+                  ),
+
+
+                // ========================================
+                // DARK OVERLAY
+                // ========================================
+
+                const ColoredBox(
+
+                  color:
+                  Color(
+                    0x22000000,
+                  ),
+                ),
+
+
+                // ========================================
+                // PLAY BUTTON
+                // ========================================
+
+                const Center(
+
+                  child:
+                  IgnorePointer(
+
+                    child:
+                    DecoratedBox(
+
+                      decoration:
+                      BoxDecoration(
+
+                        color:
+                        Color(
+                          0xCC000000,
+                        ),
+
+                        shape:
+                        BoxShape.circle,
+                      ),
+
+
+                      child:
+                      Padding(
+
+                        padding:
+                        EdgeInsets.all(
+                          12,
+                        ),
+
+
+                        child:
+                        Icon(
+
+                          Icons
+                              .play_arrow_rounded,
+
+                          size:
+                          36,
+
+                          color:
+                          Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFileMessage(
+      Map<String, dynamic> message,
+      ) {
+
+    final fileName =
+    message['fileName']
+        ?.toString()
+        .trim();
+
+
+    final extension =
+    message['fileExtension']
+        ?.toString()
+        .trim()
+        .toUpperCase();
+
+
+    final fileSize =
+    _formatFileSize(
+      message[
+      'mediaFileSize'
+      ],
+    );
+
+
+    final safeFileName =
+    fileName != null &&
+        fileName.isNotEmpty
+        ? fileName
+        : 'Tệp đính kèm';
+
+
+    return Material(
+
+      color:
+      Colors.transparent,
+
+
+      child:
+      InkWell(
+
+        borderRadius:
+        BorderRadius.circular(
+          12,
+        ),
+
+
+        onTap:
+            () {
+
+          _openFileMessage(
+            message,
+          );
+        },
+
+
+        child:
+        Container(
+
+          constraints:
+          const BoxConstraints(
+            maxWidth:
+            285,
+          ),
+
+          padding:
+          const EdgeInsets.all(
+            11,
+          ),
+
+          decoration:
+          BoxDecoration(
+
+            color:
+            Colors.white,
+
+            borderRadius:
+            BorderRadius.circular(
+              12,
+            ),
+
+            boxShadow:
+            const [
+
+              BoxShadow(
+                color:
+                Color(
+                  0x10000000,
+                ),
+
+                blurRadius:
+                3,
+
+                offset:
+                Offset(
+                  0,
+                  1,
+                ),
+              ),
+            ],
+          ),
+
+          child:
+          Row(
+
+            mainAxisSize:
+            MainAxisSize.min,
+
+            children: [
+
+              Container(
+
+                width:
+                48,
+
+                height:
+                48,
+
+                decoration:
+                BoxDecoration(
+
+                  color:
+                  const Color(
+                    0xFFE8F3FA,
+                  ),
+
+                  borderRadius:
+                  BorderRadius.circular(
+                    10,
+                  ),
+                ),
+
+                alignment:
+                Alignment.center,
+
+                child:
+                extension !=
+                    null &&
+                    extension
+                        .isNotEmpty
+
+                    ? Text(
+
+                  extension,
+
+                  maxLines:
+                  1,
+
+                  style:
+                  const TextStyle(
+
+                    fontSize:
+                    11,
+
+                    fontWeight:
+                    FontWeight.w700,
+
+                    color:
+                    Color(
+                      0xFF1687C9,
+                    ),
+                  ),
+                )
+
+                    : const Icon(
+
+                  Icons
+                      .insert_drive_file_outlined,
+
+                  color:
+                  Color(
+                    0xFF1687C9,
+                  ),
+                ),
+              ),
+
+
+              const SizedBox(
+                width:
+                10,
+              ),
+
+
+              Flexible(
+
+                child:
+                Column(
+
+                  mainAxisSize:
+                  MainAxisSize.min,
+
+                  crossAxisAlignment:
+                  CrossAxisAlignment.start,
+
+                  children: [
+
+                    Text(
+
+                      safeFileName,
+
+                      maxLines:
+                      2,
+
+                      overflow:
+                      TextOverflow.ellipsis,
+
+                      style:
+                      const TextStyle(
+
+                        fontSize:
+                        14,
+
+                        fontWeight:
+                        FontWeight.w600,
+
+                        color:
+                        Color(
+                          0xFF26333D,
+                        ),
+                      ),
+                    ),
+
+
+                    if (
+                    fileSize
+                        .isNotEmpty
+                    ) ...[
+
+                      const SizedBox(
+                        height:
+                        4,
+                      ),
+
+
+                      Text(
+
+                        fileSize,
+
+                        style:
+                        const TextStyle(
+
+                          fontSize:
+                          11,
+
+                          color:
+                          Color(
+                            0xFF87939D,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+
+              const SizedBox(
+                width:
+                6,
+              ),
+
+
+              const Icon(
+
+                Icons
+                    .open_in_new_rounded,
+
+                size:
+                21,
+
+                color:
+                Color(
+                  0xFF1687C9,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -8542,6 +10533,235 @@ class _ChatPageState
     );
   }
 
+  Widget _buildSimpleMediaRow(
+      Map<String, dynamic> message,
+      int index,
+      Widget media,
+      ) {
+
+    final isSelf =
+        message['isSelf'] ==
+            true;
+
+
+    final senderName =
+        message['senderName']
+            ?.toString() ??
+            'Thành viên';
+
+
+    final isTarget =
+        index ==
+            targetIndex;
+
+
+    final stableKey =
+        message['id']
+            ?.toString() ??
+            message['msgId']
+                ?.toString() ??
+            message['cliMsgId']
+                ?.toString() ??
+            index.toString();
+
+
+    final content =
+    Container(
+
+      key:
+      isTarget
+          ? targetMessageKey
+          : ValueKey(
+        'chat-media-$stableKey',
+      ),
+
+      color:
+      isTarget &&
+          highlightTarget
+          ? const Color(
+        0x332197F3,
+      )
+          : Colors.transparent,
+
+      padding:
+      const EdgeInsets.fromLTRB(
+        10,
+        4,
+        10,
+        4,
+      ),
+
+      child:
+      Row(
+
+        mainAxisAlignment:
+        isSelf
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
+
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
+
+        children: [
+
+          if (
+          !isSelf
+          ) ...[
+
+            CircleAvatar(
+
+              radius:
+              17,
+
+              backgroundColor:
+              const Color(
+                0xFF76D770,
+              ),
+
+              child:
+              Text(
+
+                _messageInitials(
+                  senderName,
+                ),
+
+                style:
+                const TextStyle(
+
+                  fontSize:
+                  11,
+
+                  fontWeight:
+                  FontWeight.w500,
+
+                  color:
+                  Colors.white,
+                ),
+              ),
+            ),
+
+
+            const SizedBox(
+              width:
+              7,
+            ),
+          ],
+
+
+          Flexible(
+
+            child:
+            Column(
+
+              crossAxisAlignment:
+              isSelf
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+
+              children: [
+
+                if (
+                !isSelf
+                ) ...[
+
+                  Padding(
+
+                    padding:
+                    const EdgeInsets.only(
+                      left:
+                      2,
+
+                      bottom:
+                      4,
+                    ),
+
+                    child:
+                    Text(
+
+                      senderName,
+
+                      style:
+                      const TextStyle(
+
+                        fontSize:
+                        12,
+
+                        fontWeight:
+                        FontWeight.w600,
+
+                        color:
+                        Color(
+                          0xFF1579AF,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
+
+                media,
+
+
+                const SizedBox(
+                  height:
+                  3,
+                ),
+
+
+                Text(
+
+                  formatTime(
+                    message[
+                    'timestamp'
+                    ],
+                  ),
+
+                  style:
+                  const TextStyle(
+
+                    fontSize:
+                    10,
+
+                    color:
+                    Color(
+                      0xFF87939D,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+
+    return _SwipeReplyWrapper(
+
+      enabled:
+      true,
+
+      onReply:
+          () {
+
+        _startReply(
+          message,
+        );
+      },
+
+      onLongPress:
+          () {
+
+        _showMessageActions(
+          message,
+        );
+      },
+
+      child:
+      content,
+    );
+  }
+
   // ========================================
   // MESSAGE BUBBLE
   // ========================================
@@ -8644,6 +10864,80 @@ class _ChatPageState
       return _buildPhotoMediaRow(
         message,
         index,
+      );
+    }
+
+    // ========================================
+// STICKER
+// ========================================
+
+    if (
+    status ==
+        'normal' &&
+        _isStickerMessage(
+          message,
+        )
+    ) {
+
+      return _buildSimpleMediaRow(
+
+        message,
+
+        index,
+
+        _buildStickerMessage(
+          message,
+        ),
+      );
+    }
+
+
+// ========================================
+// VIDEO
+// ========================================
+
+    if (
+    status ==
+        'normal' &&
+        _isVideoMessage(
+          message,
+        )
+    ) {
+
+      return _buildSimpleMediaRow(
+
+        message,
+
+        index,
+
+        _buildVideoMessage(
+          message,
+        ),
+      );
+    }
+
+
+// ========================================
+// FILE
+// ========================================
+
+    if (
+    status ==
+        'normal' &&
+        _isFileMessage(
+          message,
+        )
+    ) {
+
+      return _buildSimpleMediaRow(
+
+        message,
+
+        index,
+
+        _buildFileMessage(
+          message,
+        ),
       );
     }
 
@@ -9570,7 +11864,6 @@ class _ChatPageState
                       ),
                     ),
                   ),
-
 
                   const SizedBox(
                     width:

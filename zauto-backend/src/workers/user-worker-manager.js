@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import {
   ThreadType,
 } from "zca-js";
@@ -55,6 +57,29 @@ import {
 
 const workers =
   new Map();
+
+// ========================================
+// STICKER DETAIL CACHE
+//
+// KEY:
+// stickerId
+//
+// VALUE:
+// {
+//   detail,
+//   cachedAt
+// }
+// ========================================
+
+const stickerDetailCache =
+  new Map();
+
+
+const STICKER_CACHE_TTL_MS =
+  24 *
+  60 *
+  60 *
+  1000;
 
 // ========================================
 // NETWORK STATE
@@ -353,15 +378,90 @@ function publicWorker(worker) {
 }
 
 // ========================================
-// DEBUG PHOTO ALBUM
-//
-// MUC TIEU:
-// XAC DINH PAYLOAD THAT KHI ZALO
-// GUI NHIEU ANH CUNG MOT LAN.
+// GET STICKER DETAIL WITH CACHE
 // ========================================
 
-function debugPhotoAlbumMessage(
-  userId,
+async function getStickerDetailCached(
+  api,
+  stickerId
+) {
+
+  const key =
+    String(
+      stickerId
+    );
+
+
+  const now =
+    Date.now();
+
+
+  const cached =
+    stickerDetailCache.get(
+      key
+    );
+
+
+  if (
+    cached &&
+    now -
+      cached.cachedAt <
+      STICKER_CACHE_TTL_MS
+  ) {
+
+    console.log(
+      "[STICKER CACHE] HIT:",
+      key
+    );
+
+
+    return cached.detail;
+  }
+
+
+  console.log(
+    "[STICKER CACHE] MISS:",
+    key
+  );
+
+
+  const detail =
+    await api
+      .getStickersDetail(
+        stickerId
+      );
+
+
+  stickerDetailCache.set(
+    key,
+    {
+      detail,
+
+      cachedAt:
+        now,
+    }
+  );
+
+
+  return detail;
+}
+
+// ========================================
+// ENRICH STICKER MESSAGE
+//
+// ZALO LISTENER CHI TRA:
+//
+// content: {
+//   id,
+//   catId,
+//   type
+// }
+//
+// CAN GOI getStickersDetail()
+// DE LAY URL / THUMB THAT.
+// ========================================
+
+async function enrichStickerMessage(
   worker,
   message
 ) {
@@ -382,30 +482,11 @@ function debugPhotoAlbumMessage(
 
   if (
     msgType !==
-      "chat.photo"
+    "chat.sticker"
   ) {
 
-    return;
+    return message;
   }
-
-
-  // Toi da 12 anh/log trong moi lan worker chay.
-  if (
-    (
-      worker.photoAlbumDebugCount ??
-      0
-    ) >= 12
-  ) {
-
-    return;
-  }
-
-
-  worker.photoAlbumDebugCount =
-    (
-      worker.photoAlbumDebugCount ??
-      0
-    ) + 1;
 
 
   const content =
@@ -416,126 +497,85 @@ function debugPhotoAlbumMessage(
       : {};
 
 
-  let params =
-    {};
+  const stickerId =
+    content?.id;
 
-
-  // ========================================
-  // ZALO THUONG TRA params DUOI DANG
-  // JSON STRING
-  // ========================================
 
   if (
-    typeof content.params ===
-      "string" &&
-    content.params.trim()
+    stickerId == null
   ) {
 
-    try {
+    console.warn(
+      "[STICKER] MISSING ID:",
+      data?.msgId ??
+      data?.cliMsgId ??
+      null
+    );
 
-      params =
-        JSON.parse(
-          content.params
-        );
 
-    } catch (error) {
-
-      params = {
-        parseError:
-          error?.message ??
-          String(error),
-
-        raw:
-          content.params,
-      };
-    }
-
-  } else if (
-    content.params &&
-    typeof content.params ===
-      "object"
-  ) {
-
-    params =
-      content.params;
+    return message;
   }
 
 
-  console.log(
-    "\n========================================"
-  );
-
-  console.log(
-    "[PHOTO ALBUM DEBUG]"
-  );
+  const api =
+    worker?.api;
 
 
-  console.log({
-    userId:
-      String(userId),
+  if (
+    !api ||
+    typeof api.getStickersDetail !==
+      "function"
+  ) {
 
-    threadId:
-      message?.threadId ??
-      null,
-
-    isSelf:
-      message?.isSelf ??
-      null,
-
-    msgId:
-      data?.msgId ??
-      null,
-
-    cliMsgId:
-      data?.cliMsgId ??
-      null,
-
-    ts:
-      data?.ts ??
-      null,
-
-    msgType,
-
-    href:
-      content?.href ??
-      null,
-
-    thumb:
-      content?.thumb ??
-      null,
-  });
+    console.warn(
+      "[STICKER] getStickersDetail NOT AVAILABLE"
+    );
 
 
-  console.log(
-    "[PHOTO ALBUM PARAMS]"
-  );
+    return message;
+  }
 
 
-  console.dir(
-    params,
-    {
-      depth:
-        10,
+  try {
 
-      colors:
-        false,
+    const detail =
+      await getStickerDetailCached(
+        api,
+        stickerId
+      );
 
-      maxArrayLength:
-        50,
+    // ========================================
+    // KHONG GHI DE PAYLOAD GOC
+    //
+    // CHI GAN THEM stickerDetail
+    // VAO content.
+    // ========================================
 
-      maxStringLength:
-        3000,
-    }
-  );
+    data.content = {
+      ...content,
+
+      stickerDetail:
+        detail ??
+        null,
+    };
 
 
-  console.log(
-    "[PHOTO ALBUM DEBUG END]"
-  );
+    return message;
 
-  console.log(
-    "========================================\n"
-  );
+  } catch (error) {
+
+    console.error(
+      "[STICKER] DETAIL ERROR:",
+      stickerId,
+      error?.message ??
+      error
+    );
+
+
+    // Loi lay sticker khong duoc
+    // lam mat message.
+    return message;
+  }
 }
 
 // ========================================
@@ -1598,14 +1638,6 @@ export async function startUserWorker(
     status:
       "starting",
 
-      // ========================================
-      // PHOTO ALBUM DEBUG
-      // TAM THOI DUNG O BUOC 347
-      // ========================================
-
-      photoAlbumDebugCount:
-        0,
-
     ownId:
       null,
 
@@ -1753,18 +1785,12 @@ export async function startUserWorker(
     api.listener.on(
       "message",
 
-      (message) => {
+      async (message) => {
 
-      // ========================================
-      // BUOC 347
-      // DEBUG ALBUM PHOTO
-      // ========================================
-
-      debugPhotoAlbumMessage(
-        key,
-        worker,
-        message
-      );
+        await enrichStickerMessage(
+          worker,
+          message
+        );
 
         // ========================================
         // 1. LUON LUU CONVERSATION
@@ -3131,7 +3157,6 @@ export async function sendUserConversationPhoto(
 
   return result;
 }
-
 
 // ========================================
 // STATUS ONE USER
