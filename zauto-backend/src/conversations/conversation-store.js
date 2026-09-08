@@ -3524,3 +3524,98 @@ export function getUserConversationMessageContext(
       messages.length,
   };
 }
+
+// ========================================
+// DELETE USER CONVERSATION
+//
+// CHI XOA DU LIEU LOCAL CUA APP.
+// KHONG ROI NHOM ZALO.
+// KHONG XOA TIN NHAN TREN ZALO.
+// ========================================
+
+export function deleteUserConversation(
+  userId,
+  groupId
+) {
+
+  const safeGroupId =
+    String(
+      groupId ??
+      ""
+    ).trim();
+
+
+  if (!safeGroupId) {
+
+    return {
+      deleted:
+        false,
+
+      reason:
+        "INVALID_GROUP_ID",
+    };
+  }
+
+
+  const file =
+    indexFile(
+      userId
+    );
+
+
+  const conversations =
+    readJson(
+      file,
+      []
+    );
+
+
+  const beforeLength =
+    conversations.length;
+
+
+  const filtered =
+    conversations.filter(
+      item =>
+        String(
+          item?.groupId ??
+          ""
+        ) !==
+        safeGroupId
+    );
+
+
+  if (
+    filtered.length ===
+    beforeLength
+  ) {
+
+    return {
+      deleted:
+        false,
+
+      reason:
+        "NOT_FOUND",
+    };
+  }
+
+
+  sortConversations(
+    filtered
+  );
+
+
+  writeJsonAtomic(
+    file,
+    filtered
+  );
+
+
+  return {
+    deleted:
+      true,
+
+    groupId:
+      safeGroupId,
+  };
+}

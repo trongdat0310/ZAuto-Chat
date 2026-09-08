@@ -143,6 +143,7 @@ import {
   getUserConversationMessageContext,
   markUserConversationRead,
   setUserConversationPinned,
+  deleteUserConversation,
 } from "./conversations/conversation-store.js";
 
 import {
@@ -3917,6 +3918,106 @@ app.patch(
 
       console.error(
         "[CONVERSATION PIN] ERROR:",
+        req.user.id,
+        req.params.groupId,
+        error
+      );
+
+
+      return res
+        .status(500)
+        .json({
+          success:
+            false,
+
+          error:
+            error?.message ??
+            String(error),
+        });
+    }
+  }
+);
+
+// ========================================
+// DELETE CONVERSATION LOCAL
+// ========================================
+
+app.delete(
+  "/api/me/conversations/:groupId",
+
+  requireAuth,
+
+  (
+    req,
+    res
+  ) => {
+
+    try {
+
+      const groupId =
+        String(
+          req.params.groupId ??
+          ""
+        ).trim();
+
+
+      if (!groupId) {
+
+        return res
+          .status(400)
+          .json({
+            success:
+              false,
+
+            error:
+              "Group ID khong hop le.",
+          });
+      }
+
+
+      const result =
+        deleteUserConversation(
+          req.user.id,
+          groupId
+        );
+
+
+      if (
+        !result.deleted
+      ) {
+
+        return res
+          .status(404)
+          .json({
+            success:
+              false,
+
+            error:
+              "Khong tim thay hoi thoai.",
+          });
+      }
+
+
+      broadcastUserEvent(
+        req.user.id,
+        "conversation_deleted",
+        {
+          groupId,
+        }
+      );
+
+
+      return res.json({
+        success:
+          true,
+
+        groupId,
+      });
+
+    } catch (error) {
+
+      console.error(
+        "[CONVERSATION DELETE] ERROR:",
         req.user.id,
         req.params.groupId,
         error

@@ -4984,51 +4984,82 @@ class _ChatPageState
 
   int _findTargetIndex() {
 
-    return messages.indexWhere(
-          (
-          message,
-          ) {
-
-        final messageMsgId =
-        message['msgId']
-            ?.toString();
+    final safeTargetMsgId =
+        widget.targetMsgId
+            ?.trim() ??
+            '';
 
 
-        final messageCliMsgId =
-        message['cliMsgId']
-            ?.toString();
+    final safeTargetCliMsgId =
+        widget.targetCliMsgId
+            ?.trim() ??
+            '';
 
 
-        final sameMsgId =
-            widget.targetMsgId !=
-                null &&
-                widget.targetMsgId!
-                    .isNotEmpty &&
-                messageMsgId !=
-                    null &&
-                messageMsgId
-                    .isNotEmpty &&
-                messageMsgId ==
-                    widget.targetMsgId;
+    // ========================================
+    // QUAN TRONG:
+    //
+    // Neu co targetMsgId,
+    // CHI tim bang msgId.
+    //
+    // KHONG duoc de cliMsgId cua message khac
+    // ghi de ket qua.
+    // ========================================
+
+    if (
+    safeTargetMsgId.isNotEmpty
+    ) {
+
+      return messages.indexWhere(
+            (
+            message,
+            ) {
+
+          final messageMsgId =
+              message['msgId']
+                  ?.toString()
+                  .trim() ??
+                  '';
 
 
-        final sameCliMsgId =
-            widget.targetCliMsgId !=
-                null &&
-                widget.targetCliMsgId!
-                    .isNotEmpty &&
-                messageCliMsgId !=
-                    null &&
-                messageCliMsgId
-                    .isNotEmpty &&
-                messageCliMsgId ==
-                    widget.targetCliMsgId;
+          return messageMsgId.isNotEmpty &&
+              messageMsgId ==
+                  safeTargetMsgId;
+        },
+      );
+    }
 
 
-        return sameMsgId ||
-            sameCliMsgId;
-      },
-    );
+    // ========================================
+    // CHI KHI KHONG CO msgId
+    // MOI FALLBACK SANG cliMsgId.
+    // ========================================
+
+    if (
+    safeTargetCliMsgId.isNotEmpty
+    ) {
+
+      return messages.indexWhere(
+            (
+            message,
+            ) {
+
+          final messageCliMsgId =
+              message['cliMsgId']
+                  ?.toString()
+                  .trim() ??
+                  '';
+
+
+          return messageCliMsgId.isNotEmpty &&
+              messageCliMsgId ==
+                  safeTargetCliMsgId;
+        },
+      );
+    }
+
+
+    return -1;
   }
 
   Future<void> loadMessages() async {
@@ -5277,16 +5308,7 @@ class _ChatPageState
           true;
           });
 
-
           _removeTargetHighlightLater();
-
-
-          debugPrint(
-            'TARGET SEEK DONE: '
-                'index=$foundIndex '
-                'messages=${messages.length}',
-          );
-
 
           return;
         }
@@ -5487,14 +5509,6 @@ class _ChatPageState
 
 
           _removeTargetHighlightLater();
-
-
-          debugPrint(
-            'TARGET FOUND AFTER PAGE LOAD: '
-                'index=$foundAfterLoad '
-                'messages=${messages.length}',
-          );
-
 
           return;
         }
@@ -5999,14 +6013,6 @@ class _ChatPageState
           curve:
           Curves.easeInOut,
         );
-
-
-        debugPrint(
-          'TARGET CENTER SUCCESS: '
-              'index=$targetIndex '
-              'pixels=${scrollController.position.pixels}',
-        );
-
 
         return true;
       }

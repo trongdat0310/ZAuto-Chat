@@ -291,6 +291,12 @@ export async function acceptUserMessage(
     null;
 
 
+  const replyCliMsgId =
+    result?.message?.cliMsgId ??
+    result?.cliMsgId ??
+    null;
+
+
   // ========================================
   // MARK TRIP AS ACCEPTED
   // ========================================
@@ -306,10 +312,21 @@ export async function acceptUserMessage(
         replyText:
           text,
 
+        // ========================================
+        // TIN "NHAN" CUA CHINH USER
+        // ========================================
+
         replyZaloMessageId:
           replyMsgId != null
             ? String(
                 replyMsgId
+              )
+            : null,
+
+        replyZaloCliMessageId:
+          replyCliMsgId != null
+            ? String(
+                replyCliMsgId
               )
             : null,
 

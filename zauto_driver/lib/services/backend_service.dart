@@ -2625,5 +2625,88 @@ class BackendService {
     }
   }
 
+  Future<void>
+  deleteConversation({
+    required String groupId,
+  }) async {
+
+    final safeGroupId =
+    groupId.trim();
+
+
+    if (
+    safeGroupId.isEmpty
+    ) {
+
+      throw Exception(
+        'Group ID không hợp lệ',
+      );
+    }
+
+
+    final headers =
+    await auth
+        .authHeaders();
+
+
+    final encodedGroupId =
+    Uri.encodeComponent(
+      safeGroupId,
+    );
+
+
+    final response =
+    await http.delete(
+
+      Uri.parse(
+        '$baseUrl/api/me/conversations/'
+            '$encodedGroupId',
+      ),
+
+      headers:
+      headers,
+    );
+
+
+    dynamic decoded;
+
+
+    try {
+
+      decoded =
+          jsonDecode(
+            response.body,
+          );
+
+    } catch (_) {
+
+      decoded =
+      null;
+    }
+
+
+    if (
+    response.statusCode <
+        200 ||
+        response.statusCode >=
+            300 ||
+        decoded is! Map ||
+        decoded['success'] !=
+            true
+    ) {
+
+      throw Exception(
+
+        decoded is Map
+            ? (
+            decoded['error'] ??
+                'Không thể xóa cuộc trò chuyện'
+        ).toString()
+
+            : 'Không thể xóa cuộc trò chuyện',
+      );
+    }
+  }
+
 }
 

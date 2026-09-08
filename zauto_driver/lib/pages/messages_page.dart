@@ -148,6 +148,8 @@ class _MessagesPageState
                 type !=
                     'conversation_pinned' &&
                 type !=
+                    'conversation_deleted' &&
+                type !=
                     'new_trip'
                 ) {
                   return;
@@ -891,24 +893,79 @@ class _MessagesPageState
       trip['sourceThreadId'],
       trip['groupId'],
       trip['threadId'],
-    ]);
+    ]);// ========================================
+// TARGET CUA LICH SU NHAN
+//
+// Neu co replyZaloMessageId:
+// -> day la tin "Nhan" cua chinh minh.
+// -> TUYET DOI KHONG dung cliMsgId cua tin goc.
+//
+// Chi fallback ve source message
+// neu cuoc cu KHONG co replyZaloMessageId.
+// ========================================
 
-
-    final msgId =
+    final replyMsgId =
     firstNonEmptyString([
-      trip['sourceMsgId'],
-      trip['zaloMessageId'],
-      trip['msgId'],
+      trip['replyZaloMessageId'],
     ]);
 
 
-    final cliMsgId =
+    final replyCliMsgId =
     firstNonEmptyString([
-      trip['sourceCliMsgId'],
-      trip['clientMessageId'],
-      trip['cliMsgId'],
+      trip['replyZaloCliMessageId'],
     ]);
 
+
+    final String? msgId;
+
+
+    final String? cliMsgId;
+
+
+    if (
+    replyMsgId != null &&
+        replyMsgId.isNotEmpty
+    ) {
+
+      // ========================================
+      // CUOC MOI:
+      // NHAY DEN TIN "NHAN"
+      // ========================================
+
+      msgId =
+          replyMsgId;
+
+
+      // Co thi dung.
+      // Khong co thi de null.
+      //
+      // KHONG fallback sang sourceCliMsgId.
+      cliMsgId =
+          replyCliMsgId;
+
+    } else {
+
+      // ========================================
+      // CUOC CU:
+      // CHUA LUU replyZaloMessageId
+      // -> fallback ve tin nguoi gui.
+      // ========================================
+
+      msgId =
+          firstNonEmptyString([
+            trip['sourceMsgId'],
+            trip['zaloMessageId'],
+            trip['msgId'],
+          ]);
+
+
+      cliMsgId =
+          firstNonEmptyString([
+            trip['sourceCliMsgId'],
+            trip['clientMessageId'],
+            trip['cliMsgId'],
+          ]);
+    }
 
     final groupName =
         firstNonEmptyString([
@@ -1029,81 +1086,501 @@ class _MessagesPageState
       Map<String, dynamic> conversation,
       ) async {
 
+    final colorScheme =
+        Theme.of(context)
+            .colorScheme;
+
     final pinned =
-        conversation[
-        'pinned'
-        ] ==
+        conversation['pinned'] ==
             true;
 
+    final name =
+        conversation['name']
+            ?.toString() ??
+            'Nhóm Zalo';
 
-    await showModalBottomSheet<void>(
+    await showDialog<void>(
 
       context:
       context,
 
-      showDragHandle:
-      true,
+      barrierColor:
+      const Color(
+        0x99000000,
+      ),
+
 
       builder:
           (
-          sheetContext,
+          dialogContext,
           ) {
 
-        return SafeArea(
+        return Dialog(
+
+          alignment:
+          Alignment.centerLeft,
+
+
+          insetPadding:
+          const EdgeInsets.symmetric(
+            horizontal:
+            16,
+          ),
+
+
+          backgroundColor:
+          Colors.transparent,
+
+
+          elevation:
+          0,
+
 
           child:
-          Column(
+          ConstrainedBox(
 
-            mainAxisSize:
-            MainAxisSize.min,
-
-            children: [
-
-              ListTile(
-
-                leading:
-                Icon(
-                  pinned
-                      ? Icons
-                      .push_pin_outlined
-
-                      : Icons
-                      .push_pin_rounded,
-                ),
-
-                title:
-                Text(
-                  pinned
-                      ? 'Bỏ ghim nhóm'
-                      : 'Ghim nhóm',
-                ),
-
-                onTap:
-                    () {
-
-                  Navigator
-                      .of(
-                    sheetContext,
-                  )
-                      .pop();
+            constraints:
+            const BoxConstraints(
+              maxWidth:
+              360,
+            ),
 
 
-                  toggleConversationPin(
-                    conversation,
-                  );
-                },
+            child:
+            Material(
+              color:
+              colorScheme.surface,
+
+              borderRadius:
+              BorderRadius.circular(
+                18,
               ),
 
+              clipBehavior:
+              Clip.antiAlias,
 
-              const SizedBox(
-                height:
-                8,
+              child:
+              Column(
+
+                mainAxisSize:
+                MainAxisSize.min,
+
+
+                children: [
+
+                  // ========================================
+                  // HEADER
+                  // ========================================
+
+                  Padding(
+
+                    padding:
+                    const EdgeInsets.fromLTRB(
+                      20,
+                      18,
+                      20,
+                      14,
+                    ),
+
+
+                    child:
+                    Row(
+
+                      children: [
+
+                        const CircleAvatar(
+
+                          radius:
+                          20,
+
+                          child:
+                          Icon(
+                            Icons.group_rounded,
+                          ),
+                        ),
+
+
+                        const SizedBox(
+                          width:
+                          12,
+                        ),
+
+
+                        Expanded(
+
+                          child:
+                          Text(
+
+                            name,
+
+                            maxLines:
+                            1,
+
+                            overflow:
+                            TextOverflow.ellipsis,
+
+                            style:
+                            TextStyle(
+                              fontSize:
+                              17,
+
+                              fontWeight:
+                              FontWeight.w600,
+
+                              color:
+                              colorScheme
+                                  .onSurface,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+
+                  const Divider(
+                    height:
+                    1,
+                  ),
+
+
+                  // ========================================
+                  // PIN / UNPIN
+                  // ========================================
+
+                  ListTile(
+
+                    minLeadingWidth:
+                    34,
+
+
+                    leading:
+                    Icon(
+
+                      pinned
+                          ? Icons
+                          .push_pin_outlined
+
+                          : Icons
+                          .push_pin_rounded,
+
+                      size:
+                      27,
+
+                      color:
+                      pinned
+                          ? colorScheme
+                          .primary
+                          : colorScheme
+                          .onSurface,
+                    ),
+
+
+                    title:
+                    Text(
+
+                      pinned
+                          ? 'Bỏ ghim'
+                          : 'Ghim',
+
+                      style:
+                      TextStyle(
+                        fontSize:
+                        18,
+
+                        color:
+                        colorScheme
+                            .onSurface,
+                      ),
+                    ),
+
+
+                    contentPadding:
+                    const EdgeInsets.symmetric(
+                      horizontal:
+                      22,
+
+                      vertical:
+                      5,
+                    ),
+
+
+                    onTap:
+                        () {
+
+                      Navigator.of(
+                        dialogContext,
+                      ).pop();
+
+
+                      toggleConversationPin(
+                        conversation,
+                      );
+                    },
+                  ),
+
+
+                  // ========================================
+                  // DELETE
+                  // ========================================
+
+                  ListTile(
+
+                    minLeadingWidth:
+                    34,
+
+
+                    leading:
+                    const Icon(
+
+                      Icons
+                          .delete_outline_rounded,
+
+                      size:
+                      28,
+
+                      color:
+                      Colors.red,
+                    ),
+
+
+                    title:
+                    const Text(
+
+                      'Xóa',
+
+                      style:
+                      TextStyle(
+
+                        fontSize:
+                        18,
+
+                        color:
+                        Colors.red,
+
+                        fontWeight:
+                        FontWeight.w400,
+                      ),
+                    ),
+
+
+                    contentPadding:
+                    const EdgeInsets.symmetric(
+                      horizontal:
+                      22,
+
+                      vertical:
+                      5,
+                    ),
+
+
+                    onTap:
+                        () {
+
+                      Navigator.of(
+                        dialogContext,
+                      ).pop();
+
+
+                      _confirmDeleteConversation(
+                        conversation,
+                      );
+                    },
+                  ),
+
+
+                  const SizedBox(
+                    height:
+                    8,
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         );
       },
     );
+  }
+
+  Future<void>
+  _confirmDeleteConversation(
+      Map<String, dynamic> conversation,
+      ) async {
+
+    final name =
+        conversation['name']
+            ?.toString() ??
+            'nhóm này';
+
+
+    final confirmed =
+    await showDialog<bool>(
+
+      context:
+      context,
+
+
+      builder:
+          (
+          dialogContext,
+          ) {
+
+        return AlertDialog(
+
+          title:
+          const Text(
+            'Xóa cuộc trò chuyện?',
+          ),
+
+
+          content:
+          Text(
+            'Bạn có chắc muốn xóa "$name" khỏi danh sách tin nhắn?',
+          ),
+
+
+          actions: [
+
+            TextButton(
+
+              onPressed:
+                  () {
+
+                Navigator.of(
+                  dialogContext,
+                ).pop(
+                  false,
+                );
+              },
+
+              child:
+              const Text(
+                'Hủy',
+              ),
+            ),
+
+
+            FilledButton(
+
+              style:
+              FilledButton.styleFrom(
+                backgroundColor:
+                Colors.red,
+              ),
+
+              onPressed:
+                  () {
+
+                Navigator.of(
+                  dialogContext,
+                ).pop(
+                  true,
+                );
+              },
+
+              child:
+              const Text(
+                'Xóa',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+
+    if (
+    confirmed !=
+        true
+    ) {
+
+      return;
+    }
+
+
+    await _deleteConversation(
+      conversation,
+    );
+  }
+
+  Future<void>
+  _deleteConversation(
+      Map<String, dynamic> conversation,
+      ) async {
+
+    final groupId =
+    conversation['groupId']
+        ?.toString()
+        .trim();
+
+
+    if (
+    groupId == null ||
+        groupId.isEmpty
+    ) {
+
+      return;
+    }
+
+
+    try {
+
+      await backend
+          .deleteConversation(
+        groupId:
+        groupId,
+      );
+
+
+      if (!mounted) {
+        return;
+      }
+
+
+      setState(() {
+
+        conversations.removeWhere(
+              (
+              item,
+              ) =>
+          item['groupId']
+              ?.toString() ==
+              groupId,
+        );
+      });
+
+
+      ScaffoldMessenger
+          .of(context)
+          .showSnackBar(
+
+        const SnackBar(
+          content:
+          Text(
+            'Đã xóa cuộc trò chuyện',
+          ),
+        ),
+      );
+
+    } catch (error) {
+
+      if (!mounted) {
+        return;
+      }
+
+
+      ScaffoldMessenger
+          .of(context)
+          .showSnackBar(
+
+        SnackBar(
+          content:
+          Text(
+            'Xóa thất bại: $error',
+          ),
+        ),
+      );
+    }
   }
 
 
@@ -1396,31 +1873,69 @@ class _MessagesPageState
                         ),
                       ),
 
-                      if (
-                      pinned
-                      )
-                        Padding(
+                      // ========================================
+// PIN / UNPIN BUTTON
+// ========================================
+
+                      SizedBox(
+
+                        width:
+                        34,
+
+                        height:
+                        34,
+
+                        child:
+                        IconButton(
+
+                          tooltip:
+                          pinned
+                              ? 'Bỏ ghim nhóm'
+                              : 'Ghim nhóm',
+
 
                           padding:
-                          const EdgeInsets.only(
-                            left:
-                            6,
-                          ),
+                          EdgeInsets.zero,
 
-                          child:
+
+                          visualDensity:
+                          VisualDensity.compact,
+
+
+                          onPressed:
+                              () {
+
+                            toggleConversationPin(
+                              conversation,
+                            );
+                          },
+
+
+                          icon:
                           Icon(
 
-                            Icons
-                                .push_pin_rounded,
+                            pinned
+                                ? Icons
+                                .push_pin_rounded
+
+                                : Icons
+                                .push_pin_outlined,
+
 
                             size:
-                            16,
+                            18,
+
 
                             color:
-                            colorScheme
-                                .primary,
+                            pinned
+                                ? colorScheme
+                                .primary
+
+                                : colorScheme
+                                .onSurfaceVariant,
                           ),
                         ),
+                      ),
 
                       if (
                       notifying
