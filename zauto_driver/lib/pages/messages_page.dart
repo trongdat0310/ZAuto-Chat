@@ -831,6 +831,10 @@ class _MessagesPageState
             ?.toString() ??
             'Nhóm Zalo';
 
+    final groupAvatar =
+    conversation['avatar']
+        ?.toString();
+
 
     await Navigator
         .of(context)
@@ -844,6 +848,9 @@ class _MessagesPageState
 
               groupName:
               groupName,
+
+              groupAvatar:
+              groupAvatar,
             ),
       ),
     );
@@ -858,6 +865,49 @@ class _MessagesPageState
       showLoading:
       false,
     );
+  }
+
+  String? _getGroupAvatar(
+      String groupId,
+      ) {
+
+    for (
+    final conversation
+    in conversations
+    ) {
+
+      final conversationGroupId =
+      conversation['groupId']
+          ?.toString()
+          .trim();
+
+
+      if (
+      conversationGroupId ==
+          groupId.trim()
+      ) {
+
+        final avatar =
+        conversation['avatar']
+            ?.toString()
+            .trim();
+
+
+        if (
+        avatar != null &&
+            avatar.isNotEmpty
+        ) {
+
+          return avatar;
+        }
+
+
+        return null;
+      }
+    }
+
+
+    return null;
   }
 
   String? firstNonEmptyString(
@@ -987,6 +1037,11 @@ class _MessagesPageState
       return;
     }
 
+    final groupAvatar =
+    _getGroupAvatar(
+      groupId,
+    );
+
 
     if (
     (
@@ -1022,6 +1077,9 @@ class _MessagesPageState
 
               groupName:
               groupName,
+
+              groupAvatar:
+              groupAvatar,
 
               targetMsgId:
               msgId,

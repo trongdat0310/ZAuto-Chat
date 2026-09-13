@@ -1646,6 +1646,7 @@ export function saveConversationMessage(
     message,
     groupName = null,
     senderName = null,
+    senderAvatar = null,
   }
 ) {
   const groupId =
@@ -1806,6 +1807,10 @@ export function saveConversationMessage(
       senderName ??
       data.dName ??
       data.senderName ??
+      null,
+
+    senderAvatar:
+      senderAvatar ??
       null,
 
     isSelf:

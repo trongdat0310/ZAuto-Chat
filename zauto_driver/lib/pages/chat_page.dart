@@ -2728,8 +2728,8 @@ class ChatPage
     extends StatefulWidget {
 
   final String groupId;
-
   final String groupName;
+  final String? groupAvatar;
 
 
   // Dung cho Lich su nhan sau nay.
@@ -2742,6 +2742,7 @@ class ChatPage
 
     required this.groupId,
     required this.groupName,
+    required this.groupAvatar,
 
     this.targetMsgId,
     this.targetCliMsgId,
@@ -10370,43 +10371,10 @@ class _ChatPageState
           if (
           !isSelf
           ) ...[
-
-            CircleAvatar(
-
-              radius:
-              17,
-
-              backgroundColor:
-              const Color(
-                0xFF76D770,
-              ),
-
-              child:
-              Text(
-
-                _messageInitials(
-                  senderName,
-                ),
-
-                style:
-                const TextStyle(
-
-                  fontSize:
-                  11,
-
-                  fontWeight:
-                  FontWeight.w500,
-
-                  color:
-                  Colors.white,
-                ),
-              ),
-            ),
-
+            _buildSenderAvatar(message),
 
             const SizedBox(
-              width:
-              7,
+              width: 8,
             ),
           ],
 
@@ -10613,43 +10581,10 @@ class _ChatPageState
           if (
           !isSelf
           ) ...[
-
-            CircleAvatar(
-
-              radius:
-              17,
-
-              backgroundColor:
-              const Color(
-                0xFF76D770,
-              ),
-
-              child:
-              Text(
-
-                _messageInitials(
-                  senderName,
-                ),
-
-                style:
-                const TextStyle(
-
-                  fontSize:
-                  11,
-
-                  fontWeight:
-                  FontWeight.w500,
-
-                  color:
-                  Colors.white,
-                ),
-              ),
-            ),
-
+            _buildSenderAvatar(message),
 
             const SizedBox(
-              width:
-              7,
+              width: 8,
             ),
           ],
 
@@ -10765,6 +10700,42 @@ class _ChatPageState
 
       child:
       content,
+    );
+  }
+
+  Widget _buildSenderAvatar(
+      Map<String, dynamic> message,
+      ) {
+    final senderName =
+        message['senderName']
+            ?.toString() ??
+            'Thành viên';
+
+    final senderAvatar =
+    message['senderAvatar']
+        ?.toString()
+        .trim();
+
+    return CircleAvatar(
+      radius: 17,
+
+      backgroundImage:
+      senderAvatar != null &&
+          senderAvatar.isNotEmpty
+          ? NetworkImage(
+        senderAvatar,
+      )
+          : null,
+
+      child:
+      senderAvatar == null ||
+          senderAvatar.isEmpty
+          ? Text(
+        _messageInitials(
+          senderName,
+        ),
+      )
+          : null,
     );
   }
 
@@ -11499,40 +11470,10 @@ class _ChatPageState
           if (
           !isSelf
           ) ...[
-
-            CircleAvatar(
-              radius:
-              17,
-
-              backgroundColor:
-              const Color(
-                0xFF76D770,
-              ),
-
-              child:
-              Text(
-                _messageInitials(
-                  senderName,
-                ),
-
-                style:
-                const TextStyle(
-                  fontSize:
-                  11,
-
-                  fontWeight:
-                  FontWeight.w500,
-
-                  color:
-                  Colors.white,
-                ),
-              ),
-            ),
-
+            _buildSenderAvatar(message),
 
             const SizedBox(
-              width:
-              7,
+              width: 8,
             ),
           ],
           Flexible(
@@ -12081,34 +12022,116 @@ class _ChatPageState
 
       appBar:
       AppBar(
+
         title:
-        Column(
-          crossAxisAlignment:
-          CrossAxisAlignment.start,
+        Row(
 
           children: [
 
-            Text(
-              widget.groupName,
+            // ========================================
+            // AVATAR NHOM
+            // ========================================
 
-              maxLines:
-              1,
+            CircleAvatar(
 
-              overflow:
-              TextOverflow
-                  .ellipsis,
+              radius:
+              19,
+
+              backgroundImage:
+              widget.groupAvatar != null &&
+                  widget.groupAvatar!
+                      .trim()
+                      .isNotEmpty
+                  ? NetworkImage(
+                widget.groupAvatar!,
+              )
+                  : null,
+
+              child:
+              widget.groupAvatar == null ||
+                  widget.groupAvatar!
+                      .trim()
+                      .isEmpty
+                  ? const Icon(
+                Icons.group_rounded,
+                size:
+                21,
+              )
+                  : null,
             ),
 
-            const Text(
-              'Nhóm Zalo',
 
-              style:
-              TextStyle(
-                fontSize:
-                12,
+            const SizedBox(
+              width:
+              10,
+            ),
 
-                fontWeight:
-                FontWeight.normal,
+
+            // ========================================
+            // TEN NHOM
+            // ========================================
+
+            Expanded(
+
+              child:
+              Column(
+
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
+
+                mainAxisSize:
+                MainAxisSize.min,
+
+                children: [
+
+                  Text(
+
+                    widget.groupName,
+
+                    maxLines:
+                    1,
+
+                    overflow:
+                    TextOverflow.ellipsis,
+
+                    style:
+                    const TextStyle(
+
+                      fontSize:
+                      16,
+
+                      fontWeight:
+                      FontWeight.w600,
+                    ),
+                  ),
+
+
+                  Text(
+
+                    'Nhóm Zalo',
+
+                    maxLines:
+                    1,
+
+                    overflow:
+                    TextOverflow.ellipsis,
+
+                    style:
+                    TextStyle(
+
+                      fontSize:
+                      12,
+
+                      fontWeight:
+                      FontWeight.normal,
+
+                      color:
+                      Theme.of(context)
+                          .colorScheme
+                          .onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

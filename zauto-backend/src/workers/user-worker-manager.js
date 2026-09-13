@@ -48,6 +48,10 @@ import {
 } from "../conversations/conversation-store.js";
 
 import {
+  getUserAvatars,
+} from "../users/user-avatar-service.js";
+
+import {
   getUserMessageSettings,
 } from "../settings/user-message-settings-store.js";
 
@@ -809,6 +813,55 @@ async function storeConversationEvent(
     data?.senderName ??
     null;
 
+    // ========================================
+    // LAY AVATAR NGUOI GUI
+    // ========================================
+
+    const senderId =
+      data?.uidFrom != null
+        ? String(
+            data.uidFrom
+          ).trim()
+        : "";
+
+
+    let senderAvatar =
+      null;
+
+
+    if (
+      senderId
+    ) {
+
+      try {
+
+        const avatars =
+          await getUserAvatars(
+            userId,
+            [
+              senderId,
+            ]
+          );
+
+
+        senderAvatar =
+          avatars[
+            senderId
+          ] ??
+          null;
+
+      } catch (error) {
+
+        console.warn(
+          "[USER AVATAR] MESSAGE ENRICH ERROR:",
+          userId,
+          senderId,
+          error?.message ??
+          error
+        );
+      }
+    }
+
 
   // ========================================
   // LUU VAO CONVERSATION STORE
@@ -819,8 +872,12 @@ async function storeConversationEvent(
       userId,
       {
         message,
+
         groupName,
+
         senderName,
+
+        senderAvatar,
       }
     );
 
@@ -1060,30 +1117,6 @@ function requestMissedGroupMessages(
           worker.historySyncCursor =
             cursor;
 
-
-          console.log(
-            "[CONVERSATION] REQUEST OLD MESSAGES:",
-            key,
-            {
-              cursorMsgId:
-                cursor?.msgId ??
-                null,
-
-              cursorTimestamp:
-                cursor?.timestamp ??
-                null,
-
-              cursorGroupId:
-                cursor?.groupId ??
-                null,
-
-              cursorContent:
-                cursor?.content ??
-                null,
-            }
-          );
-
-
           // ========================================
           // CO CURSOR:
           // BAT DAU TU MESSAGE CUOI DA LUU.
@@ -1109,15 +1142,6 @@ function requestMissedGroupMessages(
                 ThreadType.Group
               );
           }
-
-
-          console.log(
-            "[CONVERSATION] OLD MESSAGES REQUEST SENT:",
-            key,
-            "cursor=",
-            cursor?.msgId ??
-            null
-          );
 
 
           // ========================================
@@ -1874,13 +1898,6 @@ export async function startUserWorker(
           return;
         }
 
-
-        console.log(
-          "[CONVERSATION] OLD MESSAGES RECEIVED:",
-          key,
-          oldMessages.length
-        );
-
         // ========================================
         // KIEM TRA HUONG CUA CURSOR
         // ========================================
@@ -1977,31 +1994,6 @@ export async function startUserWorker(
           }
         }
 
-
-        console.log(
-          "[CONVERSATION] OLD MESSAGES CURSOR DIAG:",
-          key,
-          {
-            cursorMsgId:
-              worker
-                .historySyncCursor
-                ?.msgId ??
-              null,
-
-            cursorTimestamp,
-
-            total:
-              oldMessages.length,
-
-            newerThanCursor,
-
-            olderOrEqualCursor,
-
-            minTimestamp,
-
-            maxTimestamp,
-          }
-        );
 
         // ========================================
         // DEBUG OLD MESSAGE BATCH
@@ -2171,14 +2163,6 @@ export async function startUserWorker(
               });
           }
         }
-
-
-        console.log(
-          "[CONVERSATION] OLD MESSAGES DIAG:",
-          key,
-          oldMessageDiag
-        );
-
 
         void (
           async () => {

@@ -83,7 +83,6 @@ export async function getUserGroups(
         groupId
       ];
 
-
     const group = {
       groupId:
         String(groupId),
@@ -91,6 +90,12 @@ export async function getUserGroups(
       name:
         info?.name ??
         "Unknown Group",
+
+      avatar:
+        info?.avatar ??
+        info?.avt ??
+        info?.fullAvt ??
+        null,
 
       totalMember:
         info?.totalMember ??

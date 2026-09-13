@@ -17,6 +17,7 @@ import 'pages/account_page.dart';
 import 'pages/messages_page.dart';
 import 'pages/settings_page.dart';
 import 'services/theme_service.dart';
+import 'controllers/settings_controller.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(
@@ -57,6 +58,7 @@ Future<void> firebaseMessagingBackgroundHandler(
 }
 
 Future<void> main() async {
+
   WidgetsFlutterBinding
       .ensureInitialized();
 
@@ -74,15 +76,33 @@ Future<void> main() async {
   );
 
 
+  // ========================================
+  // LOAD APP SETTINGS
+  // ========================================
+
+  final settingsController =
+  SettingsController();
+
+  await settingsController.load();
+
   runApp(
-    const ZautoDriverApp(),
+    ZautoDriverApp(
+      settingsController:
+      settingsController,
+    ),
   );
 }
 
 class ZautoDriverApp extends StatelessWidget {
 
+  final SettingsController settingsController;
+
   const ZautoDriverApp({
+
     super.key,
+
+    required this.settingsController,
+
   });
 
 
@@ -154,7 +174,9 @@ class ZautoDriverApp extends StatelessWidget {
 
 
           home:
-          const AuthGate(),
+          AuthGate(
+            settingsController: settingsController,
+          ),
         );
       },
     );
@@ -162,8 +184,16 @@ class ZautoDriverApp extends StatelessWidget {
 }
 
 class AuthGate extends StatefulWidget {
+
+  final SettingsController settingsController;
+
+
   const AuthGate({
+
     super.key,
+
+    required this.settingsController,
+
   });
 
   @override
@@ -383,10 +413,22 @@ class _AuthGateState
 // ========================================
 
     return MainScreen(
-      user: user!,
-      onLogout: logout,
-      onAuthChanged: refreshAuth,
-      onAccountDeleted: accountDeleted,
+
+      user:
+      user!,
+
+      onLogout:
+      logout,
+
+      onAuthChanged:
+      refreshAuth,
+
+      onAccountDeleted:
+      accountDeleted,
+
+      settingsController:
+      widget.settingsController,
+
     );
   }
 }
@@ -406,6 +448,7 @@ class MainScreen
   final Future<void> Function()
   onAccountDeleted;
 
+  final SettingsController settingsController;
 
   const MainScreen({
     super.key,
@@ -413,6 +456,7 @@ class MainScreen
     required this.onLogout,
     required this.onAuthChanged,
     required this.onAccountDeleted,
+    required this.settingsController,
   });
 
 
@@ -426,13 +470,10 @@ class _MainScreenState
 
   int currentIndex = 0;
 
-  int tripDisplaySeconds = 10;
-
   int filterInitialTab = 0;
 
-  double notificationFontSize = 12;
-
-  String acceptButtonPosition = 'right';
+  SettingsController get settingsController =>
+      widget.settingsController;
 
   Future<void> openZaloLink() async {
 
@@ -548,12 +589,10 @@ class _MainScreenState
 
       zaloLinked
           ? HomePage(
-        tripDisplaySeconds: tripDisplaySeconds,
-        notificationFontSize: notificationFontSize,
         onOpenGroups: openGroupsFromHome,
         onOpenNotificationFilter: openNotificationFilter,
         onOpenAutoAcceptFilter: openAutoAcceptFilter,
-        acceptButtonPosition: acceptButtonPosition,
+        settingsController: settingsController,
       )
           : ZaloRequiredPage(
         onLinkZalo:
@@ -587,12 +626,7 @@ class _MainScreenState
       // ========================================
 
       SettingsPage(
-        tripDisplaySeconds: tripDisplaySeconds,
-        onTripDisplaySecondsChanged: updateTripDisplaySeconds,
-        notificationFontSize: notificationFontSize,
-        onNotificationFontSizeChanged: updateNotificationFontSize,
-        acceptButtonPosition: acceptButtonPosition,
-        onAcceptButtonPositionChanged: updateAcceptButtonPosition,
+        settingsController: settingsController,
       ),
 
 
@@ -628,6 +662,11 @@ class _MainScreenState
     ];
   }
 
+  @override
+  void initState() {
+
+    super.initState();
+  }
 
   @override
   Widget build(
@@ -836,61 +875,6 @@ class _MainScreenState
 
     setState(() {
       currentIndex = 2;
-    });
-  }
-
-  void updateTripDisplaySeconds(
-      int seconds,
-      ) {
-
-    if (
-    seconds != 5 &&
-        seconds != 10 &&
-        seconds != 15
-    ) {
-      return;
-    }
-
-
-    setState(() {
-      tripDisplaySeconds =
-          seconds;
-    });
-  }
-
-  void updateNotificationFontSize(
-      double size,
-      ) {
-
-    if (
-    size < 10 ||
-        size > 30
-    ) {
-      return;
-    }
-
-
-    setState(() {
-      notificationFontSize =
-          size;
-    });
-  }
-
-  void updateAcceptButtonPosition(
-      String position,
-      ) {
-
-    if (
-    position != 'left' &&
-        position != 'right'
-    ) {
-      return;
-    }
-
-
-    setState(() {
-      acceptButtonPosition =
-          position;
     });
   }
 }
@@ -1137,9 +1121,7 @@ class ZaloRequiredPage
 class HomePage
     extends StatefulWidget {
 
-  final int tripDisplaySeconds;
-
-  final double notificationFontSize;
+  final SettingsController settingsController;
 
   final Future<void> Function()onOpenGroups;
 
@@ -1147,18 +1129,14 @@ class HomePage
 
   final VoidCallback onOpenAutoAcceptFilter;
 
-  final String acceptButtonPosition;
-
 
   const HomePage({
     super.key,
 
-    required this.tripDisplaySeconds,
-    required this.notificationFontSize,
     required this.onOpenGroups,
     required this.onOpenNotificationFilter,
     required this.onOpenAutoAcceptFilter,
-    required this.acceptButtonPosition,
+    required this.settingsController,
   });
 
 
@@ -1839,7 +1817,10 @@ class _HomePageState extends State<HomePage> {
     // COUNTDOWN RIENG CUA CUOC
     // ========================================
     newTrip['_remainingSeconds'] =
-        widget.tripDisplaySeconds;
+        widget
+            .settingsController
+            .settings
+            .tripDisplaySeconds;
 
     setState(() {
 
@@ -1916,13 +1897,12 @@ class _HomePageState extends State<HomePage> {
 
 
         final currentRemaining =
-        activeTrips[index][
-        '_remainingSeconds'
-        ] is int
-            ? activeTrips[index][
-        '_remainingSeconds'
-        ] as int
+        activeTrips[index]['_remainingSeconds']
+        is int
+            ? activeTrips[index]['_remainingSeconds'] as int
             : widget
+            .settingsController
+            .settings
             .tripDisplaySeconds;
 
 
@@ -2540,12 +2520,13 @@ class _HomePageState extends State<HomePage> {
             'new';
 
     final remainingSeconds =
-        trip['_remainingSeconds']
-            is int
-                ? trip['_remainingSeconds']
-            as int
-                : widget
-                .tripDisplaySeconds;
+    trip['_remainingSeconds']
+    is int
+        ? trip['_remainingSeconds'] as int
+        : widget
+        .settingsController
+        .settings
+        .tripDisplaySeconds;
 
     final isCountdownWarning =
         remainingSeconds <= 3;
@@ -2919,7 +2900,10 @@ class _HomePageState extends State<HomePage> {
               style:
               TextStyle(
                 fontSize:
-                widget.notificationFontSize,
+                widget
+                    .settingsController
+                    .settings
+                    .chatFontSize,
 
                 fontWeight:
                 FontWeight.w600,
@@ -2966,7 +2950,10 @@ class _HomePageState extends State<HomePage> {
               // NHAN BEN TRAI
               // ========================================
 
-              widget.acceptButtonPosition ==
+              widget
+                  .settingsController
+                  .settings
+                  .acceptButtonPosition ==
                   'left'
                   ? [
 

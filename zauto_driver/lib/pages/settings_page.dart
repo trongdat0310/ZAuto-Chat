@@ -1,55 +1,24 @@
 import 'package:flutter/material.dart';
+
 import '../services/theme_service.dart';
 import '../config/app_config.dart';
 import '../services/backend_service.dart';
 
+import '../services/settings_service.dart';
+
+import '../controllers/settings_controller.dart';
+
 class SettingsPage
     extends StatefulWidget {
 
-  // ========================================
-  // THOI GIAN HIEN THONG BAO
-  // ========================================
-
-  final int tripDisplaySeconds;
-
-  final ValueChanged<int>
-  onTripDisplaySecondsChanged;
-
-
-  // ========================================
-  // CO CHU THONG BAO
-  // ========================================
-
-  final double notificationFontSize;
-
-  final ValueChanged<double>
-  onNotificationFontSizeChanged;
-
-
-  // ========================================
-  // VI TRI NUT NHAN
-  // ========================================
-
-  final String acceptButtonPosition;
-
-  final ValueChanged<String>
-  onAcceptButtonPositionChanged;
-
+  final SettingsController settingsController;
 
   const SettingsPage({
+
     super.key,
 
-    required this.tripDisplaySeconds,
+    required this.settingsController,
 
-    required this.onTripDisplaySecondsChanged,
-
-    required this.notificationFontSize,
-
-    required this.onNotificationFontSizeChanged,
-
-    required this.acceptButtonPosition,
-
-    required this.onAcceptButtonPositionChanged,
   });
 
 
@@ -60,6 +29,9 @@ class SettingsPage
 
 class _SettingsPageState
     extends State<SettingsPage> {
+
+  final SettingsService settingsService =
+  SettingsService();
 
   final BackendService backend =
   BackendService(
@@ -399,7 +371,7 @@ class _SettingsPageState
                                 onSelectionChanged:
                                     (
                                     value,
-                                    ) {
+                                    ) async {
 
                                   if (
                                   value.isEmpty
@@ -430,7 +402,6 @@ class _SettingsPageState
                                       .setFromKey(
                                     selected,
                                   );
-
 
                                   // ========================================
                                   // UPDATE BOTTOM SHEET
@@ -516,7 +487,7 @@ class _SettingsPageState
                                 onChanged:
                                     (
                                     value,
-                                    ) {
+                                    ) async {
 
                                   // ========================================
                                   // UPDATE SETTINGS LOCAL UI
@@ -532,11 +503,11 @@ class _SettingsPageState
                                   // UPDATE TOAN APP
                                   // ========================================
 
-                                  widget
-                                      .onNotificationFontSizeChanged(
+                                  await widget
+                                      .settingsController
+                                      .updateFontSize(
                                     value,
                                   );
-
 
                                   // ========================================
                                   // UPDATE BOTTOM SHEET
@@ -877,11 +848,11 @@ class _SettingsPageState
                     // 2. UPDATE HOME PAGE
                     // ========================================
 
-                    widget
-                        .onTripDisplaySecondsChanged(
+                    await widget
+                        .settingsController
+                        .updateTripDisplaySeconds(
                       value,
                     );
-
 
                     try {
 
@@ -894,7 +865,6 @@ class _SettingsPageState
                         dedupeWindowSeconds:
                         value,
                       );
-
 
                       // ========================================
                       // KIEM TRA STATE SETTINGS PAGE
@@ -939,12 +909,15 @@ class _SettingsPageState
                             oldValue;
                       });
 
-
-                      widget
-                          .onTripDisplaySecondsChanged(
+                      await widget
+                          .settingsController
+                          .updateTripDisplaySeconds(
                         oldValue,
                       );
 
+                      if (!mounted) {
+                        return;
+                      }
 
                       ScaffoldMessenger
                           .of(context)
@@ -1044,8 +1017,9 @@ class _SettingsPageState
           savedSeconds == 15
       ) {
 
-        widget
-            .onTripDisplaySecondsChanged(
+        await widget
+            .settingsController
+            .updateTripDisplaySeconds(
           savedSeconds!,
         );
       }
@@ -1123,7 +1097,7 @@ class _SettingsPageState
                   onChanged:
                       (
                       value,
-                      ) {
+                      ) async {
 
                     if (
                     value ==
@@ -1139,11 +1113,15 @@ class _SettingsPageState
                     });
 
 
-                    widget
-                        .onAcceptButtonPositionChanged(
+                    await widget
+                        .settingsController
+                        .updateAcceptButtonPosition(
                       value,
                     );
 
+                    if (!pickerContext.mounted) {
+                      return;
+                    }
 
                     Navigator.of(
                       pickerContext,
@@ -1399,6 +1377,9 @@ class _SettingsPageState
                                     () {},
                               );
 
+                              if (!mounted) {
+                                return;
+                              }
 
                               ScaffoldMessenger
                                   .of(context)
@@ -1935,56 +1916,38 @@ class _SettingsPageState
 
   @override
   void initState() {
+
     super.initState();
 
+
+    final settings =
+        widget
+            .settingsController
+            .settings;
+
+
+    selectedTheme =
+        settings
+            .themeMode
+            .name;
+
+
     currentTripDisplaySeconds =
-        widget.tripDisplaySeconds;
+        settings
+            .tripDisplaySeconds;
+
 
     notificationFontSize =
-        widget.notificationFontSize;
+        settings
+            .chatFontSize;
+
 
     currentAcceptButtonPosition =
-        widget.acceptButtonPosition;
+        settings
+            .acceptButtonPosition;
+
 
     loadMessageSettings();
   }
 
-  @override
-  void didUpdateWidget(
-      covariant SettingsPage oldWidget,
-      ) {
-
-    super.didUpdateWidget(
-      oldWidget,
-    );
-
-
-    if (
-    oldWidget.tripDisplaySeconds !=
-        widget.tripDisplaySeconds
-    ) {
-
-      currentTripDisplaySeconds =
-          widget.tripDisplaySeconds;
-    }
-
-
-    if (
-    oldWidget.notificationFontSize !=
-        widget.notificationFontSize
-    ) {
-
-      notificationFontSize =
-          widget.notificationFontSize;
-    }
-
-    if (
-    oldWidget.acceptButtonPosition !=
-        widget.acceptButtonPosition
-    ) {
-
-      currentAcceptButtonPosition =
-          widget.acceptButtonPosition;
-    }
-  }
 }
