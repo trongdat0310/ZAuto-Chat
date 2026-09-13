@@ -2759,6 +2759,9 @@ class _ChatPageState
     extends State<ChatPage>
     with WidgetsBindingObserver {
 
+  bool get _isDarkTheme =>
+      Theme.of(context).brightness ==
+          Brightness.dark;
 
 // ========================================
 // VOICE PLAYER
@@ -4571,6 +4574,34 @@ class _ChatPageState
         });
       }
     }
+  }
+
+  Widget _buildChatBackground({
+    required Widget child,
+  }) {
+    final image =
+    _isDarkTheme
+        ? 'assets/images/chat_bg_dark.png'
+        : 'assets/images/chat_bg_light.png';
+
+    return Container(
+      decoration:
+      BoxDecoration(
+        image:
+        DecorationImage(
+          image:
+          AssetImage(
+            image,
+          ),
+
+          fit:
+          BoxFit.cover,
+        ),
+      ),
+
+      child:
+      child,
+    );
   }
 
   Future<void>
@@ -12489,9 +12520,8 @@ class _ChatPageState
     return Scaffold(
 
       backgroundColor:
-      const Color(
-        0xFFE9EDF7,
-      ),
+      Theme.of(context)
+          .scaffoldBackgroundColor,
 
       appBar:
       AppBar(
@@ -12621,139 +12651,123 @@ class _ChatPageState
           // ========================================
 
           Expanded(
+
             child:
-            ColoredBox(
-              color:
-                const Color(
-                  0xFFE9EDF7,
-                ),
+            _buildChatBackground(
 
               child:
-                loading
-                ? const Center(
-              child:
-              CircularProgressIndicator(),
-            )
 
-                : messages.isEmpty
-                ? ListView(
-              physics:
-              const AlwaysScrollableScrollPhysics(),
+              loading
 
-              children:
-              const [
+                  ? const Center(
+                child:
+                CircularProgressIndicator(),
+              )
 
-                SizedBox(
-                  height:
-                  250,
-                ),
+                  : messages.isEmpty
 
-                Icon(
-                  Icons
-                      .chat_bubble_outline,
-
-                  size:
-                  64,
-                ),
-
-                SizedBox(
-                  height:
-                  14,
-                ),
-
-                Text(
-                  'Chưa có tin nhắn',
-
-                  textAlign:
-                  TextAlign.center,
-
-                  style:
-                  TextStyle(
-                    fontSize:
-                    19,
-
-                    fontWeight:
-                    FontWeight.w600,
-                  ),
-                ),
-              ],
-            )
-
-                : NotificationListener<
-                ScrollNotification>(
-
-              onNotification:
-              _handleScrollNotification,
-
-              child:
-              ListView(
-                controller:
-                scrollController,
-
-
-                // ========================================
-                // REVERSE CHAT
-                //
-                // OFFSET 0 = TIN MOI NHAT
-                // ========================================
-
-                reverse:
-                true,
-
-
-                // Khi keo danh sach chat
-                // thi dong ban phim.
-                keyboardDismissBehavior:
-                ScrollViewKeyboardDismissBehavior
-                    .onDrag,
-
-
-                padding:
-                const EdgeInsets.symmetric(
-                  vertical:
-                  12,
-                ),
-
+                  ? ListView(
 
                 physics:
                 const AlwaysScrollableScrollPhysics(),
 
-
                 children:
-                List.generate(
-                  messages.length,
+                const [
 
-                      (
-                      displayIndex,
-                      ) {
+                  SizedBox(
+                    height:
+                    250,
+                  ),
 
-                    // ========================================
-                    // DATA:
-                    //
-                    // CU NHAT -> MOI NHAT
-                    //
-                    // HIEN THI:
-                    //
-                    // MOI NHAT -> CU NHAT
-                    // ========================================
+                  Icon(
+                    Icons
+                        .chat_bubble_outline,
 
-                    final messageIndex =
-                        messages.length -
-                            1 -
-                            displayIndex;
+                    size:
+                    64,
+                  ),
 
+                  SizedBox(
+                    height:
+                    14,
+                  ),
 
-                    return buildMessage(
-                      messages[
-                      messageIndex],
+                  Text(
+                    'Chưa có tin nhắn',
 
-                      messageIndex,
-                    );
-                  },
+                    textAlign:
+                    TextAlign.center,
+
+                    style:
+                    TextStyle(
+                      fontSize:
+                      19,
+
+                      fontWeight:
+                      FontWeight.w600,
+                    ),
+                  ),
+                ],
+              )
+
+                  : NotificationListener<
+                  ScrollNotification>(
+
+                onNotification:
+                _handleScrollNotification,
+
+                child:
+                ListView(
+
+                  controller:
+                  scrollController,
+
+                  // ========================================
+                  // REVERSE CHAT
+                  // ========================================
+
+                  reverse:
+                  true,
+
+                  keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior
+                      .onDrag,
+
+                  padding:
+                  const EdgeInsets.symmetric(
+                    vertical:
+                    12,
+                  ),
+
+                  physics:
+                  const AlwaysScrollableScrollPhysics(),
+
+                  children:
+                  List.generate(
+
+                    messages.length,
+
+                        (
+                        displayIndex,
+                        ) {
+
+                      final messageIndex =
+                          messages.length -
+                              1 -
+                              displayIndex;
+
+                      return buildMessage(
+
+                        messages[
+                        messageIndex],
+
+                        messageIndex,
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
-          ),
           ),
 
 

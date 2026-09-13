@@ -2334,14 +2334,6 @@ class _AccountPageState
         .toString()
         .trim();
 
-    debugPrint(
-      '[ACCOUNT UI] ZALO PROFILE: $zaloProfile',
-    );
-
-    debugPrint(
-      '[ACCOUNT UI] ZALO PHONE: $zaloPhone',
-    );
-
     final name =
         user['name']
             ?.toString() ??
