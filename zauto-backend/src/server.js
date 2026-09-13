@@ -1756,7 +1756,7 @@ app.get(
 
   requireAuth,
 
-  (req, res) => {
+  async (req, res) => {
 
     const user =
       findUserById(
@@ -1786,6 +1786,131 @@ app.get(
     const network =
       getNetworkWatchdogStatus();
 
+      // ========================================
+      // ZALO PROFILE
+      // ========================================
+
+      let zaloProfile = null;
+
+
+      if (
+        user.zaloLinked === true
+      ) {
+
+        try {
+
+          const api =
+            await connectUserZalo(
+              user.id
+            );
+
+
+          const result =
+            await api.fetchAccountInfo();
+
+
+          const zalo =
+            result?.profile ??
+            {};
+
+
+          zaloProfile = {
+
+            name:
+              zalo.displayName ??
+              zalo.zaloName ??
+              null,
+
+            avatar:
+              zalo.avatar ??
+              null,
+
+            phone:
+              zalo.phoneNumber ??
+              null,
+          };
+
+        } catch (error) {
+
+          console.warn(
+            "[ACCOUNT ZALO PROFILE] ERROR:",
+            error?.message ??
+            error
+          );
+        }
+      }
+
+
+    if (
+      user.zaloLinked === true
+    ) {
+
+      try {
+
+        const api =
+          await connectUserZalo(
+            user.id
+          );
+
+        const result =
+          await api.fetchAccountInfo();
+
+        const zalo =
+          result?.profile ??
+          {};
+
+
+        zaloProfile = {
+
+          name:
+            zalo.displayName ??
+            zalo.zaloName ??
+            null,
+
+          avatar:
+            zalo.avatar ??
+            null,
+
+          phone:
+            zalo.phoneNumber ??
+            null,
+        };
+
+        if (profile) {
+
+          zaloProfile = {
+            id:
+              zaloUserId,
+
+            name:
+              profile.name ??
+              profile.displayName ??
+              profile.dName ??
+              null,
+
+            avatar:
+              profile.avatar ??
+              profile.fullAvt ??
+              profile.avt ??
+              null,
+
+            phone:
+              profile.phoneNumber ??
+              profile.phone ??
+              null,
+          };
+        }
+
+      } catch (error) {
+
+        console.warn(
+          "[ACCOUNT ZALO PROFILE] ERROR:",
+          error?.message ??
+          error
+        );
+      }
+    }
+
 
     res.json({
       success: true,
@@ -1814,6 +1939,9 @@ app.get(
         createdAt:
           user.createdAt,
       },
+
+      zaloProfile:
+        zaloProfile,
 
       worker,
 
@@ -1945,7 +2073,7 @@ app.patch(
 
   requireAuth,
 
-  (req, res) => {
+  async (req, res) => {
 
     try {
 

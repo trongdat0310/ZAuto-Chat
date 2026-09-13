@@ -61,6 +61,8 @@ class _AccountPageState
 
   Timer? refreshTimer;
 
+  List<Map<String, dynamic>>
+  notificationGroups = [];
 
   @override
   void initState() {
@@ -116,6 +118,10 @@ class _AccountPageState
       await backend
           .getProfile();
 
+      final groups =
+      await backend
+          .getGroups();
+
 
       if (!mounted) {
         return;
@@ -124,6 +130,7 @@ class _AccountPageState
 
       setState(() {
         profile = result;
+        notificationGroups = groups;
         loading = false;
         error = null;
       });
@@ -2014,6 +2021,218 @@ class _AccountPageState
     );
   }
 
+  Widget _sectionTitle(
+      String title,
+      ) {
+    final colorScheme =
+        Theme.of(context).colorScheme;
+
+    return Padding(
+      padding:
+      const EdgeInsets.fromLTRB(
+        12,
+        22,
+        12,
+        10,
+      ),
+      child:
+      Text(
+        title,
+        style:
+        TextStyle(
+          fontSize: 14,
+          fontWeight:
+          FontWeight.w500,
+          letterSpacing:
+          0.8,
+          color:
+          colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+
+  Widget _accountTile({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    VoidCallback? onTap,
+    bool danger = false,
+  }) {
+    final colorScheme =
+        Theme.of(context).colorScheme;
+
+    final foreground =
+    danger
+        ? colorScheme.error
+        : colorScheme.onSurface;
+
+    final iconBackground =
+    danger
+        ? colorScheme.errorContainer
+        : colorScheme.primaryContainer;
+
+    return InkWell(
+      onTap:
+      onTap,
+
+      child:
+      Padding(
+        padding:
+        const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 13,
+        ),
+
+        child:
+        Row(
+          children: [
+
+            Container(
+              width: 46,
+              height: 46,
+
+              decoration:
+              BoxDecoration(
+                color:
+                iconBackground,
+                borderRadius:
+                BorderRadius.circular(
+                  13,
+                ),
+              ),
+
+              alignment:
+              Alignment.center,
+
+              child:
+              Icon(
+                icon,
+                size: 24,
+                color:
+                foreground,
+              ),
+            ),
+
+            const SizedBox(
+              width: 16,
+            ),
+
+            Expanded(
+              child:
+              Column(
+                crossAxisAlignment:
+                CrossAxisAlignment.start,
+
+                mainAxisSize:
+                MainAxisSize.min,
+
+                children: [
+
+                  Text(
+                    title,
+                    style:
+                    TextStyle(
+                      fontSize: 17,
+                      fontWeight:
+                      FontWeight.w500,
+                      color:
+                      foreground,
+                    ),
+                  ),
+
+                  if (
+                  subtitle != null &&
+                      subtitle.isNotEmpty
+                  ) ...[
+
+                    const SizedBox(
+                      height: 3,
+                    ),
+
+                    Text(
+                      subtitle,
+                      style:
+                      TextStyle(
+                        fontSize: 13,
+                        color:
+                        colorScheme
+                            .onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 26,
+              color:
+              colorScheme
+                  .onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _accountCard({
+    required List<Widget> children,
+  }) {
+    final colorScheme =
+        Theme.of(context).colorScheme;
+
+    return Container(
+      decoration:
+      BoxDecoration(
+        color:
+        colorScheme.surfaceContainer,
+        borderRadius:
+        BorderRadius.circular(
+          22,
+        ),
+        border:
+        Border.all(
+          color:
+          colorScheme.outline
+              .withValues(
+            alpha: 0.45,
+          ),
+        ),
+      ),
+
+      clipBehavior:
+      Clip.antiAlias,
+
+      child:
+      Column(
+        children:
+        children,
+      ),
+    );
+  }
+
+  void _showTopMessage(
+      String message,
+      ) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger
+        .of(context)
+        .showSnackBar(
+      SnackBar(
+        content:
+        Text(
+          message,
+        ),
+      ),
+    );
+  }
+
 
   @override
   Widget build(
@@ -2025,12 +2244,9 @@ class _AccountPageState
         profile == null
     ) {
 
-      return const Scaffold(
-        body:
-        Center(
-          child:
-          CircularProgressIndicator(),
-        ),
+      return const Center(
+        child:
+        CircularProgressIndicator(),
       );
     }
 
@@ -2040,17 +2256,15 @@ class _AccountPageState
         profile == null
     ) {
 
-      return Scaffold(
-        appBar:
-        AppBar(
-          title:
-          const Text(
-            'Tài khoản',
-          ),
-        ),
+      return Center(
 
-        body:
-        Center(
+        child:
+        Padding(
+          padding:
+          const EdgeInsets.all(
+            24,
+          ),
+
           child:
           Column(
             mainAxisSize:
@@ -2060,13 +2274,13 @@ class _AccountPageState
 
               Text(
                 error!,
+                textAlign:
+                TextAlign.center,
               ),
-
 
               const SizedBox(
                 height: 16,
               ),
-
 
               FilledButton(
                 onPressed:
@@ -2097,13 +2311,36 @@ class _AccountPageState
           {},
     );
 
-
-    final network =
+    final zaloProfile =
     Map<String, dynamic>.from(
-      profile?['network'] ??
+      profile?['zaloProfile'] ??
           {},
     );
 
+
+    final zaloAvatar =
+        zaloProfile['avatar']
+            ?.toString()
+            .trim() ??
+            '';
+
+
+    final zaloPhone =
+    (
+        zaloProfile['phone'] ??
+            zaloProfile['phoneNumber'] ??
+            ''
+    )
+        .toString()
+        .trim();
+
+    debugPrint(
+      '[ACCOUNT UI] ZALO PROFILE: $zaloProfile',
+    );
+
+    debugPrint(
+      '[ACCOUNT UI] ZALO PHONE: $zaloPhone',
+    );
 
     final name =
         user['name']
@@ -2135,12 +2372,6 @@ class _AccountPageState
             'stopped';
 
 
-    final networkState =
-        network['state']
-            ?.toString() ??
-            'unknown';
-
-
     final needRelink =
         workerStatus ==
             'needs_relink' ||
@@ -2148,468 +2379,884 @@ class _AccountPageState
                 'error';
 
 
-    return Scaffold(
-      appBar:
-      AppBar(
-        title:
-        const Text(
-          'Tài khoản',
+    // ========================================
+    // SO NHOM
+    //
+    // Neu backend chua tra groups,
+    // khong tu bịa so.
+    // ========================================
+
+    final totalGroups =
+        notificationGroups.length;
+
+
+    final enabledGroups =
+        notificationGroups
+            .where(
+              (group) =>
+          group['enabled'] ==
+              true,
+        )
+            .length;
+
+
+    final groupText =
+    totalGroups > 0
+        ? '$enabledGroups/$totalGroups nhóm nhận thông báo'
+        : '0/0 nhóm nhận thông báo';
+
+
+    final colorScheme =
+        Theme.of(context)
+            .colorScheme;
+
+
+    return RefreshIndicator(
+
+      onRefresh:
+      loadProfile,
+
+
+      child:
+      ListView(
+
+        padding:
+        const EdgeInsets.fromLTRB(
+          16,
+          34,
+          16,
+          30,
         ),
 
-        actions: [
 
-          IconButton(
-            onPressed:
-                () =>
-                loadProfile(),
+        children: [
 
-            icon:
-            const Icon(
-              Icons.refresh,
-            ),
-          ),
-        ],
-      ),
+          // ========================================
+          // HEADER
+          // ========================================
 
+          Padding(
 
-      body:
-      RefreshIndicator(
-        onRefresh:
-        loadProfile,
-
-        child:
-        ListView(
-          padding:
-          const EdgeInsets.all(
-            16,
-          ),
-
-          children: [
-
-            // =================================
-            // USER CARD
-            // =================================
-
-            Card(
-              child:
-              Padding(
-                padding:
-                const EdgeInsets.all(
-                  20,
-                ),
-
-                child:
-                Column(
-                  children: [
-
-                    CircleAvatar(
-                      radius: 34,
-
-                      child:
-                      Text(
-                        name.isNotEmpty
-                            ? name[0]
-                            .toUpperCase()
-                            : '?',
-
-                        style:
-                        const TextStyle(
-                          fontSize: 28,
-                          fontWeight:
-                          FontWeight.bold,
-                        ),
-                      ),
-                    ),
-
-
-                    const SizedBox(
-                      height: 12,
-                    ),
-
-
-                    Text(
-                      name,
-
-                      style:
-                      Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(
-                        fontWeight:
-                        FontWeight.bold,
-                      ),
-                    ),
-
-
-                    const SizedBox(
-                      height: 4,
-                    ),
-
-
-                    Text(
-                      phone,
-                    ),
-
-
-                    const SizedBox(
-                      height: 8,
-                    ),
-
-
-                    Chip(
-                      label:
-                      Text(
-                        membership,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            padding:
+            const EdgeInsets.symmetric(
+              horizontal: 8,
             ),
 
+            child:
+            Row(
 
-            const SizedBox(
-              height: 12,
-            ),
+              crossAxisAlignment:
+              CrossAxisAlignment.center,
 
+              children: [
 
-            // =================================
-            // SYSTEM STATUS
-            // =================================
+                CircleAvatar(
 
-            Card(
-              child:
-              Padding(
-                padding:
-                const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
+                  radius:
+                  46,
 
-                child:
-                Column(
-                  children: [
+                  backgroundColor:
+                  colorScheme
+                      .primaryContainer,
 
-                    infoRow(
-                      icon:
-                      Icons.cloud_outlined,
+                  child:
+                  Icon(
+                    Icons
+                        .person_rounded,
 
-                      title:
-                      'Máy chủ',
+                    size:
+                    52,
 
-                      value:
-                      networkState ==
-                          'online'
-                          ? 'Online'
-                          : networkState ==
-                          'offline'
-                          ? 'Mất Internet'
-                          : 'Đang kiểm tra',
-
-                      valueColor:
-                      networkState ==
-                          'online'
-                          ? Colors.green
-                          : Colors.orange,
-                    ),
-
-
-                    const Divider(
-                      height: 1,
-                    ),
-
-
-                    infoRow(
-                      icon:
-                      Icons.chat_outlined,
-
-                      title:
-                      'Zalo',
-
-                      value:
-                      zaloLinked
-                          ? 'Đã liên kết'
-                          : 'Chưa liên kết',
-
-                      valueColor:
-                      zaloLinked
-                          ? Colors.green
-                          : Colors.red,
-                    ),
-
-
-                    const Divider(
-                      height: 1,
-                    ),
-
-
-                    infoRow(
-                      icon:
-                      Icons.sensors,
-
-                      title:
-                      'Theo dõi realtime',
-
-                      value:
-                      workerLabel(
-                        workerStatus,
-                      ),
-
-                      valueColor:
-                      workerColor(
-                        context,
-                        workerStatus,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-
-            const SizedBox(
-              height: 20,
-            ),
-
-
-            // =================================
-            // NEED RELINK
-            // =================================
-
-            if (needRelink)
-              Card(
-                child:
-                Padding(
-                  padding:
-                  const EdgeInsets.all(
-                    16,
+                    color:
+                    colorScheme
+                        .primary,
                   ),
+                ),
+
+
+                const SizedBox(
+                  width:
+                  18,
+                ),
+
+
+                Expanded(
 
                   child:
                   Column(
+
                     crossAxisAlignment:
-                    CrossAxisAlignment
-                        .stretch,
+                    CrossAxisAlignment.start,
 
                     children: [
 
-                      const Row(
-                        children: [
+                      Text(
 
-                          Icon(
-                            Icons.warning_amber_rounded,
-                            color:
-                            Colors.orange,
-                          ),
+                        name,
 
-                          SizedBox(
-                            width: 10,
-                          ),
+                        maxLines:
+                        1,
 
-                          Expanded(
-                            child:
-                            Text(
-                              'Phiên Zalo cần được liên kết lại.',
-                              style:
-                              TextStyle(
-                                fontWeight:
-                                FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
+                        overflow:
+                        TextOverflow
+                            .ellipsis,
+
+                        style:
+                        const TextStyle(
+
+                          fontSize:
+                          25,
+
+                          fontWeight:
+                          FontWeight.w700,
+                        ),
                       ),
 
 
                       const SizedBox(
-                        height: 14,
+                        height:
+                        4,
                       ),
 
 
-                      FilledButton.icon(
-                        onPressed:
-                        unlinking
-                            ? null
-                            : relinkZalo,
+                      Text(
 
-                        icon:
-                        const Icon(
-                          Icons.qr_code,
-                        ),
+                        phone,
 
-                        label:
-                        const Text(
-                          'LIÊN KẾT LẠI ZALO',
+                        style:
+                        TextStyle(
+
+                          fontSize:
+                          17,
+
+                          color:
+                          colorScheme
+                              .onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
 
 
-            if (needRelink)
-              const SizedBox(
-                height: 16,
-              ),
+                IconButton(
 
+                  tooltip:
+                  'Làm mới',
 
-            // =================================
-// ACTIONS
-// =================================
+                  onPressed:
+                  loadProfile,
 
-// ========================================
-// DOI TEN
-// ========================================
+                  icon:
+                  const Icon(
+                    Icons
+                        .notifications_none_rounded,
 
-            OutlinedButton.icon(
-              onPressed:
-              unlinking
-                  ? null
-                  : editName,
-
-              icon:
-              const Icon(
-                Icons.edit_outlined,
-              ),
-
-              label:
-              const Text(
-                'ĐỔI TÊN',
-              ),
+                    size:
+                    30,
+                  ),
+                ),
+              ],
             ),
+          ),
 
 
-            const SizedBox(
-              height: 10,
-            ),
+          // ========================================
+          // DA LIEN KET
+          // ========================================
 
-            OutlinedButton.icon(
-              onPressed:
-              unlinking
-                  ? null
-                  : changePassword,
-
-              icon:
-              const Icon(
-                Icons.lock_outline,
-              ),
-
-              label:
-              const Text(
-                'ĐỔI MẬT KHẨU',
-              ),
-            ),
+          _sectionTitle(
+            'ĐÃ LIÊN KẾT',
+          ),
 
 
-// ========================================
-// NGAT ZALO
-// ========================================
+          _accountCard(
 
-            if (
-            zaloLinked &&
-                !needRelink
-            )
-              OutlinedButton.icon(
-                onPressed:
-                unlinking
-                    ? null
-                    : unlinkZalo,
+            children: [
 
-                icon:
-                const Icon(
-                  Icons.link_off,
+              // ==================================
+              // USER
+              // ==================================
+
+              Padding(
+
+                padding:
+                const EdgeInsets.fromLTRB(
+                  18,
+                  16,
+                  18,
+                  16,
                 ),
 
-                label:
-                const Text(
-                  'NGẮT LIÊN KẾT ZALO',
-                ),
-              ),
-
-
-            if (
-            zaloLinked &&
-                !needRelink
-            )
-              const SizedBox(
-                height: 10,
-              ),
-
-
-// ========================================
-// LOGOUT
-// ========================================
-
-            OutlinedButton.icon(
-              onPressed:
-              unlinking
-                  ? null
-                  : logout,
-
-              icon:
-              const Icon(
-                Icons.logout,
-              ),
-
-              label:
-              const Text(
-                'ĐĂNG XUẤT',
-              ),
-            ),
-
-
-            if (unlinking) ...[
-              const SizedBox(
-                height: 20,
-              ),
-
-              const Center(
                 child:
-                CircularProgressIndicator(),
+                Row(
+
+                  children: [
+
+                    CircleAvatar(
+
+                      radius:
+                      31,
+
+                      backgroundColor:
+                      colorScheme
+                          .surfaceContainerHighest,
+
+                      backgroundImage:
+                      zaloAvatar.isNotEmpty
+                          ? NetworkImage(
+                        zaloAvatar,
+                      )
+                          : null,
+
+                      child:
+                      zaloAvatar.isEmpty
+                          ? Icon(
+                        Icons.person_rounded,
+
+                        size:
+                        34,
+
+                        color:
+                        colorScheme
+                            .onSurfaceVariant,
+                      )
+                          : null,
+                    ),
+
+                    const SizedBox(
+                      width:
+                      14,
+                    ),
+
+
+                    Expanded(
+
+                      child:
+                      Column(
+
+                        crossAxisAlignment:
+                        CrossAxisAlignment.start,
+
+                        mainAxisSize:
+                        MainAxisSize.min,
+
+                        children: [
+
+                          Text(
+
+                            zaloProfile['name']
+                                ?.toString()
+                                .trim()
+                                .isNotEmpty ==
+                                true
+                                ? zaloProfile['name']
+                                .toString()
+                                .trim()
+                                : name,
+
+                            maxLines:
+                            1,
+
+                            overflow:
+                            TextOverflow
+                                .ellipsis,
+
+                            style:
+                            const TextStyle(
+
+                              fontSize:
+                              18,
+
+                              fontWeight:
+                              FontWeight.w500,
+                            ),
+                          ),
+
+
+                          if (
+                          zaloPhone.isNotEmpty
+                          ) ...[
+
+                            const SizedBox(
+                              height:
+                              4,
+                            ),
+
+                            Text(
+
+                              zaloPhone,
+
+                              style:
+                              TextStyle(
+
+                                fontSize:
+                                14,
+
+                                color:
+                                colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+
+              Divider(
+                height:
+                1,
+
+                color:
+                colorScheme
+                    .outline
+                    .withValues(
+                  alpha:
+                  0.35,
+                ),
+              ),
+
+
+              // ==================================
+              // CONNECTION
+              // ==================================
+
+              Padding(
+
+                padding:
+                const EdgeInsets.fromLTRB(
+                  18,
+                  14,
+                  18,
+                  8,
+                ),
+
+                child:
+                Row(
+
+                  children: [
+
+                    Icon(
+                      Icons
+                          .link_rounded,
+
+                      size:
+                      30,
+
+                      color:
+                      zaloLinked
+                          ? Colors.green
+                          : colorScheme
+                          .error,
+                    ),
+
+
+                    const SizedBox(
+                      width:
+                      14,
+                    ),
+
+
+                    Text(
+
+                      zaloLinked
+                          ? 'Đang kết nối'
+                          : 'Chưa liên kết',
+
+                      style:
+                      TextStyle(
+
+                        fontSize:
+                        17,
+
+                        fontWeight:
+                        FontWeight.w500,
+
+                        color:
+                        zaloLinked
+                            ? Colors.green
+                            : colorScheme
+                            .error,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+
+              // ==================================
+              // GROUP NOTIFICATION
+              // ==================================
+
+              Padding(
+
+                padding:
+                const EdgeInsets.fromLTRB(
+                  18,
+                  8,
+                  18,
+                  14,
+                ),
+
+                child:
+                Row(
+
+                  children: [
+
+                    Icon(
+
+                      Icons
+                          .notifications_none_rounded,
+
+                      size:
+                      30,
+
+                      color:
+                      colorScheme
+                          .onSurfaceVariant,
+                    ),
+
+
+                    const SizedBox(
+                      width:
+                      14,
+                    ),
+
+
+                    Text(
+
+                      groupText,
+
+                      style:
+                      const TextStyle(
+
+                        fontSize:
+                        17,
+
+                        fontWeight:
+                        FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+
+              // ==================================
+              // UNLINK
+              // ==================================
+
+              Padding(
+
+                padding:
+                const EdgeInsets.fromLTRB(
+                  18,
+                  0,
+                  18,
+                  16,
+                ),
+
+                child:
+                SizedBox(
+
+                  width:
+                  double.infinity,
+
+                  height:
+                  48,
+
+                  child:
+                  OutlinedButton.icon(
+
+                    onPressed:
+                    unlinking
+                        ? null
+                        : unlinkZalo,
+
+                    icon:
+                    Icon(
+                      Icons
+                          .link_off_rounded,
+
+                      color:
+                      colorScheme.error,
+                    ),
+
+                    label:
+                    Text(
+                      'Gỡ liên kết',
+
+                      style:
+                      TextStyle(
+                        color:
+                        colorScheme.error,
+
+                        fontSize:
+                        16,
+                      ),
+                    ),
+
+                    style:
+                    OutlinedButton.styleFrom(
+
+                      side:
+                      BorderSide(
+                        color:
+                        colorScheme
+                            .outline
+                            .withValues(
+                          alpha:
+                          0.5,
+                        ),
+                      ),
+
+                      shape:
+                      RoundedRectangleBorder(
+                        borderRadius:
+                        BorderRadius.circular(
+                          24,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ],
-
-// ========================================
-// DELETE ACCOUNT
-// ========================================
-            const SizedBox(
-              height: 18,
-            ),
+          ),
 
 
-            const Divider(),
+          // ========================================
+          // THONG TIN CA NHAN
+          // ========================================
+
+          _sectionTitle(
+            'THÔNG TIN CÁ NHÂN',
+          ),
 
 
-            const SizedBox(
-              height: 8,
-            ),
+          _accountCard(
 
+            children: [
 
-            OutlinedButton.icon(
-              onPressed:
-              unlinking
-                  ? null
-                  : deleteAccount,
+              _accountTile(
 
-              style:
-              OutlinedButton.styleFrom(
-                foregroundColor:
-                Colors.red,
+                icon:
+                Icons.lock_outline_rounded,
+
+                title:
+                'Đổi mật khẩu',
+
+                onTap:
+                unlinking
+                    ? null
+                    : changePassword,
               ),
 
-              icon:
-              const Icon(
-                Icons.delete_forever_outlined,
+
+              Divider(
+                height:
+                1,
+
+                indent:
+                78,
+
+                color:
+                colorScheme
+                    .outline
+                    .withValues(
+                  alpha:
+                  0.35,
+                ),
               ),
 
-              label:
-              const Text(
-                'XÓA TÀI KHOẢN',
+
+              _accountTile(
+
+                icon:
+                Icons.person_outline_rounded,
+
+                title:
+                'Thông tin thành viên',
+
+                subtitle:
+                membership == 'FREE'
+                    ? 'Miễn phí'
+                    : membership,
+
+                onTap:
+                editName,
+              ),
+            ],
+          ),
+
+
+          // ========================================
+          // HO TRO
+          // ========================================
+
+          _sectionTitle(
+            'HỖ TRỢ',
+          ),
+
+
+          _accountCard(
+
+            children: [
+
+              _accountTile(
+
+                icon:
+                Icons.language_rounded,
+
+                title:
+                'Trang chủ',
+
+                onTap:
+                    () {
+                  _showTopMessage(
+                    'Trang chủ',
+                  );
+                },
+              ),
+
+
+              Divider(
+                height:
+                1,
+
+                indent:
+                78,
+
+                color:
+                colorScheme
+                    .outline
+                    .withValues(
+                  alpha:
+                  0.35,
+                ),
+              ),
+
+
+              _accountTile(
+
+                icon:
+                Icons.description_outlined,
+
+                title:
+                'Hướng dẫn sử dụng',
+
+                onTap:
+                    () {
+                  _showTopMessage(
+                    'Hướng dẫn sử dụng',
+                  );
+                },
+              ),
+
+
+              Divider(
+                height:
+                1,
+
+                indent:
+                78,
+
+                color:
+                colorScheme
+                    .outline
+                    .withValues(
+                  alpha:
+                  0.35,
+                ),
+              ),
+
+
+              _accountTile(
+
+                icon:
+                Icons.support_agent_rounded,
+
+                title:
+                'Hỗ trợ khách hàng',
+
+                onTap:
+                    () {
+                  _showTopMessage(
+                    'Hỗ trợ khách hàng',
+                  );
+                },
+              ),
+            ],
+          ),
+
+
+          // ========================================
+          // NEED RELINK
+          // ========================================
+
+          if (needRelink) ...[
+
+            const SizedBox(
+              height:
+              16,
+            ),
+
+            Container(
+
+              padding:
+              const EdgeInsets.all(
+                16,
+              ),
+
+              decoration:
+              BoxDecoration(
+
+                color:
+                colorScheme
+                    .errorContainer,
+
+                borderRadius:
+                BorderRadius.circular(
+                  18,
+                ),
+              ),
+
+              child:
+              Row(
+
+                children: [
+
+                  Icon(
+                    Icons
+                        .warning_amber_rounded,
+
+                    color:
+                    colorScheme
+                        .onErrorContainer,
+                  ),
+
+                  const SizedBox(
+                    width:
+                    12,
+                  ),
+
+                  Expanded(
+
+                    child:
+                    Text(
+
+                      'Phiên Zalo cần được liên kết lại.',
+
+                      style:
+                      TextStyle(
+
+                        color:
+                        colorScheme
+                            .onErrorContainer,
+
+                        fontWeight:
+                        FontWeight.w600,
+                      ),
+                    ),
+                  ),
+
+                  IconButton(
+
+                    onPressed:
+                    relinkZalo,
+
+                    icon:
+                    const Icon(
+                      Icons
+                          .qr_code_rounded,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
-        ),
+
+
+          // ========================================
+          // THAO TAC NGUY HIEM
+          // ========================================
+
+          _sectionTitle(
+            'THAO TÁC NGUY HIỂM',
+          ),
+
+
+          _accountCard(
+
+            children: [
+
+              _accountTile(
+
+                icon:
+                Icons.logout_rounded,
+
+                title:
+                'Đăng xuất',
+
+                danger:
+                true,
+
+                onTap:
+                unlinking
+                    ? null
+                    : logout,
+              ),
+
+
+              Divider(
+                height:
+                1,
+
+                indent:
+                78,
+
+                color:
+                colorScheme
+                    .outline
+                    .withValues(
+                  alpha:
+                  0.35,
+                ),
+              ),
+
+
+              _accountTile(
+
+                icon:
+                Icons.delete_outline_rounded,
+
+                title:
+                'Xóa tài khoản',
+
+                subtitle:
+                'Xóa vĩnh viễn tài khoản khỏi hệ thống',
+
+                danger:
+                true,
+
+                onTap:
+                unlinking
+                    ? null
+                    : deleteAccount,
+              ),
+            ],
+          ),
+
+
+          const SizedBox(
+            height:
+            24,
+          ),
+        ],
       ),
     );
   }
