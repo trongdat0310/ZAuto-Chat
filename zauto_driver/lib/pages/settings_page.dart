@@ -4,8 +4,6 @@ import '../services/theme_service.dart';
 import '../config/app_config.dart';
 import '../services/backend_service.dart';
 
-import '../services/settings_service.dart';
-
 import '../controllers/settings_controller.dart';
 
 class SettingsPage
@@ -29,9 +27,6 @@ class SettingsPage
 
 class _SettingsPageState
     extends State<SettingsPage> {
-
-  final SettingsService settingsService =
-  SettingsService();
 
   final BackendService backend =
   BackendService(
@@ -398,8 +393,9 @@ class _SettingsPageState
                                   // DOI THEME TOAN BO APP
                                   // ========================================
 
-                                  ThemeService
-                                      .setFromKey(
+                                  await widget
+                                      .settingsController
+                                      .updateTheme(
                                     selected,
                                   );
 

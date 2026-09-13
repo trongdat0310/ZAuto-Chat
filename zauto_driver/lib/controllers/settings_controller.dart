@@ -66,6 +66,7 @@ class SettingsController
           mode,
         );
 
+    notifyListeners();
 
     ThemeService
         .setFromKey(
