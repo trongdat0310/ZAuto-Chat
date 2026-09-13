@@ -1635,6 +1635,210 @@ function extractConversationMediaMetadata(
   return null;
 }
 
+// ========================================
+// VOICE MEDIA METADATA
+//
+// Zalo chat.voice:
+//
+// content.href
+// content.params = JSON string:
+//
+// {
+//   "m4a": "...",
+//   "duration": 2240,
+//   "fileSize": 18165,
+//   "waveformSamples": [...]
+// }
+//
+// duration = milliseconds
+// ========================================
+
+function extractVoiceMediaMetadata(
+  data
+) {
+
+  const msgType =
+    String(
+      data?.msgType ??
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  const isVoice =
+    msgType ===
+      "chat.voice" ||
+    msgType ===
+      "chat.voice.msg" ||
+    msgType ===
+      "chat.audio" ||
+    msgType ===
+      "31";
+
+
+  if (!isVoice) {
+
+    return null;
+  }
+
+
+  const content =
+    data?.content;
+
+
+  if (
+    !content ||
+    typeof content !==
+      "object"
+  ) {
+
+    return null;
+  }
+
+
+  // ========================================
+  // URL VOICE
+  //
+  // Payload thuc te cua ban:
+  // content.href
+  // ========================================
+
+  let mediaUrl =
+    typeof content.href ===
+      "string"
+      ? content.href.trim()
+      : "";
+
+
+  // ========================================
+  // PARSE content.params
+  // ========================================
+
+  let params =
+    {};
+
+
+  if (
+    typeof content.params ===
+      "string" &&
+    content.params.trim()
+  ) {
+
+    try {
+
+      params =
+        JSON.parse(
+          content.params
+        );
+
+    } catch (error) {
+
+      console.warn(
+        "[VOICE] PARAMS PARSE ERROR:",
+        error?.message ??
+        error
+      );
+    }
+
+  } else if (
+    content.params &&
+    typeof content.params ===
+      "object"
+  ) {
+
+    params =
+      content.params;
+  }
+
+
+  // ========================================
+  // FALLBACK URL
+  //
+  // content.params.m4a
+  // ========================================
+
+  if (
+    !mediaUrl &&
+    typeof params.m4a ===
+      "string"
+  ) {
+
+    mediaUrl =
+      params.m4a.trim();
+  }
+
+
+  // ========================================
+  // DURATION
+  // ========================================
+
+  const rawDuration =
+    Number(
+      params.duration ??
+      content.duration ??
+      0
+    );
+
+
+  const duration =
+    Number.isFinite(
+      rawDuration
+    ) &&
+    rawDuration > 0
+      ? rawDuration
+      : null;
+
+
+  // ========================================
+  // FILE SIZE
+  // ========================================
+
+  const rawFileSize =
+    Number(
+      params.fileSize ??
+      content.fileSize ??
+      0
+    );
+
+
+  const fileSize =
+    Number.isFinite(
+      rawFileSize
+    ) &&
+    rawFileSize > 0
+      ? rawFileSize
+      : null;
+
+
+  // ========================================
+  // WAVEFORM
+  // ========================================
+
+  const waveformSamples =
+    Array.isArray(
+      params.waveformSamples
+    )
+      ? params.waveformSamples
+      : [];
+
+
+  return {
+
+    mediaUrl:
+      mediaUrl ||
+      null,
+
+    mediaDuration:
+      duration,
+
+    mediaFileSize:
+      fileSize,
+
+    waveformSamples,
+  };
+}
+
 
 // ========================================
 // SAVE GROUP MESSAGE
@@ -1664,6 +1868,69 @@ export function saveConversationMessage(
   const data =
     message?.data ??
     {};
+
+    // ========================================
+    // DEBUG VOICE PAYLOAD
+    // TAM THOI DE XAC DINH CAU TRUC AUDIO
+    // ========================================
+
+    const debugMsgType =
+      String(
+        data?.msgType ??
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+
+    if (
+      debugMsgType ===
+        "chat.voice" ||
+      debugMsgType ===
+        "chat.voice.msg" ||
+      debugMsgType ===
+        "chat.audio" ||
+      debugMsgType ===
+        "31"
+    ) {
+
+      console.log(
+        "\n========================================"
+      );
+
+      console.log(
+        "[VOICE DEBUG]"
+      );
+
+      console.log({
+        msgId:
+          data?.msgId ??
+          null,
+
+        cliMsgId:
+          data?.cliMsgId ??
+          null,
+
+        msgType:
+          data?.msgType ??
+          null,
+
+        content:
+          data?.content ??
+          null,
+
+        rawData:
+          data,
+      });
+
+      console.log(
+        "[VOICE DEBUG END]"
+      );
+
+      console.log(
+        "========================================\n"
+      );
+    }
 
     // ========================================
     // BO QUA EVENT KHONG PHAI MESSAGE HIEN THI
@@ -1785,6 +2052,10 @@ export function saveConversationMessage(
       data
     );
 
+  const voiceMedia =
+    extractVoiceMediaMetadata(
+      data
+    );
 
   const record = {
     id:
@@ -1831,7 +2102,11 @@ export function saveConversationMessage(
         (
           photoMedia
             ? "photo"
-            : null
+            : (
+                voiceMedia
+                  ? "voice"
+                  : null
+              )
         ),
 
 
@@ -1839,6 +2114,8 @@ export function saveConversationMessage(
         photoMedia
           ?.mediaUrl ??
         genericMedia
+          ?.mediaUrl ??
+        voiceMedia
           ?.mediaUrl ??
         null,
 
@@ -1864,12 +2141,6 @@ export function saveConversationMessage(
           ?.mediaHeight ??
         genericMedia
           ?.mediaHeight ??
-        null,
-
-
-      mediaDuration:
-        genericMedia
-          ?.mediaDuration ??
         null,
 
 
@@ -1934,6 +2205,25 @@ export function saveConversationMessage(
           ?.mediaGroupTotal ??
         null,
 
+      // ========================================
+      // VOICE
+      // ========================================
+
+      mediaDuration:
+        voiceMedia
+          ?.mediaDuration ??
+        null,
+
+      mediaFileSize:
+        voiceMedia
+          ?.mediaFileSize ??
+        null,
+
+      waveformSamples:
+        voiceMedia
+          ?.waveformSamples ??
+        null,
+
     content:
       typeof data.content ===
         "string"
@@ -1965,6 +2255,39 @@ export function saveConversationMessage(
   messages.push(
     record
   );
+
+  // ========================================
+  // DEBUG VOICE RECORD DA LUU
+  // ========================================
+
+  if (
+    record.msgType ===
+    "chat.voice"
+  ) {
+
+    console.log(
+      "[VOICE SAVED]",
+      {
+        msgId:
+          record.msgId,
+
+        mediaType:
+          record.mediaType,
+
+        mediaUrl:
+          record.mediaUrl,
+
+        mediaDuration:
+          record.mediaDuration,
+
+        mediaFileSize:
+          record.mediaFileSize,
+
+        waveformSamples:
+          record.waveformSamples,
+      }
+    );
+  }
 
 
   messages.sort(

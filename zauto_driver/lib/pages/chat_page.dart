@@ -8,6 +8,7 @@ import '../services/backend_service.dart';
 import 'dart:async';
 import 'package:video_player/video_player.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 class _SwipeReplyWrapper
     extends StatefulWidget {
@@ -440,7 +441,6 @@ class _PhotoViewerPageState
   void initState() {
 
     super.initState();
-
 
     viewerItems =
     List<_PhotoViewerItem>.from(
@@ -907,7 +907,6 @@ class _PhotoViewerPageState
 
     pageController
         .dispose();
-
 
     super.dispose();
   }
@@ -2760,6 +2759,22 @@ class _ChatPageState
     extends State<ChatPage>
     with WidgetsBindingObserver {
 
+
+// ========================================
+// VOICE PLAYER
+// ========================================
+
+  final AudioPlayer voicePlayer =
+  AudioPlayer();
+
+  String? playingVoiceUrl;
+
+  Duration voicePosition =
+      Duration.zero;
+
+  Duration voiceDuration =
+      Duration.zero;
+
   final ScrollController
   scrollController =
   ScrollController();
@@ -2876,6 +2891,31 @@ class _ChatPageState
       }
     }
     return false;
+  }
+
+  String _formatVoiceDuration(
+      Duration duration,
+      ) {
+
+    final minutes =
+    duration.inMinutes
+        .toString()
+        .padLeft(
+      1,
+      '0',
+    );
+
+
+    final seconds =
+    (duration.inSeconds % 60)
+        .toString()
+        .padLeft(
+      2,
+      '0',
+    );
+
+
+    return '$minutes:$seconds';
   }
 
   String _messageActionKey(
@@ -3171,6 +3211,8 @@ class _ChatPageState
   void initState() {
     super.initState();
 
+    _setupVoicePlayer();
+
     WidgetsBinding
         .instance
         .addObserver(
@@ -3327,6 +3369,134 @@ class _ChatPageState
       replyingToMessage =
       null;
     });
+  }
+
+  void _setupVoicePlayer() {
+
+    voicePlayer.onPositionChanged.listen(
+          (position) {
+
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          voicePosition =
+              position;
+        });
+      },
+    );
+
+
+    voicePlayer.onDurationChanged.listen(
+          (duration) {
+
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          voiceDuration =
+              duration;
+        });
+      },
+    );
+
+
+    voicePlayer.onPlayerComplete.listen(
+          (_) {
+
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+
+          playingVoiceUrl =
+          null;
+
+          voicePosition =
+              Duration.zero;
+        });
+      },
+    );
+  }
+
+  Future<void> _toggleVoice(
+      String url,
+      ) async {
+
+    final trimmedUrl =
+    url.trim();
+
+
+    if (trimmedUrl.isEmpty) {
+      return;
+    }
+
+
+    // ========================================
+    // DANG PHAT CHINH VOICE NAY
+    // ========================================
+
+    if (
+    playingVoiceUrl ==
+        trimmedUrl
+    ) {
+
+      if (
+      voicePlayer.state ==
+          PlayerState.playing
+      ) {
+
+        await voicePlayer.pause();
+
+      } else {
+
+        await voicePlayer.resume();
+      }
+
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {});
+
+      return;
+    }
+
+
+    // ========================================
+    // CHUYEN SANG VOICE KHAC
+    // ========================================
+
+    await voicePlayer.stop();
+
+
+    if (!mounted) {
+      return;
+    }
+
+
+    setState(() {
+
+      playingVoiceUrl =
+          trimmedUrl;
+
+      voicePosition =
+          Duration.zero;
+
+      voiceDuration =
+          Duration.zero;
+    });
+
+
+    await voicePlayer.play(
+      UrlSource(
+        trimmedUrl,
+      ),
+    );
   }
 
   Future<void>
@@ -9791,6 +9961,267 @@ class _ChatPageState
     );
   }
 
+  Widget _buildVoiceMessage(
+      Map<String, dynamic> message,
+      ) {
+
+    final colorScheme =
+        Theme.of(context)
+            .colorScheme;
+
+
+    final url =
+    message['mediaUrl']
+        ?.toString()
+        .trim();
+
+
+    if (
+    url == null ||
+        url.isEmpty
+    ) {
+
+      return Text(
+        '[Tin nhắn thoại]',
+
+        style:
+        TextStyle(
+          color:
+          colorScheme.onSurface,
+        ),
+      );
+    }
+
+
+    final isPlaying =
+        playingVoiceUrl ==
+            url;
+
+
+    final rawDuration =
+    message['mediaDuration'];
+
+
+    final messageDuration =
+    rawDuration is num
+        ? Duration(
+      milliseconds:
+      rawDuration.toInt(),
+    )
+        : Duration.zero;
+
+
+    final samples =
+    message['waveformSamples']
+    is List
+        ? message[
+    'waveformSamples'
+    ] as List
+        : <dynamic>[];
+
+
+    final totalDuration =
+    isPlaying &&
+        voiceDuration >
+            Duration.zero
+        ? voiceDuration
+        : messageDuration;
+
+
+    final progress =
+    isPlaying &&
+        totalDuration.inMilliseconds >
+            0
+        ? (
+        voicePosition.inMilliseconds /
+            totalDuration.inMilliseconds
+    )
+        .clamp(
+      0.0,
+      1.0,
+    )
+        .toDouble()
+        : 0.0;
+
+
+    return Container(
+
+      constraints:
+      const BoxConstraints(
+        minWidth:
+        230,
+        maxWidth:
+        300,
+      ),
+
+      padding:
+      const EdgeInsets.symmetric(
+        horizontal:
+        10,
+        vertical:
+        8,
+      ),
+
+      decoration:
+      BoxDecoration(
+
+        color:
+        colorScheme
+            .surfaceContainerHighest,
+
+        borderRadius:
+        BorderRadius.circular(
+          18,
+        ),
+      ),
+
+      child:
+      Row(
+
+        mainAxisSize:
+        MainAxisSize.min,
+
+        children: [
+
+          // ========================================
+          // PLAY / PAUSE
+          // ========================================
+
+          IconButton(
+
+            padding:
+            EdgeInsets.zero,
+
+            constraints:
+            const BoxConstraints(
+              minWidth:
+              42,
+              minHeight:
+              42,
+            ),
+
+            icon:
+            Icon(
+
+              isPlaying &&
+                  voicePlayer.state ==
+                      PlayerState.playing
+                  ? Icons.pause_rounded
+                  : Icons.play_arrow_rounded,
+
+              size:
+              30,
+
+              color:
+              colorScheme.primary,
+            ),
+
+            onPressed:
+                () {
+
+              _toggleVoice(
+                url,
+              );
+            },
+          ),
+
+
+          const SizedBox(
+            width:
+            7,
+          ),
+
+
+          // ========================================
+          // WAVEFORM
+          // ========================================
+
+          Expanded(
+
+            child:
+            Column(
+
+              mainAxisSize:
+              MainAxisSize.min,
+
+              crossAxisAlignment:
+              CrossAxisAlignment.start,
+
+              children: [
+
+                SizedBox(
+
+                  height:
+                  32,
+
+                  width:
+                  double.infinity,
+
+                  child:
+                  samples.isEmpty
+
+                      ? LinearProgressIndicator(
+                    value:
+                    progress,
+                  )
+
+                      : CustomPaint(
+
+                    painter:
+                    _VoiceWaveformPainter(
+
+                      samples:
+                      samples,
+
+                      progress:
+                      progress,
+
+                      activeColor:
+                      colorScheme.primary,
+
+                      inactiveColor:
+                      colorScheme
+                          .onSurfaceVariant
+                          .withValues(
+                        alpha:
+                        0.35,
+                      ),
+                    ),
+                  ),
+                ),
+
+
+                const SizedBox(
+                  height:
+                  2,
+                ),
+
+
+                Text(
+
+                  _formatVoiceDuration(
+                    totalDuration,
+                  ),
+
+                  style:
+                  TextStyle(
+
+                    fontSize:
+                    11,
+
+                    color:
+                    colorScheme
+                        .onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAlbumPhotoTile(
       Map<String, dynamic> message, {
         required double width,
@@ -10918,6 +11349,46 @@ class _ChatPageState
       );
     }
 
+    // ========================================
+// VOICE
+// ========================================
+
+    if (
+    status ==
+        'normal' &&
+        (
+            message['mediaType']
+                ?.toString()
+                .trim()
+                .toLowerCase() ==
+                'voice' ||
+
+                msgType ==
+                    'chat.voice' ||
+
+                msgType ==
+                    'chat.voice.msg' ||
+
+                msgType ==
+                    'chat.audio' ||
+
+                msgType ==
+                    '31'
+        )
+    ) {
+
+      return _buildSimpleMediaRow(
+
+        message,
+
+        index,
+
+        _buildVoiceMessage(
+          message,
+        ),
+      );
+    }
+
     final senderName =
         message['senderName']
             ?.toString() ??
@@ -12005,6 +12476,8 @@ class _ChatPageState
     scrollController
         .dispose();
 
+    voicePlayer.dispose();
+
     super.dispose();
   }
 
@@ -12294,5 +12767,135 @@ class _ChatPageState
         ],
       ),
     );
+  }
+}
+
+
+class _VoiceWaveformPainter
+    extends CustomPainter {
+
+  final List<dynamic> samples;
+
+  final double progress;
+
+  final Color activeColor;
+
+  final Color inactiveColor;
+
+
+  _VoiceWaveformPainter({
+    required this.samples,
+    required this.progress,
+    required this.activeColor,
+    required this.inactiveColor,
+  });
+
+
+  @override
+  void paint(
+      Canvas canvas,
+      Size size,
+      ) {
+
+    if (samples.isEmpty) {
+      return;
+    }
+
+
+    final paint =
+    Paint()
+      ..strokeWidth =
+      2.5
+      ..strokeCap =
+          StrokeCap.round;
+
+
+    final count =
+        samples.length;
+
+
+    final spacing =
+        size.width /
+            count;
+
+
+    for (
+    int i = 0;
+    i < count;
+    i++
+    ) {
+
+      final value =
+      samples[i] is num
+          ? (samples[i] as num)
+          .toDouble()
+          : 0.0;
+
+
+      final normalized =
+      (value / 5000)
+          .clamp(
+        0.12,
+        1.0,
+      );
+
+
+      final barHeight =
+          size.height *
+              normalized;
+
+
+      final x =
+          spacing *
+              i +
+              spacing /
+                  2;
+
+
+      final centerY =
+          size.height /
+              2;
+
+
+      paint.color =
+      (
+          i / count
+      ) <= progress
+          ? activeColor
+          : inactiveColor;
+
+
+      canvas.drawLine(
+        Offset(
+          x,
+          centerY -
+              barHeight /
+                  2,
+        ),
+        Offset(
+          x,
+          centerY +
+              barHeight /
+                  2,
+        ),
+        paint,
+      );
+    }
+  }
+
+
+  @override
+  bool shouldRepaint(
+      _VoiceWaveformPainter oldDelegate,
+      ) {
+
+    return oldDelegate.progress !=
+        progress ||
+        oldDelegate.samples !=
+            samples ||
+        oldDelegate.activeColor !=
+            activeColor ||
+        oldDelegate.inactiveColor !=
+            inactiveColor;
   }
 }
