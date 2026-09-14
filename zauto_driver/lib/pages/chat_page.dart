@@ -3061,6 +3061,169 @@ class _ChatPageState
     return raw;
   }
 
+  bool _isSameCalendarDay(
+      Map<String, dynamic> first,
+      Map<String, dynamic> second,
+      ) {
+    final firstMs =
+    _messageTimestampMs(
+      first,
+    );
+
+
+    final secondMs =
+    _messageTimestampMs(
+      second,
+    );
+
+
+    if (
+    firstMs == null ||
+        secondMs == null
+    ) {
+      return false;
+    }
+
+
+    final firstDate =
+    DateTime
+        .fromMillisecondsSinceEpoch(
+      firstMs,
+      isUtc: false,
+    );
+
+
+    final secondDate =
+    DateTime
+        .fromMillisecondsSinceEpoch(
+      secondMs,
+      isUtc: false,
+    );
+
+
+    return
+      firstDate.year ==
+          secondDate.year &&
+          firstDate.month ==
+              secondDate.month &&
+          firstDate.day ==
+              secondDate.day;
+  }
+
+  String _formatDateSeparator(
+      Map<String, dynamic> message,
+      ) {
+    final timestampMs =
+    _messageTimestampMs(
+      message,
+    );
+
+    if (timestampMs == null) {
+      return '';
+    }
+
+    final date =
+    DateTime.fromMillisecondsSinceEpoch(
+      timestampMs,
+    ).toLocal();
+
+    final now =
+    DateTime.now();
+
+    // ========================================
+    // SO SANH NGAY THUC TE
+    // ========================================
+
+    final isToday =
+        date.year == now.year &&
+            date.month == now.month &&
+            date.day == now.day;
+
+    if (isToday) {
+      return 'Hôm nay';
+    }
+
+    // ========================================
+    // HOM QUA
+    // ========================================
+
+    final yesterday =
+    DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(
+      const Duration(
+        days: 1,
+      ),
+    );
+
+    final isYesterday =
+        date.year == yesterday.year &&
+            date.month == yesterday.month &&
+            date.day == yesterday.day;
+
+    if (isYesterday) {
+      return 'Hôm qua';
+    }
+
+    // ========================================
+    // NGAY CU
+    // ========================================
+
+    return
+      '${date.day.toString().padLeft(2, '0')}/'
+          '${date.month.toString().padLeft(2, '0')}/'
+          '${date.year}';
+  }
+
+  Widget _buildDateSeparator(
+      String label,
+      ) {
+    if (label.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+
+    final colorScheme =
+        Theme.of(context)
+            .colorScheme;
+
+
+    return Padding(
+
+      padding:
+      const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 12,
+      ),
+
+      child:
+      Center(
+
+        child:
+        Text(
+
+          label,
+
+          style:
+          TextStyle(
+
+            fontSize:
+            12,
+
+            fontWeight:
+            FontWeight.w500,
+
+            color:
+            colorScheme
+                .onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+
 
   bool _isRecallExpired(
       Map<String, dynamic> message,
@@ -12717,14 +12880,10 @@ class _ChatPageState
                 _handleScrollNotification,
 
                 child:
-                ListView(
+                ListView.separated(
 
                   controller:
                   scrollController,
-
-                  // ========================================
-                  // REVERSE CHAT
-                  // ========================================
 
                   reverse:
                   true,
@@ -12742,29 +12901,95 @@ class _ChatPageState
                   physics:
                   const AlwaysScrollableScrollPhysics(),
 
-                  children:
-                  List.generate(
+                  itemCount:
+                  messages.length,
 
-                    messages.length,
+                  itemBuilder:
+                      (
+                      context,
+                      displayIndex,
+                      ) {
 
-                        (
-                        displayIndex,
-                        ) {
+                    final messageIndex =
+                        messages.length -
+                            1 -
+                            displayIndex;
 
-                      final messageIndex =
-                          messages.length -
-                              1 -
-                              displayIndex;
 
-                      return buildMessage(
+                    return buildMessage(
 
-                        messages[
-                        messageIndex],
+                      messages[
+                      messageIndex
+                      ],
 
-                        messageIndex,
+                      messageIndex,
+                    );
+                  },
+
+
+                  separatorBuilder:
+                      (
+                      context,
+                      displayIndex,
+                      ) {
+
+                    final messageIndex =
+                        messages.length -
+                            1 -
+                            displayIndex;
+
+
+                    // ========================================
+                    // NEU KHONG CO TIN NHAN CU HON
+                    // ========================================
+
+                    if (
+                    messageIndex <= 0
+                    ) {
+                      return const SizedBox(
+                        height: 0,
                       );
-                    },
-                  ),
+                    }
+
+
+                    final currentMessage =
+                    messages[
+                    messageIndex
+                    ];
+
+
+                    final olderMessage =
+                    messages[
+                    messageIndex - 1
+                    ];
+
+
+                    // ========================================
+                    // CUNG NGAY
+                    // ========================================
+
+                    if (
+                    _isSameCalendarDay(
+                      currentMessage,
+                      olderMessage,
+                    )
+                    ) {
+                      return const SizedBox(
+                        height: 0,
+                      );
+                    }
+
+
+                    // ========================================
+                    // KHAC NGAY
+                    // ========================================
+
+                    return _buildDateSeparator(
+                      _formatDateSeparator(
+                        currentMessage,
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
@@ -12774,7 +12999,7 @@ class _ChatPageState
           // ========================================
           // O NHAP TIN NHAN
           //
-          // LUON NAM CO DINH DUOI MAN HINH.
+          // LUON NAM CO DINH DUOI MAN HINH.F
           // ========================================
 
           _buildMessageComposer(),
