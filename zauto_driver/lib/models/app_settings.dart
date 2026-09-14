@@ -18,6 +18,8 @@ class AppSettings {
 
   final String acceptButtonPosition;
 
+  final String acceptReplyText;
+
 
   const AppSettings({
 
@@ -35,6 +37,9 @@ class AppSettings {
 
     this.acceptButtonPosition =
     'bottom',
+
+    this.acceptReplyText =
+    'ok',
   });
 
 
@@ -47,6 +52,8 @@ class AppSettings {
     int? tripDisplaySeconds,
 
     String? acceptButtonPosition,
+
+    String? acceptReplyText,
 
   }) {
 
@@ -70,6 +77,10 @@ class AppSettings {
       acceptButtonPosition:
       acceptButtonPosition ??
           this.acceptButtonPosition,
+
+      acceptReplyText:
+      acceptReplyText ??
+          this.acceptReplyText,
 
     );
   }

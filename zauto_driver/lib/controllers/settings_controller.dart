@@ -137,6 +137,21 @@ class SettingsController
     await save();
   }
 
+  Future<void> updateAcceptReplyText(
+      String value,
+      ) async {
+
+    _settings =
+        _settings.copyWith(
+          acceptReplyText:
+          value,
+        );
+
+    notifyListeners();
+
+    await save();
+  }
+
 
 
   Future<void> save() async {

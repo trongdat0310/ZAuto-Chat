@@ -45,6 +45,8 @@ class _SettingsPageState
 
   late String currentAcceptButtonPosition;
 
+  late String currentAcceptReplyText;
+
   // ========================================
   // BO LOC TIN NHAN
   // Tam thoi luu local.
@@ -1028,6 +1030,92 @@ class _SettingsPageState
     }
   }
 
+  Future<void> openAcceptReplyTextEditor() async {
+
+    final result =
+    await showModalBottomSheet<String>(
+
+      context:
+      context,
+
+      isScrollControlled:
+      true,
+
+      useSafeArea:
+      true,
+
+      showDragHandle:
+      true,
+
+      builder:
+          (
+          sheetContext,
+          ) {
+
+        return _AcceptReplyEditorSheet(
+          initialText:
+          currentAcceptReplyText,
+        );
+      },
+    );
+
+
+    if (
+    result == null ||
+        result.trim().isEmpty ||
+        !mounted
+    ) {
+      return;
+    }
+
+
+    final value =
+    result.trim();
+
+
+    // ========================================
+    // UPDATE UI
+    // ========================================
+
+    setState(() {
+
+      currentAcceptReplyText =
+          value;
+    });
+
+
+    // ========================================
+    // SAVE SETTINGS
+    // ========================================
+
+    try {
+
+      await widget
+          .settingsController
+          .updateAcceptReplyText(
+        value,
+      );
+
+    } catch (error) {
+
+      if (!mounted) {
+        return;
+      }
+
+
+      ScaffoldMessenger
+          .of(context)
+          .showSnackBar(
+        SnackBar(
+          content:
+          Text(
+            'Không thể lưu nội dung trả lời: $error',
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void>
   openAcceptButtonPositionPicker() async {
 
@@ -1835,31 +1923,10 @@ class _SettingsPageState
                   'Nội dung trả lời',
 
                   subtitle:
-                  '"Nhận"',
+                  '"$currentAcceptReplyText"',
 
-                  enabled:
-                  false,
-
-                  trailing:
-                  const Row(
-                    mainAxisSize:
-                    MainAxisSize.min,
-
-                    children: [
-
-                      Icon(
-                        Icons.lock_outline,
-                      ),
-
-                      SizedBox(
-                        width: 8,
-                      ),
-
-                      Icon(
-                        Icons.chevron_right,
-                      ),
-                    ],
-                  ),
+                  onTap:
+                  openAcceptReplyTextEditor,
                 ),
 
 
@@ -1942,8 +2009,234 @@ class _SettingsPageState
         settings
             .acceptButtonPosition;
 
+    currentAcceptReplyText =
+        settings
+            .acceptReplyText;
+
 
     loadMessageSettings();
   }
 
+}
+
+class _AcceptReplyEditorSheet
+    extends StatefulWidget {
+
+  final String initialText;
+
+  const _AcceptReplyEditorSheet({
+    required this.initialText,
+  });
+
+  @override
+  State<_AcceptReplyEditorSheet>
+  createState() =>
+      _AcceptReplyEditorSheetState();
+}
+
+
+class _AcceptReplyEditorSheetState
+    extends State<_AcceptReplyEditorSheet> {
+
+  late final TextEditingController controller;
+
+
+  @override
+  void initState() {
+    super.initState();
+
+    controller =
+        TextEditingController(
+          text:
+          widget.initialText,
+        );
+  }
+
+
+  @override
+  void dispose() {
+
+    controller.dispose();
+
+    super.dispose();
+  }
+
+
+  @override
+  Widget build(
+      BuildContext context,
+      ) {
+
+    final colorScheme =
+        Theme.of(context)
+            .colorScheme;
+
+
+    return Padding(
+
+      padding:
+      EdgeInsets.fromLTRB(
+        20,
+        8,
+        20,
+        20 +
+            MediaQuery.of(
+              context,
+            ).viewInsets.bottom,
+      ),
+
+      child:
+      Column(
+
+        mainAxisSize:
+        MainAxisSize.min,
+
+        crossAxisAlignment:
+        CrossAxisAlignment.start,
+
+        children: [
+
+          Text(
+            'Nội dung trả lời',
+
+            style:
+            Theme.of(context)
+                .textTheme
+                .headlineSmall
+                ?.copyWith(
+              fontWeight:
+              FontWeight.bold,
+            ),
+          ),
+
+
+          const SizedBox(
+            height: 8,
+          ),
+
+
+          Text(
+            'Đây là nội dung ZChatAuto sẽ gửi khi bạn nhận cuốc.',
+
+            style:
+            TextStyle(
+              color:
+              colorScheme
+                  .onSurfaceVariant,
+            ),
+          ),
+
+
+          const SizedBox(
+            height: 18,
+          ),
+
+
+          TextField(
+
+            controller:
+            controller,
+
+            autofocus:
+            true,
+
+            maxLength:
+            200,
+
+            minLines:
+            1,
+
+            maxLines:
+            4,
+
+            textInputAction:
+            TextInputAction.done,
+
+            decoration:
+            const InputDecoration(
+
+              labelText:
+              'Nội dung',
+
+              hintText:
+              'Ví dụ: Nhận',
+
+              border:
+              OutlineInputBorder(),
+            ),
+          ),
+
+
+          const SizedBox(
+            height: 8,
+          ),
+
+
+          Row(
+
+            children: [
+
+              Expanded(
+                child:
+                OutlinedButton(
+                  onPressed:
+                      () {
+
+                    Navigator.of(
+                      context,
+                    ).pop();
+                  },
+
+                  child:
+                  const Text(
+                    'HỦY',
+                  ),
+                ),
+              ),
+
+
+              const SizedBox(
+                width: 12,
+              ),
+
+
+              Expanded(
+                child:
+                FilledButton(
+                  onPressed:
+                      () {
+
+                    final value =
+                    controller
+                        .text
+                        .trim();
+
+
+                    if (
+                    value.isEmpty
+                    ) {
+
+                      return;
+                    }
+
+
+                    Navigator.of(
+                      context,
+                    ).pop(
+                      value,
+                    );
+                  },
+
+                  child:
+                  const Text(
+                    'LƯU',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }

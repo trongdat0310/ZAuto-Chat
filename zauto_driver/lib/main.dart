@@ -1358,6 +1358,12 @@ class _HomePageState extends State<HomePage> {
       await backend
           .acceptMessage(
         tripId,
+
+        replyText:
+        widget
+            .settingsController
+            .settings
+            .acceptReplyText,
       );
 
 
@@ -1523,6 +1529,12 @@ class _HomePageState extends State<HomePage> {
         await backend
             .acceptMessage(
           messageId,
+
+          replyText:
+          widget
+              .settingsController
+              .settings
+              .acceptReplyText,
         );
 
 

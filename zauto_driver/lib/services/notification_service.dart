@@ -1,8 +1,11 @@
 import 'dart:convert';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/foundation.dart';
+
 import '../config/app_config.dart';
 import 'backend_service.dart';
+import 'settings_service.dart';
 
 class NotificationService {
 
@@ -241,7 +244,7 @@ class NotificationService {
 // ========================================
 
 @pragma('vm:entry-point')
-void notificationTapBackground(
+Future<void> notificationTapBackground(
     NotificationResponse response,
     ) async {
   try {
@@ -299,15 +302,51 @@ void notificationTapBackground(
     response.actionId ==
         NotificationService.acceptAction
     ) {
+
+      // ========================================
+      // LOAD SETTINGS TRONG BACKGROUND ISOLATE
+      // ========================================
+
+      final settingsService =
+      SettingsService();
+
+      final settings =
+      await settingsService.load();
+
+      final replyText =
+      settings.acceptReplyText.trim();
+
+
+      // ========================================
+      // DEBUG
+      // ========================================
+
+      debugPrint(
+        '[BACKGROUND ACTION] '
+            'Reply text: "$replyText"',
+      );
+
+
+      // ========================================
+      // GUI CAU TRA LOI DA CAI DAT
+      // ========================================
+
       await backend.acceptMessage(
+
         messageId,
+
+        replyText:
+        replyText.isEmpty
+            ? 'Nhận'
+            : replyText,
       );
 
 
       debugPrint(
-          '[BACKGROUND ACTION] '
-              'ACCEPT SUCCESS'
+        '[BACKGROUND ACTION] '
+            'ACCEPT SUCCESS',
       );
+
 
       return;
     }

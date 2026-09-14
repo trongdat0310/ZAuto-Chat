@@ -21,7 +21,8 @@ class SettingsService {
   static const _buttonPositionKey =
       'accept_button_position';
 
-
+  static const _acceptReplyTextKey =
+      'accept_reply_text';
 
   Future<AppSettings>
   load() async {
@@ -63,6 +64,12 @@ class SettingsService {
       ) ??
           'bottom',
 
+      acceptReplyText:
+      prefs.getString(
+        _acceptReplyTextKey,
+      ) ??
+          'ok',
+
     );
   }
 
@@ -89,7 +96,6 @@ class SettingsService {
     );
 
 
-
     await prefs.setDouble(
 
       _fontSizeKey,
@@ -97,7 +103,6 @@ class SettingsService {
       settings.chatFontSize,
 
     );
-
 
 
     await prefs.setInt(
@@ -115,6 +120,15 @@ class SettingsService {
       _buttonPositionKey,
 
       settings.acceptButtonPosition,
+
+    );
+
+
+    await prefs.setString(
+
+      _acceptReplyTextKey,
+
+      settings.acceptReplyText,
 
     );
 

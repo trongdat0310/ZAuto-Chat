@@ -334,8 +334,9 @@ class BackendService {
 
   Future<Map<String, dynamic>>
   acceptMessage(
-      String messageId,
-      ) async {
+      String messageId, {
+        String replyText = 'ok',
+      }) async {
 
     final headers =
     await auth.authHeaders();
@@ -353,7 +354,7 @@ class BackendService {
       body:
       jsonEncode({
         'replyText':
-        'Nhận',
+        replyText,
       }),
     );
 
