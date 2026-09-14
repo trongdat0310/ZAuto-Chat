@@ -79,6 +79,9 @@ class _SwipeReplyWrapperState
       BuildContext context,
       ) {
 
+    final colorScheme =
+        Theme.of(context).colorScheme;
+
     final progress =
     (
         -offsetX /
@@ -243,28 +246,23 @@ class _SwipeReplyWrapperState
                   36,
 
                   decoration:
-                  const BoxDecoration(
+                  BoxDecoration(
                     color:
-                    Color(
-                      0xFFFFFFFF,
-                    ),
+                    colorScheme.surfaceContainerHighest,
 
                     shape:
                     BoxShape.circle,
                   ),
 
                   child:
-                  const Icon(
-                    Icons
-                        .reply_rounded,
+                  Icon(
+                    Icons.reply_rounded,
 
                     size:
                     22,
 
                     color:
-                    Color(
-                      0xFF1687C9,
-                    ),
+                    colorScheme.primary,
                   ),
                 ),
               ),
@@ -4328,21 +4326,25 @@ class _ChatPageState
               if (canUndo)
                 ListTile(
                   leading:
-                  const Icon(
+                  Icon(
                     Icons.undo_rounded,
 
                     color:
-                    Colors.red,
+                    Theme.of(context)
+                        .colorScheme
+                        .error,
                   ),
 
                   title:
-                  const Text(
+                  Text(
                     'Thu hồi',
 
                     style:
                     TextStyle(
                       color:
-                      Colors.red,
+                      Theme.of(context)
+                          .colorScheme
+                          .error,
                     ),
                   ),
 
@@ -4372,22 +4374,25 @@ class _ChatPageState
 
               ListTile(
                 leading:
-                const Icon(
-                  Icons
-                      .delete_outline_rounded,
+                Icon(
+                  Icons.delete_outline_rounded,
 
                   color:
-                  Colors.red,
+                  Theme.of(context)
+                      .colorScheme
+                      .error,
                 ),
 
                 title:
-                const Text(
+                Text(
                   'Xóa',
 
                   style:
                   TextStyle(
                     color:
-                    Colors.red,
+                    Theme.of(context)
+                        .colorScheme
+                        .error,
                   ),
                 ),
 
@@ -7912,7 +7917,7 @@ class _ChatPageState
       dynamic timestamp,
       ) {
 
-    final value =
+    final raw =
     int.tryParse(
       timestamp
           ?.toString() ??
@@ -7920,15 +7925,25 @@ class _ChatPageState
     );
 
 
-    if (value == null) {
+    if (
+    raw == null ||
+        raw <= 0
+    ) {
       return '';
     }
+
+
+    final timestampMs =
+    raw <
+        100000000000
+        ? raw * 1000
+        : raw;
 
 
     final time =
     DateTime
         .fromMillisecondsSinceEpoch(
-      value,
+      timestampMs,
     )
         .toLocal();
 
@@ -9473,6 +9488,9 @@ class _ChatPageState
       Map<String, dynamic> message,
       ) {
 
+    final colorScheme =
+        Theme.of(context).colorScheme;
+
     final stickerUrl =
     _messageMediaUrl(
       message,
@@ -9483,7 +9501,7 @@ class _ChatPageState
     stickerUrl == null
     ) {
 
-      return const SizedBox(
+      return SizedBox(
         width:
         130,
 
@@ -9501,9 +9519,7 @@ class _ChatPageState
             42,
 
             color:
-            Color(
-              0xFF87939D,
-            ),
+            colorScheme.onSurfaceVariant,
           ),
         ),
       );
@@ -9572,7 +9588,7 @@ class _ChatPageState
             stackTrace,
             ) {
 
-          return const Center(
+          return Center(
 
             child:
             Icon(
@@ -9584,9 +9600,7 @@ class _ChatPageState
               36,
 
               color:
-              Color(
-                0xFF87939D,
-              ),
+              colorScheme.onSurfaceVariant,
             ),
           );
         },
@@ -9759,9 +9773,9 @@ class _ChatPageState
                       return Container(
 
                         color:
-                        const Color(
-                          0xFFE0E5E9,
-                        ),
+                        Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
 
                         alignment:
                         Alignment.center,
@@ -9783,9 +9797,9 @@ class _ChatPageState
                   Container(
 
                     color:
-                    const Color(
-                      0xFFE0E5E9,
-                    ),
+                    Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest,
 
                     alignment:
                     Alignment.center,
@@ -9877,6 +9891,9 @@ class _ChatPageState
       Map<String, dynamic> message,
       ) {
 
+    final colorScheme =
+        Theme.of(context).colorScheme;
+
     final fileName =
     message['fileName']
         ?.toString()
@@ -9947,27 +9964,29 @@ class _ChatPageState
           BoxDecoration(
 
             color:
-            Colors.white,
+            colorScheme.surfaceContainerHighest,
 
             borderRadius:
             BorderRadius.circular(
               12,
             ),
 
-            boxShadow:
-            const [
-
+            boxShadow: [
               BoxShadow(
                 color:
-                Color(
-                  0x10000000,
+                colorScheme.shadow.withValues(
+                  alpha:
+                  Theme.of(context).brightness ==
+                      Brightness.dark
+                      ? 0.18
+                      : 0.10,
                 ),
 
                 blurRadius:
                 3,
 
                 offset:
-                Offset(
+                const Offset(
                   0,
                   1,
                 ),
@@ -9995,9 +10014,7 @@ class _ChatPageState
                 BoxDecoration(
 
                   color:
-                  const Color(
-                    0xFFE8F3FA,
-                  ),
+                  colorScheme.primaryContainer,
 
                   borderRadius:
                   BorderRadius.circular(
@@ -10022,8 +10039,7 @@ class _ChatPageState
                   1,
 
                   style:
-                  const TextStyle(
-
+                  TextStyle(
                     fontSize:
                     11,
 
@@ -10031,21 +10047,17 @@ class _ChatPageState
                     FontWeight.w700,
 
                     color:
-                    Color(
-                      0xFF1687C9,
-                    ),
+                    colorScheme.primary,
                   ),
                 )
 
-                    : const Icon(
+                    : Icon(
 
                   Icons
                       .insert_drive_file_outlined,
 
                   color:
-                  Color(
-                    0xFF1687C9,
-                  ),
+                  colorScheme.primary,
                 ),
               ),
 
@@ -10080,8 +10092,7 @@ class _ChatPageState
                       TextOverflow.ellipsis,
 
                       style:
-                      const TextStyle(
-
+                      TextStyle(
                         fontSize:
                         14,
 
@@ -10089,9 +10100,7 @@ class _ChatPageState
                         FontWeight.w600,
 
                         color:
-                        Color(
-                          0xFF26333D,
-                        ),
+                        colorScheme.onSurface,
                       ),
                     ),
 
@@ -10112,15 +10121,12 @@ class _ChatPageState
                         fileSize,
 
                         style:
-                        const TextStyle(
-
+                        TextStyle(
                           fontSize:
                           11,
 
                           color:
-                          Color(
-                            0xFF87939D,
-                          ),
+                          colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -10135,18 +10141,14 @@ class _ChatPageState
               ),
 
 
-              const Icon(
-
-                Icons
-                    .open_in_new_rounded,
+              Icon(
+                Icons.open_in_new_rounded,
 
                 size:
                 21,
 
                 color:
-                Color(
-                  0xFF1687C9,
-                ),
+                colorScheme.primary,
               ),
             ],
           ),
@@ -10884,6 +10886,9 @@ class _ChatPageState
       int index,
       ) {
 
+    final colorScheme =
+        Theme.of(context).colorScheme;
+
     final isSelf =
         message['isSelf'] ==
             true;
@@ -10959,8 +10964,9 @@ class _ChatPageState
       color:
       isTarget &&
           highlightTarget
-          ? const Color(
-        0x332197F3,
+          ? colorScheme.primary
+          .withValues(
+        alpha: 0.20,
       )
           : Colors.transparent,
 
@@ -11043,8 +11049,7 @@ class _ChatPageState
                       senderName,
 
                       style:
-                      const TextStyle(
-
+                      TextStyle(
                         fontSize:
                         12,
 
@@ -11052,9 +11057,7 @@ class _ChatPageState
                         FontWeight.w600,
 
                         color:
-                        Color(
-                          0xFF1579AF,
-                        ),
+                        colorScheme.primary,
                       ),
                     ),
                   ),
@@ -11084,15 +11087,12 @@ class _ChatPageState
                   ),
 
                   style:
-                  const TextStyle(
-
+                  TextStyle(
                     fontSize:
                     10,
 
                     color:
-                    Color(
-                      0xFF87939D,
-                    ),
+                    colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -11138,6 +11138,9 @@ class _ChatPageState
       Widget media,
       ) {
 
+    final colorScheme =
+        Theme.of(context).colorScheme;
+
     final isSelf =
         message['isSelf'] ==
             true;
@@ -11177,8 +11180,9 @@ class _ChatPageState
       color:
       isTarget &&
           highlightTarget
-          ? const Color(
-        0x332197F3,
+          ? colorScheme.primary
+          .withValues(
+        alpha: 0.20,
       )
           : Colors.transparent,
 
@@ -11247,7 +11251,7 @@ class _ChatPageState
                       senderName,
 
                       style:
-                      const TextStyle(
+                       TextStyle(
 
                         fontSize:
                         12,
@@ -11256,9 +11260,7 @@ class _ChatPageState
                         FontWeight.w600,
 
                         color:
-                        Color(
-                          0xFF1579AF,
-                        ),
+                        colorScheme.primary,
                       ),
                     ),
                   ),
@@ -11283,15 +11285,13 @@ class _ChatPageState
                   ),
 
                   style:
-                  const TextStyle(
+                  TextStyle(
 
                     fontSize:
                     10,
 
                     color:
-                    Color(
-                      0xFF87939D,
-                    ),
+                    colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -11677,45 +11677,31 @@ class _ChatPageState
         : '[Tin nhắn]';
 
 
-    // ========================================
-    // MAU GIONG ZALO
-    // ========================================
-
-    const incomingBubble =
-    Color(
-      0xFFFFFFFF,
-    );
+    final colorScheme =
+        Theme.of(context).colorScheme;
 
 
-    const outgoingBubble =
-    Color(
-      0xFFCDEFFF,
-    );
+// ========================================
+// CHAT COLORS THEME
+// ========================================
 
+    final incomingBubble =
+        colorScheme.surfaceContainerHighest;
 
-    const normalText =
-    Color(
-      0xFF26333D,
-    );
+    final outgoingBubble =
+        colorScheme.primaryContainer;
 
+    final normalText =
+        colorScheme.onSurface;
 
-    const secondaryText =
-    Color(
-      0xFF87939D,
-    );
+    final secondaryText =
+        colorScheme.onSurfaceVariant;
 
+    final nameColor =
+        colorScheme.primary;
 
-    const nameColor =
-    Color(
-      0xFF1579AF,
-    );
-
-
-    const quoteLineColor =
-    Color(
-      0xFF00A8F3,
-    );
-
+    final quoteLineColor =
+        colorScheme.primary;
 
     final bubble =
     Container(
@@ -11776,20 +11762,22 @@ class _ChatPageState
         ),
 
 
-        boxShadow:
-        const [
-
+        boxShadow: [
           BoxShadow(
             color:
-            Color(
-              0x12000000,
+            colorScheme.shadow.withValues(
+              alpha:
+              Theme.of(context).brightness ==
+                  Brightness.dark
+                  ? 0.18
+                  : 0.10,
             ),
 
             blurRadius:
             3,
 
             offset:
-            Offset(
+            const Offset(
               0,
               1,
             ),
@@ -11827,7 +11815,7 @@ class _ChatPageState
               TextOverflow.ellipsis,
 
               style:
-              const TextStyle(
+              TextStyle(
                 fontSize:
                 13,
 
@@ -11899,12 +11887,13 @@ class _ChatPageState
 
                     color:
                     isSelf
-                        ? const Color(
-                      0x99FFFFFF,
+                        ? colorScheme
+                        .surface
+                        .withValues(
+                      alpha: 0.55,
                     )
-                        : const Color(
-                      0xFFF3F5F7,
-                    ),
+                        : colorScheme
+                        .surfaceContainerLow,
 
                     borderRadius:
                     BorderRadius.circular(
@@ -11912,7 +11901,7 @@ class _ChatPageState
                     ),
 
                     border:
-                    const Border(
+                    Border(
                       left:
                       BorderSide(
                         color:
@@ -11941,7 +11930,7 @@ class _ChatPageState
                         TextOverflow.ellipsis,
 
                         style:
-                        const TextStyle(
+                        TextStyle(
                           fontSize:
                           12,
 
@@ -11949,9 +11938,7 @@ class _ChatPageState
                           FontWeight.w700,
 
                           color:
-                          Color(
-                            0xFF34444F,
-                          ),
+                          colorScheme.onSurface,
                         ),
                       ),
 
@@ -11972,14 +11959,12 @@ class _ChatPageState
                         TextOverflow.ellipsis,
 
                         style:
-                        const TextStyle(
+                        TextStyle(
                           fontSize:
                           13,
 
                           color:
-                          Color(
-                            0xFF7F8B94,
-                          ),
+                          colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -12002,7 +11987,7 @@ class _ChatPageState
               content,
 
               style:
-              const TextStyle(
+              TextStyle(
                 fontSize:
                 15,
 
@@ -12029,7 +12014,7 @@ class _ChatPageState
               content,
 
               style:
-              const TextStyle(
+              TextStyle(
                 fontSize:
                 15,
 
@@ -12065,7 +12050,7 @@ class _ChatPageState
               ),
 
               style:
-              const TextStyle(
+              TextStyle(
                 fontSize:
                 10,
 
@@ -12097,8 +12082,9 @@ class _ChatPageState
       color:
       isTarget &&
           highlightTarget
-          ? const Color(
-        0x332197F3,
+          ? colorScheme.primary
+          .withValues(
+        alpha: 0.20,
       )
           : Colors.transparent,
 
