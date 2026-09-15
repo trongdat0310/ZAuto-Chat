@@ -37,6 +37,8 @@ class AccountPage
 class _AccountPageState
     extends State<AccountPage> {
 
+  bool showZaloPhone = false;
+
   final BackendService backend =
   BackendService(
     baseUrl:
@@ -2447,22 +2449,11 @@ class _AccountPageState
                   radius:
                   46,
 
-                  backgroundColor:
-                  colorScheme
-                      .primaryContainer,
-
-                  child:
-                  Icon(
-                    Icons
-                        .person_rounded,
-
-                    size:
-                    52,
-
-                    color:
-                    colorScheme
-                        .primary,
+                  backgroundImage:
+                  const AssetImage(
+                    'assets/images/AvatarApp.png',
                   ),
+
                 ),
 
 
@@ -2724,60 +2715,177 @@ class _AccountPageState
                   18,
                   14,
                   18,
-                  8,
+                  4,
                 ),
 
                 child:
-                Row(
+                Column(
+
+                  crossAxisAlignment:
+                  CrossAxisAlignment.start,
 
                   children: [
 
-                    Icon(
-                      Icons
-                          .link_rounded,
+                    Row(
 
-                      size:
-                      30,
+                      children: [
 
-                      color:
-                      zaloLinked
-                          ? Colors.green
-                          : colorScheme
-                          .error,
-                    ),
+                        Icon(
+                          Icons.link_rounded,
 
+                          size:
+                          30,
 
-                    const SizedBox(
-                      width:
-                      14,
-                    ),
+                          color:
+                          zaloLinked
+                              ? Colors.green
+                              : colorScheme.error,
+                        ),
 
 
-                    Text(
+                        const SizedBox(
+                          width:
+                          14,
+                        ),
 
-                      zaloLinked
-                          ? 'Đang kết nối'
-                          : 'Chưa liên kết',
 
-                      style:
-                      TextStyle(
+                        Text(
 
-                        fontSize:
-                        17,
+                          zaloLinked
+                              ? 'Đang kết nối'
+                              : 'Chưa liên kết',
 
-                        fontWeight:
-                        FontWeight.w500,
+                          style:
+                          TextStyle(
 
-                        color:
-                        zaloLinked
-                            ? Colors.green
-                            : colorScheme
-                            .error,
-                      ),
+                            fontSize:
+                            17,
+
+                            fontWeight:
+                            FontWeight.w500,
+
+                            color:
+                            zaloLinked
+                                ? Colors.green
+                                : colorScheme.error,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
+
+              // ==================================
+              // ZALO PHONE HIDDEN / SHOW
+              // ==================================
+
+              if (
+              zaloPhone.isNotEmpty
+              )
+
+                Padding(
+
+                  padding:
+                  const EdgeInsets.fromLTRB(
+                    18,
+                    4,
+                    18,
+                    4,
+                  ),
+
+                  child:
+                  Row(
+
+                    children: [
+
+                      Icon(
+                        Icons.phone_outlined,
+
+                        size:
+                        28,
+
+                        color:
+                        colorScheme
+                            .onSurfaceVariant,
+                      ),
+
+
+                      const SizedBox(
+                        width:
+                        14,
+                      ),
+
+
+                      Expanded(
+
+                        child:
+                        Text(
+
+                          showZaloPhone
+                              ? zaloPhone
+                              : '• • • • • • • • • •',
+
+                          style:
+                          TextStyle(
+
+                            fontSize:
+                            17,
+
+                            color:
+                            colorScheme
+                                .onSurface,
+                          ),
+                        ),
+                      ),
+
+
+                      IconButton(
+
+                        padding:
+                        EdgeInsets.zero,
+
+
+                        constraints:
+                        const BoxConstraints(
+                          minWidth:
+                          40,
+
+                          minHeight:
+                          40,
+                        ),
+
+
+                        onPressed:
+                            () {
+
+                          setState(() {
+
+                            showZaloPhone =
+                            !showZaloPhone;
+                          });
+                        },
+
+
+                        icon:
+
+                        Icon(
+
+                          showZaloPhone
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+
+                          size:
+                          26,
+
+                          color:
+                          colorScheme
+                              .onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
 
               // ==================================
@@ -2789,7 +2897,7 @@ class _AccountPageState
                 padding:
                 const EdgeInsets.fromLTRB(
                   18,
-                  8,
+                  4,
                   18,
                   14,
                 ),
