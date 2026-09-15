@@ -20,6 +20,12 @@ class AppSettings {
 
   final String acceptReplyText;
 
+  final bool playTripSound;
+
+  final bool readTripNotification;
+
+  final double speechRate;
+
 
   const AppSettings({
 
@@ -40,6 +46,15 @@ class AppSettings {
 
     this.acceptReplyText =
     'ok',
+
+    this.playTripSound =
+    true,
+
+    this.readTripNotification =
+    false,
+
+    this.speechRate =
+    0.45,
   });
 
 
@@ -54,6 +69,12 @@ class AppSettings {
     String? acceptButtonPosition,
 
     String? acceptReplyText,
+
+    bool? playTripSound,
+
+    bool? readTripNotification,
+
+    double? speechRate,
 
   }) {
 
@@ -81,6 +102,18 @@ class AppSettings {
       acceptReplyText:
       acceptReplyText ??
           this.acceptReplyText,
+
+      playTripSound:
+      playTripSound ??
+          this.playTripSound,
+
+      readTripNotification:
+      readTripNotification ??
+          this.readTripNotification,
+
+      speechRate:
+      speechRate ??
+          this.speechRate,
 
     );
   }

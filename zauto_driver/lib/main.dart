@@ -1,22 +1,30 @@
+import 'firebase_options.dart';
+
 import 'package:flutter/material.dart';
-import 'dart:async';
-import 'services/backend_service.dart';
-import 'pages/groups_page.dart';
-import 'config/app_config.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'firebase_options.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+import 'services/backend_service.dart';
+import 'services/auth_service.dart';
 import 'services/notification_service.dart';
+import 'services/theme_service.dart';
+import 'services/speech_service.dart';
+import 'services/audio_service.dart';
+
+import 'pages/groups_page.dart';
 import 'pages/login_page.dart';
 import 'pages/zalo_link_page.dart';
-import 'services/auth_service.dart';
 import 'pages/account_page.dart';
 import 'pages/messages_page.dart';
 import 'pages/settings_page.dart';
-import 'services/theme_service.dart';
+
+import 'config/app_config.dart';
+
 import 'controllers/settings_controller.dart';
 
 @pragma('vm:entry-point')
@@ -1152,6 +1160,12 @@ class _HomePageState extends State<HomePage> {
     baseUrl: AppConfig.backendUrl,
   );
 
+  final SpeechService speechService =
+      SpeechService.instance;
+
+  final AudioService audioService =
+      AudioService.instance;
+
   final List<Map<String, dynamic>>
   activeTrips = [];
 
@@ -1186,6 +1200,8 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+
+    speechService.initialize();
 
     loadHomeSummary();
 
@@ -1278,6 +1294,10 @@ class _HomePageState extends State<HomePage> {
             //
             // Ma them cuoc vao danh sach.
             addTrip(
+              data,
+            );
+
+            handleTripNotificationSpeech(
               data,
             );
           },
@@ -1421,6 +1441,77 @@ class _HomePageState extends State<HomePage> {
             'Không thể nhận cuốc: $error',
           ),
         ),
+      );
+    }
+  }
+
+  Future<void> handleTripNotificationSpeech(
+      Map<String, dynamic> data,
+      ) async {
+
+
+    final settings =
+        widget
+            .settingsController
+            .settings;
+
+
+    final content =
+        data['content']
+            ?.toString()
+            ??
+            '';
+
+
+    final groupName =
+        data['groupName']
+            ?.toString()
+            ??
+            '';
+
+
+    final senderName =
+        data['senderName']
+            ?.toString()
+            ??
+            '';
+
+
+
+    // ========================================
+    // PHAT AM THANH
+    // ========================================
+
+    if (
+    settings.playTripSound
+    ) {
+
+      await audioService
+          .playTripSound();
+
+    }
+
+
+
+    // ========================================
+    // DOC NOI DUNG CUOC
+    // ========================================
+
+    if (
+    settings.readTripNotification
+    ) {
+
+
+      final text =
+          'Cuốc mới: $content. '
+          'Nhóm: $groupName. '
+          'Người gửi: $senderName. ';
+
+      await speechService.speak(
+        text,
+
+        rate:
+        settings.speechRate,
       );
     }
   }

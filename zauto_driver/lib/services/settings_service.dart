@@ -5,24 +5,29 @@ import '../models/app_settings.dart';
 
 class SettingsService {
 
-
   static const _themeKey =
       'theme_mode';
-
 
   static const _fontSizeKey =
       'chat_font_size';
 
-
   static const _tripTimeKey =
       'trip_display_seconds';
-
 
   static const _buttonPositionKey =
       'accept_button_position';
 
   static const _acceptReplyTextKey =
       'accept_reply_text';
+
+  static const _playTripSoundKey =
+      'play_trip_sound';
+
+  static const _readTripNotificationKey =
+      'read_trip_notification';
+
+  static const _speechRateKey =
+      'speech_rate';
 
   Future<AppSettings>
   load() async {
@@ -31,8 +36,6 @@ class SettingsService {
     final prefs =
     await SharedPreferences
         .getInstance();
-
-
 
     return AppSettings(
 
@@ -43,20 +46,17 @@ class SettingsService {
         ),
       ),
 
-
       chatFontSize:
       prefs.getDouble(
         _fontSizeKey,
       ) ??
           15,
 
-
       tripDisplaySeconds:
       prefs.getInt(
         _tripTimeKey,
       ) ??
           30,
-
 
       acceptButtonPosition:
       prefs.getString(
@@ -69,6 +69,24 @@ class SettingsService {
         _acceptReplyTextKey,
       ) ??
           'ok',
+
+      playTripSound:
+      prefs.getBool(
+        _playTripSoundKey,
+      ) ??
+          true,
+
+      readTripNotification:
+      prefs.getBool(
+        _readTripNotificationKey,
+      ) ??
+          false,
+
+      speechRate:
+      prefs.getDouble(
+        _speechRateKey,
+      ) ??
+          0.45,
 
     );
   }
@@ -130,6 +148,28 @@ class SettingsService {
 
       settings.acceptReplyText,
 
+    );
+
+    await prefs.setBool(
+
+      _playTripSoundKey,
+
+      settings.playTripSound,
+
+    );
+
+
+    await prefs.setBool(
+
+      _readTripNotificationKey,
+
+      settings.readTripNotification,
+
+    );
+
+    await prefs.setDouble(
+      _speechRateKey,
+      settings.speechRate,
     );
 
   }

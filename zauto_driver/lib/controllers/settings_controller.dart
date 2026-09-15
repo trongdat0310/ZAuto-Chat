@@ -152,6 +152,52 @@ class SettingsController
     await save();
   }
 
+  Future<void> updatePlayTripSound(
+      bool value,
+      ) async {
+
+    _settings =
+        _settings.copyWith(
+          playTripSound:
+          value,
+        );
+
+    notifyListeners();
+
+    await save();
+  }
+
+  Future<void> updateReadTripNotification(
+      bool value,
+      ) async {
+
+    _settings =
+        _settings.copyWith(
+          readTripNotification:
+          value,
+        );
+
+    notifyListeners();
+
+    await save();
+  }
+
+  Future<void> updateSpeechRate(
+      double value,
+      ) async {
+
+    _settings =
+        _settings.copyWith(
+          speechRate:
+          value,
+        );
+
+
+    notifyListeners();
+
+
+    await save();
+  }
 
 
   Future<void> save() async {

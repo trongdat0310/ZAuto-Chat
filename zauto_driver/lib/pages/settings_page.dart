@@ -47,6 +47,8 @@ class _SettingsPageState
 
   late String currentAcceptReplyText;
 
+  late double currentSpeechRate;
+
   // ========================================
   // BO LOC TIN NHAN
   // Tam thoi luu local.
@@ -1691,6 +1693,18 @@ class _SettingsPageState
   }
 
 
+  void _settingsChanged() {
+
+    if (!mounted) {
+      return;
+    }
+
+
+    setState(() {});
+  }
+
+
+
   // ========================================
   // SOUND
   // ANH SO 5 CHUA DUOC GUI
@@ -1699,62 +1713,278 @@ class _SettingsPageState
   void openSoundSettings() {
 
     showModalBottomSheet<void>(
+
       context:
       context,
 
       showDragHandle:
       true,
 
+      useSafeArea:
+      true,
+
+
       builder:
           (
-          context,
+          bottomSheetContext,
           ) {
 
-        return const SafeArea(
-          child:
-          Padding(
-            padding:
-            EdgeInsets.fromLTRB(
-              24,
-              8,
-              24,
-              40,
-            ),
+        return StatefulBuilder(
 
-            child:
-            Column(
-              mainAxisSize:
-              MainAxisSize.min,
+          builder:
+              (
+              context,
+              setSheetState,
+              ) {
 
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
 
-              children: [
+            final settings =
+                widget
+                    .settingsController
+                    .settings;
 
-                Text(
-                  'Âm thanh và Đọc thông báo',
 
-                  style:
-                  TextStyle(
-                    fontSize: 24,
+            return SafeArea(
 
-                    fontWeight:
-                    FontWeight.bold,
-                  ),
+              child:
+              Padding(
+
+                padding:
+                const EdgeInsets.fromLTRB(
+                  20,
+                  8,
+                  20,
+                  30,
                 ),
 
 
-                SizedBox(
-                  height: 20,
-                ),
+                child:
+                Column(
+
+                  mainAxisSize:
+                  MainAxisSize.min,
 
 
-                Text(
-                  'Phần giao diện này sẽ được hoàn thiện theo ảnh số 5.',
+                  children: [
+
+
+                    SwitchListTile(
+
+                      value:
+                      settings
+                          .playTripSound,
+
+
+                      title:
+                      const Text(
+                        'Phát âm báo cuốc mới',
+                      ),
+
+
+                      subtitle:
+                      const Text(
+                        'Kêu một tiếng khi có cuốc mới',
+                      ),
+
+
+                      onChanged:
+                          (
+                          value,
+                          ) async {
+
+
+                        await widget
+                            .settingsController
+                            .updatePlayTripSound(
+                          value,
+                        );
+
+
+                        if (!context.mounted) {
+                          return;
+                        }
+
+
+                        setSheetState(
+                              () {},
+                        );
+                      },
+                    ),
+
+
+
+                    const Divider(
+                      height:
+                      1,
+                    ),
+
+                    SwitchListTile(
+
+                      value:
+                      settings
+                          .readTripNotification,
+
+
+                      title:
+                      const Text(
+                        'Đọc thông báo cuốc',
+                      ),
+
+
+                      subtitle:
+                      const Text(
+                        'Đọc nội dung cuốc vừa nhận được',
+                      ),
+
+
+                      onChanged:
+                          (
+                          value,
+                          ) async {
+
+
+                        await widget
+                            .settingsController
+                            .updateReadTripNotification(
+                          value,
+                        );
+
+
+                        if (!context.mounted) {
+                          return;
+                        }
+
+
+                        setSheetState(
+                              () {},
+                        );
+                      },
+                    ),
+
+                    const Divider(
+                      height: 1,
+                    ),
+
+
+                    Padding(
+                      padding:
+                      const EdgeInsets.fromLTRB(
+                        16,
+                        12,
+                        16,
+                        12,
+                      ),
+
+                      child:
+                      Column(
+
+                        crossAxisAlignment:
+                        CrossAxisAlignment.start,
+
+                        children: [
+
+                          Row(
+                            children: [
+
+                              const Text(
+                                'Tốc độ đọc',
+                              ),
+
+
+                              const Spacer(),
+
+
+                              Text(
+                                currentSpeechRate
+                                    .toStringAsFixed(2),
+
+                                style:
+                                TextStyle(
+                                  color:
+                                  Theme.of(context)
+                                      .colorScheme
+                                      .primary,
+                                ),
+                              ),
+                            ],
+                          ),
+
+
+                          Slider(
+
+                            min:
+                            0.35,
+
+                            max:
+                            0.65,
+
+                            divisions:
+                            15,
+
+                            value:
+                            currentSpeechRate,
+
+
+                            label:
+                            currentSpeechRate
+                                .toStringAsFixed(2),
+
+
+                            onChanged:
+                                (
+                                value,
+                                ) {
+
+                              setSheetState(() {
+
+                                currentSpeechRate =
+                                    value;
+
+                              });
+                            },
+
+
+                            onChangeEnd:
+                                (
+                                value,
+                                ) async {
+
+                              await widget
+                                  .settingsController
+                                  .updateSpeechRate(
+                                value,
+                              );
+
+                            },
+                          ),
+
+
+                          Row(
+
+                            mainAxisAlignment:
+                            MainAxisAlignment.spaceBetween,
+
+                            children: [
+
+                              const Text(
+                                'Chậm',
+                              ),
+
+
+                              const Text(
+                                'Nhanh',
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -1982,6 +2212,12 @@ class _SettingsPageState
 
     super.initState();
 
+    widget
+        .settingsController
+        .addListener(
+      _settingsChanged,
+    );
+
 
     final settings =
         widget
@@ -2013,8 +2249,24 @@ class _SettingsPageState
         settings
             .acceptReplyText;
 
+    currentSpeechRate =
+        settings.speechRate;
+
 
     loadMessageSettings();
+  }
+
+  @override
+  void dispose() {
+
+    widget
+        .settingsController
+        .removeListener(
+      _settingsChanged,
+    );
+
+
+    super.dispose();
   }
 
 }
