@@ -15,6 +15,7 @@ import 'services/notification_service.dart';
 import 'services/theme_service.dart';
 import 'services/speech_service.dart';
 import 'services/audio_service.dart';
+import 'services/chat_state_service.dart';
 
 import 'pages/groups_page.dart';
 import 'pages/login_page.dart';
@@ -53,6 +54,9 @@ Future<void> firebaseMessagingBackgroundHandler(
       .showTrip(
     messageId:
     data['messageId'] ?? '',
+
+    groupId:
+    data['groupId'] ?? '',
 
     groupName:
     data['groupName'],
@@ -1455,6 +1459,19 @@ class _HomePageState extends State<HomePage> {
             .settingsController
             .settings;
 
+    final groupId =
+    data['groupId']
+        ?.toString();
+
+
+    final isOpeningChat =
+        groupId != null &&
+            ChatStateService
+                .instance
+                .isOpeningGroup(
+              groupId,
+            );
+
 
     final content =
         data['content']
@@ -1483,7 +1500,8 @@ class _HomePageState extends State<HomePage> {
     // ========================================
 
     if (
-    settings.playTripSound
+    settings.playTripSound &&
+        !isOpeningChat
     ) {
 
       await audioService
@@ -1498,14 +1516,15 @@ class _HomePageState extends State<HomePage> {
     // ========================================
 
     if (
-    settings.readTripNotification
+        settings.readTripNotification &&
+        !isOpeningChat
     ) {
 
 
       final text =
           'Cuốc mới: $content. '
-          'Nhóm: $groupName. '
-          'Người gửi: $senderName. ';
+          'Người gửi: $senderName. '
+          'Nhóm: $groupName. ';
 
       await speechService.speak(
         text,
@@ -1547,6 +1566,9 @@ class _HomePageState extends State<HomePage> {
           messageId:
           data['messageId'] ??
               '',
+
+          groupId:
+          data['groupId'] ?? '',
 
           groupName:
           data['groupName'],

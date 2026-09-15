@@ -21,33 +21,6 @@ class SpeechService {
     );
 
 
-    Future<void> speak(
-        String text,
-        {
-          double rate = 0.45,
-        }
-        ) async {
-
-
-      if (text.trim().isEmpty) {
-        return;
-      }
-
-
-      await tts.stop();
-
-
-      await tts.setSpeechRate(
-        rate,
-      );
-
-
-      await tts.speak(
-        text,
-      );
-    }
-
-
     await tts.setVolume(
       1.0,
     );

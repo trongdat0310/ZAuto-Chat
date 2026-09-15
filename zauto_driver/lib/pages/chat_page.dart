@@ -1,14 +1,18 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
-import '../config/app_config.dart';
-import '../services/backend_service.dart';
-import 'dart:async';
 import 'package:video_player/video_player.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:audioplayers/audioplayers.dart';
+
+import '../config/app_config.dart';
+
+import '../services/backend_service.dart';
+import '../services/chat_state_service.dart';
 
 class _SwipeReplyWrapper
     extends StatefulWidget {
@@ -3374,6 +3378,12 @@ class _ChatPageState
   @override
   void initState() {
     super.initState();
+
+    ChatStateService
+        .instance
+        .openGroup(
+      widget.groupId,
+    );
 
     _setupVoicePlayer();
 
@@ -12617,6 +12627,10 @@ class _ChatPageState
 
   @override
   void dispose() {
+
+    ChatStateService
+        .instance
+        .closeGroup();
 
     WidgetsBinding
         .instance

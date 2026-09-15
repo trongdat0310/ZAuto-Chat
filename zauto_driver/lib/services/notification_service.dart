@@ -4,8 +4,10 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/foundation.dart';
 
 import '../config/app_config.dart';
-import 'backend_service.dart';
-import 'settings_service.dart';
+
+import '../services/backend_service.dart';
+import '../services/settings_service.dart';
+import '../services/chat_state_service.dart';
 
 class NotificationService {
 
@@ -127,15 +129,41 @@ class NotificationService {
   Future<void> showTrip({
     required String messageId,
     required String content,
+    required String groupId,
 
     String? groupName,
     String? senderName,
   }) async {
 
+    // ========================================
+// KHONG HIEN NOTIFICATION NEU USER
+// DANG MO DUNG CHATPAGE NHOM NAY
+// ========================================
+
+    final isOpeningChat =
+    ChatStateService
+        .instance
+        .isOpeningGroup(
+      groupId,
+    );
+
+
+    if (isOpeningChat) {
+
+      debugPrint(
+        '[NOTIFICATION] Skip because current chat is opened: $groupId',
+      );
+
+      return;
+    }
+
     final payload =
     jsonEncode({
       'messageId':
       messageId,
+
+      'groupId':
+      groupId,
 
       'groupName':
       groupName,
