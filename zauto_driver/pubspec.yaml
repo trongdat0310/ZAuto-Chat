@@ -74,7 +74,6 @@ flutter:
   assets:
     - assets/images/chat_bg_dark.png
     - assets/images/chat_bg_light.png
-    - assets/images/ZChatAutoAvatar.png
     - assets/images/AvatarApp.png
     - assets/sounds/trip_alert.mp3
 
