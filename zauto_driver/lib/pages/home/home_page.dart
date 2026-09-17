@@ -164,7 +164,13 @@ class _HomePageState extends State<HomePage> {
             addTrip(
               data,
             );
-          },
+
+            notificationHandler
+                .handleTripNotificationSpeech(
+              data,
+            );
+
+              },
 
 
           onConnectionError:

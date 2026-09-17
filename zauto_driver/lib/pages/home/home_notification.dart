@@ -91,7 +91,7 @@ class HomeNotificationHandler {
     // ========================================
 
     if (
-    settings.playTripSound &&
+        settings.playTripSound &&
         !isOpeningChat
     ) {
 
