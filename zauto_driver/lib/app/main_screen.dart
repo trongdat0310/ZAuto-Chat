@@ -8,7 +8,7 @@ import '../pages/filter/filter_page.dart';
 import '../pages/account_page.dart';
 import '../pages/groups_page.dart';
 import '../pages/messages_page.dart';
-import '../pages/settings_page.dart';
+import '../pages/settings/settings_page.dart';
 
 import '../pages/zalo_link_page.dart';
 
