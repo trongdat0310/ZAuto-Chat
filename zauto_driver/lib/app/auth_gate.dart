@@ -15,41 +15,22 @@ import '../pages/login_page.dart';
 import 'main_screen.dart';
 
 class AuthGate extends StatefulWidget {
-
   final SettingsController settingsController;
 
-
-  const AuthGate({
-
-    super.key,
-
-    required this.settingsController,
-
-  });
+  const AuthGate({super.key, required this.settingsController});
 
   @override
-  State<AuthGate>
-  createState() =>
-      _AuthGateState();
+  State<AuthGate> createState() => _AuthGateState();
 }
 
-class _AuthGateState
-    extends State<AuthGate> {
+class _AuthGateState extends State<AuthGate> {
+  final AuthService auth = AuthService();
 
-  final AuthService auth =
-  AuthService();
-
-  final BackendService backend =
-  BackendService(
-    baseUrl:
-    AppConfig.backendUrl,
-  );
+  final BackendService backend = BackendService(baseUrl: AppConfig.backendUrl);
 
   bool loading = true;
 
-  Map<String, dynamic>?
-  user;
-
+  Map<String, dynamic>? user;
 
   @override
   void initState() {
@@ -58,7 +39,6 @@ class _AuthGateState
     refreshAuth();
   }
 
-
   Future<void> refreshAuth() async {
     if (mounted) {
       setState(() {
@@ -66,14 +46,10 @@ class _AuthGateState
       });
     }
 
-
     try {
-      final currentUser =
-      await auth
-          .getCurrentUser();
+      final currentUser = await auth.getCurrentUser();
 
       if (!mounted) return;
-
 
       setState(() {
         user = currentUser;
@@ -82,21 +58,15 @@ class _AuthGateState
       if (currentUser != null) {
         await registerPushDevice();
       }
-
     } catch (error) {
-
-      debugPrint(
-        'AUTH CHECK ERROR: $error',
-      );
+      debugPrint('AUTH CHECK ERROR: $error');
 
       if (mounted) {
         setState(() {
           user = null;
         });
       }
-
     } finally {
-
       if (mounted) {
         setState(() {
           loading = false;
@@ -106,39 +76,21 @@ class _AuthGateState
   }
 
   Future<void> logout() async {
-
     try {
-      final token =
-      await FirebaseMessaging
-          .instance
-          .getToken();
+      final token = await FirebaseMessaging.instance.getToken();
 
-
-      if (
-      token != null &&
-          token.isNotEmpty
-      ) {
-        await backend
-            .unregisterDevice(
-          token,
-        );
+      if (token != null && token.isNotEmpty) {
+        await backend.unregisterDevice(token);
       }
-
     } catch (error) {
-
-      debugPrint(
-        'DEVICE UNREGISTER ERROR: $error',
-      );
+      debugPrint('DEVICE UNREGISTER ERROR: $error');
     }
-
 
     // Sau khi unregister device
     // moi revoke JWT.
     await auth.logout();
 
-
     if (!mounted) return;
-
 
     setState(() {
       user = null;
@@ -146,68 +98,37 @@ class _AuthGateState
   }
 
   Future<void> registerPushDevice() async {
-
     try {
-      final messaging =
-          FirebaseMessaging.instance;
+      final messaging = FirebaseMessaging.instance;
 
+      await messaging.requestPermission(alert: true, badge: true, sound: true);
 
-      await messaging
-          .requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+      final token = await messaging.getToken();
 
-
-      final token =
-      await messaging
-          .getToken();
-
-
-      if (
-      token == null ||
-          token.isEmpty
-      ) {
+      if (token == null || token.isEmpty) {
         return;
       }
 
+      await backend.registerDevice(
+        token: token,
 
-      await backend
-          .registerDevice(
-        token:
-        token,
-
-        platform:
-        Platform.isIOS
-            ? 'ios'
-            : 'android',
+        platform: Platform.isIOS ? 'ios' : 'android',
       );
 
-
-      debugPrint(
-        'USER DEVICE REGISTERED',
-      );
-
+      debugPrint('USER DEVICE REGISTERED');
     } catch (error) {
-
-      debugPrint(
-        'USER DEVICE REGISTER ERROR: $error',
-      );
+      debugPrint('USER DEVICE REGISTER ERROR: $error');
     }
   }
 
   Future<void> accountDeleted() async {
-
     // Account backend da bi xoa,
     // khong goi /logout nua.
     await auth.clearLocalSession();
 
-
     if (!mounted) {
       return;
     }
-
 
     setState(() {
       user = null;
@@ -215,51 +136,31 @@ class _AuthGateState
   }
 
   @override
-  Widget build(
-      BuildContext context,
-      ) {
-
+  Widget build(BuildContext context) {
     if (loading) {
-      return const Scaffold(
-        body: Center(
-          child:
-          CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-
 
     if (user == null) {
-      return LoginPage(
-        onAuthenticated:
-        refreshAuth,
-      );
+      return LoginPage(onAuthenticated: refreshAuth);
     }
 
-
-// ========================================
-// DA LOGIN
-// LUON VAO MAIN SCREEN
-// DU DA LINK ZALO HAY CHUA
-// ========================================
+    // ========================================
+    // DA LOGIN
+    // LUON VAO MAIN SCREEN
+    // DU DA LINK ZALO HAY CHUA
+    // ========================================
 
     return MainScreen(
+      user: user!,
 
-      user:
-      user!,
+      onLogout: logout,
 
-      onLogout:
-      logout,
+      onAuthChanged: refreshAuth,
 
-      onAuthChanged:
-      refreshAuth,
+      onAccountDeleted: accountDeleted,
 
-      onAccountDeleted:
-      accountDeleted,
-
-      settingsController:
-      widget.settingsController,
-
+      settingsController: widget.settingsController,
     );
   }
 }

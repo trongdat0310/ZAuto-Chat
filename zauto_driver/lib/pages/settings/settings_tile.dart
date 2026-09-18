@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
-
 class SettingsTile extends StatelessWidget {
-
   final IconData icon;
 
   final String title;
@@ -15,7 +13,6 @@ class SettingsTile extends StatelessWidget {
 
   final Widget? trailing;
 
-
   const SettingsTile({
     super.key,
     required this.icon,
@@ -26,152 +23,80 @@ class SettingsTile extends StatelessWidget {
     this.trailing,
   });
 
-
   @override
-  Widget build(
-      BuildContext context,
-      ) {
-
-    final colorScheme =
-        Theme.of(context)
-            .colorScheme;
-
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
 
     return InkWell(
+      onTap: enabled ? onTap : null,
 
-      onTap:
-      enabled
-          ? onTap
-          : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
 
-      child:
-      Padding(
-
-        padding:
-        const EdgeInsets.symmetric(
-          horizontal: 18,
-          vertical: 16,
-        ),
-
-        child:
-        Row(
-
+        child: Row(
           children: [
-
             // ========================================
             // ICON
             // ========================================
 
             Container(
+              width: 50,
 
-              width:
-              50,
+              height: 50,
 
-              height:
-              50,
+              decoration: BoxDecoration(
+                color: enabled
+                    ? colorScheme.primaryContainer
+                    : colorScheme.surfaceContainerHighest,
 
-              decoration:
-              BoxDecoration(
-
-                color:
-                enabled
-                    ? colorScheme
-                    .primaryContainer
-                    : colorScheme
-                    .surfaceContainerHighest,
-
-                borderRadius:
-                BorderRadius.circular(
-                  14,
-                ),
+                borderRadius: BorderRadius.circular(14),
               ),
 
-              child:
-              Icon(
-
+              child: Icon(
                 icon,
 
-                color:
-                enabled
+                color: enabled
                     ? colorScheme.primary
-                    : colorScheme
-                    .onSurfaceVariant
-                    .withValues(
-                  alpha: 0.45,
-                ),
+                    : colorScheme.onSurfaceVariant.withValues(alpha: 0.45),
               ),
             ),
 
-
-            const SizedBox(
-              width:
-              16,
-            ),
-
+            const SizedBox(width: 16),
 
             // ========================================
             // TEXT
             // ========================================
-
             Expanded(
-
-              child:
-              Column(
-
-                crossAxisAlignment:
-                CrossAxisAlignment.start,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
 
                 children: [
-
                   Text(
-
                     title,
 
-                    style:
-                    TextStyle(
+                    style: TextStyle(
+                      fontSize: 16,
 
-                      fontSize:
-                      16,
+                      fontWeight: FontWeight.w600,
 
-                      fontWeight:
-                      FontWeight.w600,
-
-                      color:
-                      enabled
+                      color: enabled
                           ? null
-                          : colorScheme
-                          .onSurfaceVariant
-                          .withValues(
-                        alpha: 0.55,
-                      ),
+                          : colorScheme.onSurfaceVariant.withValues(
+                              alpha: 0.55,
+                            ),
                     ),
                   ),
 
-
-                  const SizedBox(
-                    height:
-                    4,
-                  ),
-
+                  const SizedBox(height: 4),
 
                   Text(
-
                     subtitle,
 
-                    style:
-                    TextStyle(
+                    style: TextStyle(
+                      fontSize: 13,
 
-                      fontSize:
-                      13,
-
-                      color:
-                      colorScheme
-                          .onSurfaceVariant
-                          .withValues(
-                        alpha:
-                        enabled
-                            ? 1
-                            : 0.5,
+                      color: colorScheme.onSurfaceVariant.withValues(
+                        alpha: enabled ? 1 : 0.5,
                       ),
                     ),
                   ),
@@ -179,31 +104,17 @@ class SettingsTile extends StatelessWidget {
               ),
             ),
 
+            const SizedBox(width: 10),
 
-            const SizedBox(
-              width:
-              10,
-            ),
-
-
-            if (
-            trailing != null
-            )
+            if (trailing != null)
               trailing!
             else
               Icon(
-
                 Icons.chevron_right,
 
-                color:
-                enabled
-                    ? colorScheme
-                    .onSurfaceVariant
-                    : colorScheme
-                    .onSurfaceVariant
-                    .withValues(
-                  alpha: 0.35,
-                ),
+                color: enabled
+                    ? colorScheme.onSurfaceVariant
+                    : colorScheme.onSurfaceVariant.withValues(alpha: 0.35),
               ),
           ],
         ),

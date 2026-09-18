@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 
-
-class TextMessageBubble
-    extends StatelessWidget {
-
+class TextMessageBubble extends StatelessWidget {
   final bool isSelf;
 
   final bool isRecalled;
@@ -13,7 +10,6 @@ class TextMessageBubble
   final String content;
 
   final String timeText;
-
 
   // ========================================
   // QUOTE
@@ -26,7 +22,6 @@ class TextMessageBubble
   final String? quoteMessage;
 
   final VoidCallback? onQuoteTap;
-
 
   const TextMessageBubble({
     super.key,
@@ -41,392 +36,169 @@ class TextMessageBubble
     required this.onQuoteTap,
   });
 
-
   @override
-  Widget build(
-    BuildContext context,
-  ) {
-
-    final colorScheme =
-        Theme.of(context)
-            .colorScheme;
-
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
 
     // ========================================
     // COLORS
     // ========================================
 
-    final incomingBubble =
-        colorScheme
-            .surfaceContainerHighest;
+    final incomingBubble = colorScheme.surfaceContainerHighest;
 
+    final outgoingBubble = colorScheme.primaryContainer;
 
-    final outgoingBubble =
-        colorScheme
-            .primaryContainer;
+    final normalText = colorScheme.onSurface;
 
+    final secondaryText = colorScheme.onSurfaceVariant;
 
-    final normalText =
-        colorScheme
-            .onSurface;
+    final nameColor = colorScheme.primary;
 
-
-    final secondaryText =
-        colorScheme
-            .onSurfaceVariant;
-
-
-    final nameColor =
-        colorScheme
-            .primary;
-
-
-    final quoteLineColor =
-        colorScheme
-            .primary;
-
+    final quoteLineColor = colorScheme.primary;
 
     // ========================================
     // QUOTE SAFE TEXT
     // ========================================
 
     final safeQuoteSender =
-        quoteSender != null &&
-                quoteSender!
-                    .trim()
-                    .isNotEmpty
-
-            ? quoteSender!.trim()
-
-            : 'Tin nhắn được trả lời';
-
+        quoteSender != null && quoteSender!.trim().isNotEmpty
+        ? quoteSender!.trim()
+        : 'Tin nhắn được trả lời';
 
     final safeQuoteMessage =
-        quoteMessage != null &&
-                quoteMessage!
-                    .trim()
-                    .isNotEmpty
-
-            ? quoteMessage!.trim()
-
-            : '[Tin nhắn]';
-
+        quoteMessage != null && quoteMessage!.trim().isNotEmpty
+        ? quoteMessage!.trim()
+        : '[Tin nhắn]';
 
     return Container(
-
-      constraints:
-          BoxConstraints(
-
-        maxWidth:
-            MediaQuery
-                    .of(context)
-                    .size
-                    .width *
-                0.76,
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.76,
       ),
 
+      padding: const EdgeInsets.fromLTRB(12, 9, 10, 7),
 
-      padding:
-          const EdgeInsets
-              .fromLTRB(
-        12,
-        9,
-        10,
-        7,
-      ),
+      decoration: BoxDecoration(
+        color: isSelf ? outgoingBubble : incomingBubble,
 
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(isSelf ? 14 : 5),
 
-      decoration:
-          BoxDecoration(
+          topRight: Radius.circular(isSelf ? 5 : 14),
 
-        color:
-            isSelf
-                ? outgoingBubble
-                : incomingBubble,
+          bottomLeft: const Radius.circular(14),
 
-
-        borderRadius:
-            BorderRadius.only(
-
-          topLeft:
-              Radius.circular(
-            isSelf
-                ? 14
-                : 5,
-          ),
-
-
-          topRight:
-              Radius.circular(
-            isSelf
-                ? 5
-                : 14,
-          ),
-
-
-          bottomLeft:
-              const Radius.circular(
-            14,
-          ),
-
-
-          bottomRight:
-              const Radius.circular(
-            14,
-          ),
+          bottomRight: const Radius.circular(14),
         ),
 
-
         boxShadow: [
-
           BoxShadow(
-
-            color:
-                colorScheme
-                    .shadow
-                    .withValues(
-
-              alpha:
-                  Theme.of(context)
-                              .brightness ==
-                          Brightness.dark
-
-                      ? 0.18
-
-                      : 0.10,
+            color: colorScheme.shadow.withValues(
+              alpha: Theme.of(context).brightness == Brightness.dark
+                  ? 0.18
+                  : 0.10,
             ),
 
+            blurRadius: 3,
 
-            blurRadius:
-                3,
-
-
-            offset:
-                const Offset(
-              0,
-              1,
-            ),
+            offset: const Offset(0, 1),
           ),
         ],
       ),
 
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
 
-      child:
-          Column(
-
-        mainAxisSize:
-            MainAxisSize.min,
-
-
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-
+        crossAxisAlignment: CrossAxisAlignment.start,
 
         children: [
-
           // ========================================
           // TEN NGUOI GUI
           // ========================================
 
-          if (
-              !isSelf &&
-              senderName.isNotEmpty
-          ) ...[
-
+          if (!isSelf && senderName.isNotEmpty) ...[
             Text(
-
               senderName,
 
+              maxLines: 1,
 
-              maxLines:
-                  1,
+              overflow: TextOverflow.ellipsis,
 
+              style: TextStyle(
+                fontSize: 13,
 
-              overflow:
-                  TextOverflow
-                      .ellipsis,
+                fontWeight: FontWeight.w600,
 
-
-              style:
-                  TextStyle(
-
-                fontSize:
-                    13,
-
-                fontWeight:
-                    FontWeight.w600,
-
-                color:
-                    nameColor,
+                color: nameColor,
               ),
             ),
 
-
-            const SizedBox(
-              height:
-                  4,
-            ),
+            const SizedBox(height: 4),
           ],
-
 
           // ========================================
           // QUOTE
           // ========================================
-
-          if (
-              hasQuote
-          ) ...[
-
+          if (hasQuote) ...[
             Material(
+              color: Colors.transparent,
 
-              color:
-                  Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(6),
 
+                onTap: onQuoteTap,
 
-              child:
-                  InkWell(
+                child: Container(
+                  width: double.infinity,
 
-                borderRadius:
-                    BorderRadius.circular(
-                  6,
-                ),
+                  margin: const EdgeInsets.only(bottom: 7),
 
+                  padding: const EdgeInsets.fromLTRB(9, 6, 8, 6),
 
-                onTap:
-                    onQuoteTap,
+                  decoration: BoxDecoration(
+                    color: isSelf
+                        ? colorScheme.surface.withValues(alpha: 0.55)
+                        : colorScheme.surfaceContainerLow,
 
+                    borderRadius: BorderRadius.circular(6),
 
-                child:
-                    Container(
-
-                  width:
-                      double.infinity,
-
-
-                  margin:
-                      const EdgeInsets.only(
-                    bottom:
-                        7,
-                  ),
-
-
-                  padding:
-                      const EdgeInsets
-                          .fromLTRB(
-                    9,
-                    6,
-                    8,
-                    6,
-                  ),
-
-
-                  decoration:
-                      BoxDecoration(
-
-                    color:
-                        isSelf
-
-                            ? colorScheme
-                                .surface
-                                .withValues(
-                              alpha:
-                                  0.55,
-                            )
-
-                            : colorScheme
-                                .surfaceContainerLow,
-
-
-                    borderRadius:
-                        BorderRadius.circular(
-                      6,
-                    ),
-
-
-                    border:
-                        Border(
-
-                      left:
-                          BorderSide(
-
-                        color:
-                            quoteLineColor,
-
-                        width:
-                            3,
-                      ),
+                    border: Border(
+                      left: BorderSide(color: quoteLineColor, width: 3),
                     ),
                   ),
 
-
-                  child:
-                      Column(
-
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
 
                     children: [
-
                       Text(
-
                         safeQuoteSender,
 
+                        maxLines: 1,
 
-                        maxLines:
-                            1,
+                        overflow: TextOverflow.ellipsis,
 
+                        style: TextStyle(
+                          fontSize: 12,
 
-                        overflow:
-                            TextOverflow
-                                .ellipsis,
+                          fontWeight: FontWeight.w700,
 
-
-                        style:
-                            TextStyle(
-
-                          fontSize:
-                              12,
-
-                          fontWeight:
-                              FontWeight.w700,
-
-                          color:
-                              colorScheme
-                                  .onSurface,
+                          color: colorScheme.onSurface,
                         ),
                       ),
 
-
-                      const SizedBox(
-                        height:
-                            2,
-                      ),
-
+                      const SizedBox(height: 2),
 
                       Text(
-
                         safeQuoteMessage,
 
+                        maxLines: 2,
 
-                        maxLines:
-                            2,
+                        overflow: TextOverflow.ellipsis,
 
+                        style: TextStyle(
+                          fontSize: 13,
 
-                        overflow:
-                            TextOverflow
-                                .ellipsis,
-
-
-                        style:
-                            TextStyle(
-
-                          fontSize:
-                              13,
-
-                          color:
-                              colorScheme
-                                  .onSurfaceVariant,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -436,70 +208,35 @@ class TextMessageBubble
             ),
           ],
 
-
           // ========================================
           // NOI DUNG
           // ========================================
-
           Text(
-
             content,
 
+            style: TextStyle(
+              fontSize: 15,
 
-            style:
-                TextStyle(
+              height: 1.25,
 
-              fontSize:
-                  15,
+              color: normalText,
 
-              height:
-                  1.25,
-
-              color:
-                  normalText,
-
-
-              fontStyle:
-                  isRecalled
-
-                      ? FontStyle.italic
-
-                      : FontStyle.normal,
+              fontStyle: isRecalled ? FontStyle.italic : FontStyle.normal,
             ),
           ),
 
-
-          const SizedBox(
-            height:
-                4,
-          ),
-
+          const SizedBox(height: 4),
 
           // ========================================
           // TIME
           // ========================================
-
           Align(
+            alignment: Alignment.centerRight,
 
-            alignment:
-                Alignment.centerRight,
-
-
-            child:
-                Text(
-
+            child: Text(
               timeText,
 
-
-              style:
-                  TextStyle(
-
-                fontSize:
-                    10,
-
-                color:
-                    secondaryText,
-              ),
+              style: TextStyle(fontSize: 10, color: secondaryText),
             ),
           ),
         ],

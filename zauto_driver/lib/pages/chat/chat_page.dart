@@ -1,2742 +1,43 @@
 import 'dart:convert';
-import 'dart:math' as math;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
-import 'package:video_player/video_player.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:audioplayers/audioplayers.dart';
 
-import '../config/app_config.dart';
-
-import '../services/backend_service.dart';
-import '../services/chat_state_service.dart';
-
-class _SwipeReplyWrapper
-    extends StatefulWidget {
-
-  final Widget child;
-
-  final VoidCallback onReply;
-
-  final VoidCallback onLongPress;
-
-  final bool enabled;
-
-
-  const _SwipeReplyWrapper({
-    required this.child,
-    required this.onReply,
-    required this.onLongPress,
-    this.enabled = true,
-  });
-
-
-  @override
-  State<_SwipeReplyWrapper>
-  createState() =>
-      _SwipeReplyWrapperState();
-}
-
-
-class _SwipeReplyWrapperState
-    extends State<_SwipeReplyWrapper> {
-
-  double offsetX =
-  0;
-
-
-  bool dragging =
-  false;
-
-
-  static const double maxDrag =
-  76;
-
-
-  static const double triggerDistance =
-  46;
-
-
-  void _reset() {
-
-    if (!mounted) {
-      return;
-    }
-
-
-    setState(() {
-
-      dragging =
-      false;
-
-      offsetX =
-      0;
-    });
-  }
-
-
-  @override
-  Widget build(
-      BuildContext context,
-      ) {
-
-    final colorScheme =
-        Theme.of(context).colorScheme;
-
-    final progress =
-    (
-        -offsetX /
-            triggerDistance
-    )
-        .clamp(
-      0.0,
-      1.0,
-    )
-        .toDouble();
-
-
-    return GestureDetector(
-
-      behavior:
-      HitTestBehavior.translucent,
-
-
-      // ========================================
-      // NHAN GIU:
-      // VAN GIU MENU ACTION HIEN TAI
-      // ========================================
-
-      onLongPress:
-      widget.onLongPress,
-
-
-      // ========================================
-      // VUOT TRAI DE REPLY
-      // ========================================
-
-      onHorizontalDragStart:
-      widget.enabled
-          ? (_) {
-
-        setState(() {
-
-          dragging =
-          true;
-        });
-      }
-          : null,
-
-
-      onHorizontalDragUpdate:
-      widget.enabled
-          ? (
-          details,
-          ) {
-
-        // ========================================
-        // CHI CHO PHEP DI SANG TRAI.
-        //
-        // offset:
-        // 0 -> -76
-        // ========================================
-
-        final next =
-        (
-            offsetX +
-                details.delta.dx
-        )
-            .clamp(
-          -maxDrag,
-          0.0,
-        )
-            .toDouble();
-
-
-        if (
-        next ==
-            offsetX
-        ) {
-          return;
-        }
-
-
-        setState(() {
-
-          offsetX =
-              next;
-        });
-      }
-          : null,
-
-
-      onHorizontalDragEnd:
-      widget.enabled
-          ? (
-          details,
-          ) {
-
-        final velocity =
-            details
-                .primaryVelocity ??
-                0;
-
-
-        final shouldReply =
-            offsetX <=
-                -triggerDistance ||
-                velocity <
-                    -650;
-
-
-        _reset();
-
-
-        if (
-        shouldReply
-        ) {
-
-          Future.microtask(
-            widget.onReply,
-          );
-        }
-      }
-          : null,
-
-
-      onHorizontalDragCancel:
-      widget.enabled
-          ? _reset
-          : null,
-
-
-      child:
-      Stack(
-        alignment:
-        Alignment.centerRight,
-
-        children: [
-
-          // ========================================
-          // ICON REPLY NAM PHIA SAU BUBBLE
-          // ========================================
-
-          Positioned(
-            right:
-            18,
-
-            child:
-            Opacity(
-              opacity:
-              progress,
-
-              child:
-              Transform.scale(
-                scale:
-                0.75 +
-                    (
-                        0.25 *
-                            progress
-                    ),
-
-                child:
-                Container(
-                  width:
-                  36,
-
-                  height:
-                  36,
-
-                  decoration:
-                  BoxDecoration(
-                    color:
-                    colorScheme.surfaceContainerHighest,
-
-                    shape:
-                    BoxShape.circle,
-                  ),
-
-                  child:
-                  Icon(
-                    Icons.reply_rounded,
-
-                    size:
-                    22,
-
-                    color:
-                    colorScheme.primary,
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-
-          // ========================================
-          // BUBBLE DI CHUYEN THEO NGON TAY
-          // ========================================
-
-          AnimatedContainer(
-            duration:
-            dragging
-                ? Duration.zero
-                : const Duration(
-              milliseconds:
-              160,
-            ),
-
-            curve:
-            Curves.easeOutCubic,
-
-            transform:
-            Matrix4
-                .translationValues(
-              offsetX,
-              0,
-              0,
-            ),
-
-            child:
-            widget.child,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ========================================
-// PHOTO VIEWER ITEM
-// ========================================
-
-class _PhotoViewerItem {
-
-  final String url;
-
-  final String heroTag;
-
-
-  const _PhotoViewerItem({
-    required this.url,
-    required this.heroTag,
-  });
-}
-
-// ========================================
-// PHOTO VIEWER PAGINATION RESULT
-// ========================================
-
-class _PhotoViewerLoadResult {
-
-  final List<_PhotoViewerItem>
-  items;
-
-
-  final bool
-  hasMoreOlder;
-
-
-  const _PhotoViewerLoadResult({
-    required this.items,
-    required this.hasMoreOlder,
-  });
-}
-
-// ========================================
-// FULL SCREEN PHOTO VIEWER
-//
-// - 1 anh
-// - hoac ca album
-// - swipe trai/phai
-// - pinch zoom
-// - double tap zoom
-// ========================================
-
-class _PhotoViewerPage
-    extends StatefulWidget {
-
-  final List<_PhotoViewerItem>
-  items;
-
-
-  final int
-  initialIndex;
-
-
-  final bool
-  initialHasMoreOlder;
-
-
-  final Future<_PhotoViewerLoadResult>
-  Function()?
-  onLoadOlder;
-
-
-  const _PhotoViewerPage({
-    required this.items,
-    required this.initialIndex,
-    this.initialHasMoreOlder = false,
-    this.onLoadOlder,
-  });
-
-
-  @override
-  State<_PhotoViewerPage>
-  createState() =>
-      _PhotoViewerPageState();
-}
-
-
-class _PhotoViewerPageState
-    extends State<_PhotoViewerPage> {
-
-  late final PageController
-  pageController;
-
-
-  late List<_PhotoViewerItem>
-  viewerItems;
-
-
-  int currentIndex =
-  0;
-
-
-  bool currentPageZoomed =
-  false;
-
-  // ========================================
-// VIEWER CONTROLS
-// ========================================
-
-  bool controlsVisible =
-  true;
-
-
-// ========================================
-// SWIPE DOWN TO DISMISS
-// ========================================
-
-  double dismissOffsetY =
-  0.0;
-
-
-  bool draggingToDismiss =
-  false;
-
-
-  bool controlsVisibleBeforeDrag =
-  true;
-
-
-  bool loadingOlderPhotos =
-  false;
-
-
-  late bool
-  hasMoreOlder;
-
-
-  @override
-  void initState() {
-
-    super.initState();
-
-    viewerItems =
-    List<_PhotoViewerItem>.from(
-      widget.items,
-    );
-
-
-    hasMoreOlder =
-        widget.initialHasMoreOlder;
-
-
-    if (
-    viewerItems.isEmpty
-    ) {
-
-      currentIndex =
-      0;
-
-    } else {
-
-      currentIndex =
-          widget.initialIndex
-              .clamp(
-            0,
-            viewerItems.length -
-                1,
-          );
-    }
-
-
-    pageController =
-        PageController(
-          initialPage:
-          currentIndex,
-        );
-
-
-    // ========================================
-    // NEU USER MO MOT ANH GAN DAU HISTORY
-    // THI PREFETCH LUON ANH CU HON.
-    // ========================================
-
-    WidgetsBinding
-        .instance
-        .addPostFrameCallback(
-          (_) {
-
-        if (
-        mounted &&
-            currentIndex <=
-                1
-        ) {
-
-          _loadOlderIfNeeded();
-        }
-      },
-    );
-  }
-
-
-  // ========================================
-  // LOAD THEM PHOTO CU
-  // ========================================
-
-  Future<void>
-  _loadOlderIfNeeded() async {
-
-    if (
-    loadingOlderPhotos ||
-        !hasMoreOlder ||
-        widget.onLoadOlder ==
-            null ||
-        viewerItems.isEmpty
-    ) {
-
-      return;
-    }
-
-
-    final currentTag =
-        viewerItems[
-        currentIndex
-        ].heroTag;
-
-
-    setState(() {
-
-      loadingOlderPhotos =
-      true;
-    });
-
-
-    try {
-
-      final result =
-      await widget
-          .onLoadOlder!();
-
-
-      if (!mounted) {
-
-        return;
-      }
-
-
-      final newItems =
-          result.items;
-
-
-      // ========================================
-      // TIM LAI ANH DANG XEM
-      //
-      // VI ANH CU VUA DUOC CHEN VAO DAU LIST,
-      // INDEX CUA ANH HIEN TAI SE THAY DOI.
-      // ========================================
-
-      var newCurrentIndex =
-      newItems.indexWhere(
-            (
-            item,
-            ) =>
-        item.heroTag ==
-            currentTag,
-      );
-
-
-      if (
-      newCurrentIndex <
-          0
-      ) {
-
-        newCurrentIndex =
-            currentIndex.clamp(
-              0,
-              math.max(
-                0,
-                newItems.length -
-                    1,
-              ),
-            );
-      }
-
-
-      final changed =
-          newItems.length !=
-              viewerItems.length;
-
-
-      setState(() {
-
-        viewerItems =
-            newItems;
-
-        currentIndex =
-            newCurrentIndex;
-
-        hasMoreOlder =
-            result
-                .hasMoreOlder;
-
-        loadingOlderPhotos =
-        false;
-      });
-
-
-      // ========================================
-      // GIU NGUYEN DUNG ANH USER DANG XEM
-      // SAU KHI PREPEND ANH CU.
-      // ========================================
-
-      if (
-      changed
-      ) {
-
-        WidgetsBinding
-            .instance
-            .addPostFrameCallback(
-              (_) {
-
-            if (
-            !mounted ||
-                !pageController
-                    .hasClients
-            ) {
-
-              return;
-            }
-
-
-            pageController
-                .jumpToPage(
-              newCurrentIndex,
-            );
-          },
-        );
-      }
-
-    } catch (error) {
-
-      if (!mounted) {
-
-        return;
-      }
-
-
-      setState(() {
-
-        loadingOlderPhotos =
-        false;
-      });
-
-
-      debugPrint(
-        'PHOTO VIEWER LOAD OLDER ERROR: '
-            '$error',
-      );
-    }
-  }
-
-  void _toggleControls() {
-
-    if (
-    draggingToDismiss
-    ) {
-
-      return;
-    }
-
-
-    setState(() {
-
-      controlsVisible =
-      !controlsVisible;
-    });
-  }
-
-  void _handleDismissDragStart(
-      DragStartDetails details,
-      ) {
-
-    if (
-    currentPageZoomed
-    ) {
-
-      return;
-    }
-
-
-    controlsVisibleBeforeDrag =
-        controlsVisible;
-
-
-    setState(() {
-
-      draggingToDismiss =
-      true;
-
-
-      // Khi bắt đầu kéo ảnh xuống,
-      // ẩn controls cho giống photo viewer.
-      controlsVisible =
-      false;
-    });
-  }
-
-  void _handleDismissDragUpdate(
-      DragUpdateDetails details,
-      ) {
-
-    if (
-    currentPageZoomed ||
-        !draggingToDismiss
-    ) {
-
-      return;
-    }
-
-
-    // ========================================
-    // CHI CHO PHEP KEO XUONG
-    //
-    // Neu user keo nguoc len trong luc dang
-    // keo xuong thi offset se giam dan ve 0.
-    // ========================================
-
-    final next =
-    math.max(
-      0.0,
-
-      dismissOffsetY +
-          details.delta.dy,
-    );
-
-
-    setState(() {
-
-      dismissOffsetY =
-          next;
-    });
-  }
-
-  void _handleDismissDragEnd(
-      DragEndDetails details,
-      ) {
-
-    if (
-    currentPageZoomed ||
-        !draggingToDismiss
-    ) {
-
-      return;
-    }
-
-
-    final velocity =
-        details.primaryVelocity ??
-            0.0;
-
-
-    // ========================================
-    // DONG VIEWER NEU:
-    //
-    // - keo xuong >= 120px
-    // HOAC
-    // - vuot nhanh xuong
-    // ========================================
-
-    final shouldDismiss =
-        dismissOffsetY >=
-            120 ||
-            velocity >
-                900;
-
-
-    if (
-    shouldDismiss
-    ) {
-
-      Navigator.of(
-        context,
-      ).pop();
-
-
-      return;
-    }
-
-
-    // ========================================
-    // KHONG DU XA
-    // -> TRA ANH VE GIUA
-    // ========================================
-
-    setState(() {
-
-      draggingToDismiss =
-      false;
-
-
-      dismissOffsetY =
-      0.0;
-
-
-      controlsVisible =
-          controlsVisibleBeforeDrag;
-    });
-  }
-
-  void _handleDismissDragCancel() {
-
-    if (
-    !draggingToDismiss
-    ) {
-
-      return;
-    }
-
-
-    setState(() {
-
-      draggingToDismiss =
-      false;
-
-
-      dismissOffsetY =
-      0.0;
-
-
-      controlsVisible =
-          controlsVisibleBeforeDrag;
-    });
-  }
-
-
-  // ========================================
-  // ZOOM STATE
-  // ========================================
-
-  void _handleZoomChanged(
-      int pageIndex,
-      bool zoomed,
-      ) {
-
-    if (
-    pageIndex !=
-        currentIndex
-    ) {
-
-      return;
-    }
-
-
-    if (
-    currentPageZoomed ==
-        zoomed
-    ) {
-
-      return;
-    }
-
-
-    setState(() {
-
-      currentPageZoomed =
-          zoomed;
-    });
-  }
-
-
-  // ========================================
-  // PAGE CHANGED
-  // ========================================
-
-  void _handlePageChanged(
-      int index,
-      ) {
-
-    setState(() {
-
-      currentIndex =
-          index;
-
-      currentPageZoomed =
-      false;
-    });
-
-
-    // ========================================
-    // CON 1 ANH NUA LA DEN DAU HISTORY
-    // -> PREFETCH THEM.
-    // ========================================
-
-    if (
-    index <=
-        1
-    ) {
-
-      _loadOlderIfNeeded();
-    }
-  }
-
-
-  @override
-  void dispose() {
-
-    pageController
-        .dispose();
-
-    super.dispose();
-  }
-
-
-  @override
-  Widget build(
-      BuildContext context,
-      ) {
-
-    if (
-    viewerItems.isEmpty
-    ) {
-
-      return const Scaffold(
-
-        backgroundColor:
-        Colors.black,
-
-        body:
-        Center(
-
-          child:
-          Text(
-
-            'Không có ảnh',
-
-            style:
-            TextStyle(
-              color:
-              Colors.white,
-            ),
-          ),
-        ),
-      );
-    }
-
-    final dismissProgress =
-    (
-        dismissOffsetY /
-            300
-    )
-        .clamp(
-      0.0,
-      1.0,
-    )
-        .toDouble();
-
-
-    final backgroundOpacity =
-    (
-        1.0 -
-            dismissProgress *
-                0.70
-    )
-        .clamp(
-      0.0,
-      1.0,
-    )
-        .toDouble();
-
-
-    return Scaffold(
-
-      backgroundColor:
-      Color.fromRGBO(
-        0,
-        0,
-        0,
-        backgroundOpacity,
-      ),
-
-
-      body:
-      SafeArea(
-
-        child:
-        Stack(
-
-          children: [
-
-            // ========================================
-            // PHOTO PAGES
-            // ========================================
-
-            Positioned.fill(
-
-              child:
-              GestureDetector(
-
-                behavior:
-                HitTestBehavior.translucent,
-
-
-                // ========================================
-                // CHI BAT SWIPE DOWN KHI ANH DANG 1X
-                //
-                // Neu dang zoom:
-                // InteractiveViewer se xu ly pan.
-                // ========================================
-
-                onVerticalDragStart:
-                currentPageZoomed
-                    ? null
-                    : _handleDismissDragStart,
-
-
-                onVerticalDragUpdate:
-                currentPageZoomed
-                    ? null
-                    : _handleDismissDragUpdate,
-
-
-                onVerticalDragEnd:
-                currentPageZoomed
-                    ? null
-                    : _handleDismissDragEnd,
-
-
-                onVerticalDragCancel:
-                currentPageZoomed
-                    ? null
-                    : _handleDismissDragCancel,
-
-
-                child:
-                AnimatedContainer(
-
-                  duration:
-                  draggingToDismiss
-
-                      ? Duration.zero
-
-                      : const Duration(
-                    milliseconds:
-                    180,
-                  ),
-
-
-                  curve:
-                  Curves.easeOutCubic,
-
-
-                  // ========================================
-                  // ANH DI THEO NGON TAY
-                  // ========================================
-
-                  transform:
-                  Matrix4.translationValues(
-                    0.0,
-                    dismissOffsetY,
-                    0.0,
-                  ),
-
-
-                  child:
-                  NotificationListener<
-                      OverscrollNotification>(
-
-                    onNotification:
-                        (
-                        notification,
-                        ) {
-
-                      if (
-                      !currentPageZoomed &&
-                          currentIndex ==
-                              0 &&
-                          notification
-                              .overscroll <
-                              0
-                      ) {
-
-                        _loadOlderIfNeeded();
-                      }
-
-
-                      return false;
-                    },
-
-
-                    child:
-                    PageView.builder(
-
-                      controller:
-                      pageController,
-
-
-                      physics:
-                      currentPageZoomed
-
-                          ? const NeverScrollableScrollPhysics()
-
-                          : const PageScrollPhysics(),
-
-
-                      itemCount:
-                      viewerItems.length,
-
-
-                      onPageChanged:
-                      _handlePageChanged,
-
-
-                      itemBuilder:
-                          (
-                          context,
-                          index,
-                          ) {
-
-                        return _PhotoViewerSlide(
-
-                          item:
-                          viewerItems[
-                          index
-                          ],
-
-
-                          heroEnabled:
-                          index ==
-                              currentIndex,
-
-
-                          onTap:
-                          _toggleControls,
-
-
-                          onZoomChanged:
-                              (
-                              zoomed,
-                              ) {
-
-                            _handleZoomChanged(
-                              index,
-                              zoomed,
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-
-            // ========================================
-            // BACK
-            //
-            // KHONG CON x / xx.
-            // ========================================
-
-            Positioned(
-
-              top:
-              8,
-
-              left:
-              8,
-
-
-              child:
-              AnimatedOpacity(
-
-                duration:
-                const Duration(
-                  milliseconds:
-                  160,
-                ),
-
-
-                opacity:
-                controlsVisible &&
-                    !draggingToDismiss
-                    ? 1.0
-                    : 0.0,
-
-
-                child:
-                IgnorePointer(
-
-                  ignoring:
-                  !controlsVisible ||
-                      draggingToDismiss,
-
-
-                  child:
-                  Material(
-
-                    color:
-                    const Color(
-                      0x66000000,
-                    ),
-
-
-                    shape:
-                    const CircleBorder(),
-
-
-                    child:
-                    IconButton(
-
-                      tooltip:
-                      'Quay lại',
-
-
-                      onPressed:
-                          () {
-
-                        Navigator.of(
-                          context,
-                        ).pop();
-                      },
-
-
-                      icon:
-                      const Icon(
-
-                        Icons
-                            .arrow_back_rounded,
-
-                        color:
-                        Colors.white,
-
-                        size:
-                        28,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-
-            // ========================================
-            // LOADING HISTORY
-            // ========================================
-
-            if (
-            loadingOlderPhotos &&
-                !draggingToDismiss
-            )
-              const Positioned(
-
-                left:
-                18,
-
-                top:
-                0,
-
-                bottom:
-                0,
-
-                child:
-                Center(
-
-                  child:
-                  SizedBox(
-
-                    width:
-                    22,
-
-                    height:
-                    22,
-
-                    child:
-                    CircularProgressIndicator(
-
-                      strokeWidth:
-                      2,
-
-                      color:
-                      Colors.white70,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _VideoViewerPage
-    extends StatefulWidget {
-
-  final String videoUrl;
-
-
-  const _VideoViewerPage({
-    required this.videoUrl,
-  });
-
-
-  @override
-  State<_VideoViewerPage>
-  createState() =>
-      _VideoViewerPageState();
-}
-
-
-class _VideoViewerPageState
-    extends State<_VideoViewerPage> {
-
-  late final VideoPlayerController
-  controller;
-
-
-  bool initialized =
-  false;
-
-
-  bool failed =
-  false;
-
-
-  bool controlsVisible =
-  true;
-
-
-  Timer?
-  hideControlsTimer;
-
-
-  @override
-  void initState() {
-
-    super.initState();
-
-
-    controller =
-        VideoPlayerController
-            .networkUrl(
-          Uri.parse(
-            widget.videoUrl,
-          ),
-        );
-
-
-    controller
-        .addListener(
-      _handleVideoChanged,
-    );
-
-
-    _initialize();
-  }
-
-
-  Future<void>
-  _initialize() async {
-
-    try {
-
-      await controller
-          .initialize();
-
-
-      if (!mounted) {
-        return;
-      }
-
-
-      await controller
-          .setLooping(
-        false,
-      );
-
-
-      setState(() {
-
-        initialized =
-        true;
-      });
-
-
-      await controller
-          .play();
-
-
-      _scheduleHideControls();
-
-    } catch (error) {
-
-      debugPrint(
-        'VIDEO INIT ERROR: $error',
-      );
-
-
-      if (!mounted) {
-        return;
-      }
-
-
-      setState(() {
-
-        failed =
-        true;
-      });
-    }
-  }
-
-
-  void _handleVideoChanged() {
-
-    if (!mounted) {
-      return;
-    }
-
-
-    if (
-    !initialized
-    ) {
-      return;
-    }
-
-
-    setState(() {
-      // Update:
-      // - progress
-      // - play state
-      // - duration
-    });
-  }
-
-
-  void _scheduleHideControls() {
-
-    hideControlsTimer
-        ?.cancel();
-
-
-    if (
-    !controller
-        .value
-        .isPlaying
-    ) {
-
-      return;
-    }
-
-
-    hideControlsTimer =
-        Timer(
-
-          const Duration(
-            seconds:
-            3,
-          ),
-
-              () {
-
-            if (!mounted) {
-              return;
-            }
-
-
-            setState(() {
-
-              controlsVisible =
-              false;
-            });
-          },
-        );
-  }
-
-
-  void _toggleControls() {
-
-    setState(() {
-
-      controlsVisible =
-      !controlsVisible;
-    });
-
-
-    if (
-    controlsVisible
-    ) {
-
-      _scheduleHideControls();
-    }
-  }
-
-
-  Future<void>
-  _togglePlay() async {
-
-    if (
-    !initialized
-    ) {
-      return;
-    }
-
-
-    if (
-    controller
-        .value
-        .isPlaying
-    ) {
-
-      await controller
-          .pause();
-
-
-      hideControlsTimer
-          ?.cancel();
-
-
-      if (
-      mounted
-      ) {
-
-        setState(() {
-
-          controlsVisible =
-          true;
-        });
-      }
-
-    } else {
-
-      await controller
-          .play();
-
-
-      if (
-      mounted
-      ) {
-
-        setState(() {
-
-          controlsVisible =
-          true;
-        });
-      }
-
-
-      _scheduleHideControls();
-    }
-  }
-
-
-  String _formatVideoTime(
-      Duration duration,
-      ) {
-
-    final totalSeconds =
-        duration
-            .inSeconds;
-
-
-    final hours =
-        totalSeconds ~/
-            3600;
-
-
-    final minutes =
-        (
-            totalSeconds %
-                3600
-        ) ~/
-            60;
-
-
-    final seconds =
-        totalSeconds %
-            60;
-
-
-    final minuteText =
-    minutes
-        .toString()
-        .padLeft(
-      2,
-      '0',
-    );
-
-
-    final secondText =
-    seconds
-        .toString()
-        .padLeft(
-      2,
-      '0',
-    );
-
-
-    if (
-    hours >
-        0
-    ) {
-
-      return '$hours:$minuteText:$secondText';
-    }
-
-
-    return '$minuteText:$secondText';
-  }
-
-
-  Future<void>
-  _seekTo(
-      double value,
-      ) async {
-
-    if (
-    !initialized
-    ) {
-      return;
-    }
-
-
-    final duration =
-        controller
-            .value
-            .duration;
-
-
-    if (
-    duration
-        .inMilliseconds <=
-        0
-    ) {
-
-      return;
-    }
-
-
-    final targetMs =
-    (
-        duration
-            .inMilliseconds *
-            value
-    ).round();
-
-
-    await controller
-        .seekTo(
-      Duration(
-        milliseconds:
-        targetMs,
-      ),
-    );
-
-
-    _scheduleHideControls();
-  }
-
-
-  @override
-  void dispose() {
-
-    hideControlsTimer
-        ?.cancel();
-
-
-    controller
-        .removeListener(
-      _handleVideoChanged,
-    );
-
-
-    controller
-        .dispose();
-
-
-    super.dispose();
-  }
-
-
-  @override
-  Widget build(
-      BuildContext context,
-      ) {
-
-    return Scaffold(
-
-      backgroundColor:
-      Colors.black,
-
-
-      body:
-      SafeArea(
-
-        child:
-        failed
-
-            ? const Center(
-
-          child:
-          Column(
-
-            mainAxisSize:
-            MainAxisSize.min,
-
-            children: [
-
-              Icon(
-                Icons
-                    .error_outline_rounded,
-
-                color:
-                Colors.white70,
-
-                size:
-                48,
-              ),
-
-
-              SizedBox(
-                height:
-                12,
-              ),
-
-
-              Text(
-                'Không thể phát video',
-
-                style:
-                TextStyle(
-                  color:
-                  Colors.white,
-                ),
-              ),
-            ],
-          ),
-        )
-
-            : !initialized
-
-            ? const Center(
-
-          child:
-          CircularProgressIndicator(
-
-            color:
-            Colors.white,
-          ),
-        )
-
-            : GestureDetector(
-
-          behavior:
-          HitTestBehavior.opaque,
-
-
-          onTap:
-          _toggleControls,
-
-
-          child:
-          Stack(
-
-            children: [
-
-              // ========================================
-              // VIDEO
-              // ========================================
-
-              Positioned.fill(
-
-                child:
-                Center(
-
-                  child:
-                  AspectRatio(
-
-                    aspectRatio:
-                    controller
-                        .value
-                        .aspectRatio >
-                        0
-                        ? controller
-                        .value
-                        .aspectRatio
-                        : 16 / 9,
-
-                    child:
-                    VideoPlayer(
-                      controller,
-                    ),
-                  ),
-                ),
-              ),
-
-
-              // ========================================
-              // CONTROLS OVERLAY
-              // ========================================
-
-              Positioned.fill(
-
-                child:
-                AnimatedOpacity(
-
-                  duration:
-                  const Duration(
-                    milliseconds:
-                    180,
-                  ),
-
-
-                  opacity:
-                  controlsVisible
-                      ? 1
-                      : 0,
-
-
-                  child:
-                  IgnorePointer(
-
-                    ignoring:
-                    !controlsVisible,
-
-
-                    child:
-                    Stack(
-
-                      children: [
-
-                        // ========================================
-                        // DARK OVERLAY
-                        // ========================================
-
-                        const Positioned.fill(
-
-                          child:
-                          ColoredBox(
-
-                            color:
-                            Color(
-                              0x33000000,
-                            ),
-                          ),
-                        ),
-
-
-                        // ========================================
-                        // BACK
-                        // ========================================
-
-                        Positioned(
-
-                          top:
-                          8,
-
-                          left:
-                          8,
-
-                          child:
-                          Material(
-
-                            color:
-                            const Color(
-                              0x66000000,
-                            ),
-
-                            shape:
-                            const CircleBorder(),
-
-                            child:
-                            IconButton(
-
-                              tooltip:
-                              'Quay lại',
-
-                              onPressed:
-                                  () {
-
-                                Navigator.of(
-                                  context,
-                                ).pop();
-                              },
-
-                              icon:
-                              const Icon(
-
-                                Icons
-                                    .arrow_back_rounded,
-
-                                color:
-                                Colors.white,
-
-                                size:
-                                28,
-                              ),
-                            ),
-                          ),
-                        ),
-
-
-                        // ========================================
-                        // PLAY / PAUSE
-                        // ========================================
-
-                        Center(
-
-                          child:
-                          Material(
-
-                            color:
-                            const Color(
-                              0xAA000000,
-                            ),
-
-                            shape:
-                            const CircleBorder(),
-
-                            child:
-                            InkWell(
-
-                              customBorder:
-                              const CircleBorder(),
-
-                              onTap:
-                              _togglePlay,
-
-                              child:
-                              SizedBox(
-
-                                width:
-                                72,
-
-                                height:
-                                72,
-
-                                child:
-                                Icon(
-
-                                  controller
-                                      .value
-                                      .isPlaying
-                                      ? Icons
-                                      .pause_rounded
-
-                                      : Icons
-                                      .play_arrow_rounded,
-
-                                  size:
-                                  46,
-
-                                  color:
-                                  Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-
-
-                        // ========================================
-                        // BOTTOM CONTROLS
-                        // ========================================
-
-                        Positioned(
-
-                          left:
-                          14,
-
-                          right:
-                          14,
-
-                          bottom:
-                          14,
-
-                          child:
-                          _buildVideoBottomControls(),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-
-  Widget _buildVideoBottomControls() {
-
-    final position =
-        controller
-            .value
-            .position;
-
-
-    final duration =
-        controller
-            .value
-            .duration;
-
-
-    final durationMs =
-        duration
-            .inMilliseconds;
-
-
-    final positionMs =
-        position
-            .inMilliseconds;
-
-
-    final progress =
-    durationMs >
-        0
-        ? (
-        positionMs /
-            durationMs
-    )
-        .clamp(
-      0.0,
-      1.0,
-    )
-        .toDouble()
-
-        : 0.0;
-
-
-    return Container(
-
-      padding:
-      const EdgeInsets
-          .fromLTRB(
-        12,
-        8,
-        12,
-        7,
-      ),
-
-      decoration:
-      BoxDecoration(
-
-        color:
-        const Color(
-          0x99000000,
-        ),
-
-        borderRadius:
-        BorderRadius.circular(
-          12,
-        ),
-      ),
-
-      child:
-      Column(
-
-        mainAxisSize:
-        MainAxisSize.min,
-
-        children: [
-
-          // ========================================
-          // SEEK BAR
-          // ========================================
-
-          SliderTheme(
-
-            data:
-            SliderTheme.of(
-              context,
-            ).copyWith(
-
-              trackHeight:
-              3,
-
-              thumbShape:
-              const RoundSliderThumbShape(
-                enabledThumbRadius:
-                6,
-              ),
-
-              overlayShape:
-              const RoundSliderOverlayShape(
-                overlayRadius:
-                14,
-              ),
-            ),
-
-
-            child:
-            Slider(
-
-              value:
-              progress,
-
-              min:
-              0,
-
-              max:
-              1,
-
-              onChanged:
-                  (
-                  value,
-                  ) {
-
-                _seekTo(
-                  value,
-                );
-              },
-            ),
-          ),
-
-
-          Row(
-
-            children: [
-
-              IconButton(
-
-                visualDensity:
-                VisualDensity.compact,
-
-                padding:
-                EdgeInsets.zero,
-
-                constraints:
-                const BoxConstraints(
-
-                  minWidth:
-                  36,
-
-                  minHeight:
-                  36,
-                ),
-
-                onPressed:
-                _togglePlay,
-
-                icon:
-                Icon(
-
-                  controller
-                      .value
-                      .isPlaying
-                      ? Icons
-                      .pause_rounded
-
-                      : Icons
-                      .play_arrow_rounded,
-
-                  color:
-                  Colors.white,
-
-                  size:
-                  24,
-                ),
-              ),
-
-
-              const SizedBox(
-                width:
-                6,
-              ),
-
-
-              Text(
-
-                '${_formatVideoTime(position)} / '
-                    '${_formatVideoTime(duration)}',
-
-                style:
-                const TextStyle(
-
-                  color:
-                  Colors.white,
-
-                  fontSize:
-                  12,
-
-                  fontWeight:
-                  FontWeight.w500,
-                ),
-              ),
-
-
-              const Spacer(),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ========================================
-// MOT ANH TRONG FULL SCREEN VIEWER
-//
-// MOI PAGE CO:
-// - TransformationController RIENG
-// - zoom rieng
-// - double tap rieng
-// ========================================
-
-class _PhotoViewerSlide
-    extends StatefulWidget {
-
-  final _PhotoViewerItem item;
-
-
-  final bool heroEnabled;
-
-
-  final ValueChanged<bool>
-  onZoomChanged;
-
-  final VoidCallback
-  onTap;
-
-
-  const _PhotoViewerSlide({
-    required this.item,
-    required this.heroEnabled,
-    required this.onZoomChanged,
-    required this.onTap,
-  });
-
-  @override
-  State<_PhotoViewerSlide>
-  createState() =>
-      _PhotoViewerSlideState();
-}
-
-
-class _PhotoViewerSlideState
-    extends State<_PhotoViewerSlide>
-    with SingleTickerProviderStateMixin {
-
-  final TransformationController
-  transformationController =
-  TransformationController();
-
-
-  late final AnimationController
-  animationController;
-
-
-  Animation<Matrix4>?
-  zoomAnimation;
-
-
-  Offset doubleTapPosition =
-      Offset.zero;
-
-
-  bool zoomed =
-  false;
-
-
-  static const double
-  doubleTapScale =
-  2.5;
-
-
-  @override
-  void initState() {
-
-    super.initState();
-
-
-    animationController =
-        AnimationController(
-
-          vsync:
-          this,
-
-          duration:
-          const Duration(
-            milliseconds:
-            220,
-          ),
-        );
-
-
-    animationController
-        .addListener(
-      _handleZoomAnimation,
-    );
-
-
-    transformationController
-        .addListener(
-      _handleTransformationChanged,
-    );
-  }
-
-
-  // ========================================
-  // CHECK DANG ZOOM HAY KHONG
-  // ========================================
-
-  void _handleTransformationChanged() {
-
-    final scale =
-    transformationController
-        .value
-        .getMaxScaleOnAxis();
-
-
-    final nextZoomed =
-        scale >
-            1.01;
-
-
-    if (
-    nextZoomed ==
-        zoomed
-    ) {
-
-      return;
-    }
-
-
-    zoomed =
-        nextZoomed;
-
-
-    if (mounted) {
-
-      setState(() {
-        // Update panEnabled.
-      });
-    }
-
-
-    widget.onZoomChanged(
-      nextZoomed,
-    );
-  }
-
-
-  // ========================================
-  // ANIMATION
-  // ========================================
-
-  void _handleZoomAnimation() {
-
-    final animation =
-        zoomAnimation;
-
-
-    if (
-    animation ==
-        null
-    ) {
-
-      return;
-    }
-
-
-    transformationController.value =
-        animation.value;
-  }
-
-
-  void _animateTransformation(
-      Matrix4 target,
-      ) {
-
-    animationController
-        .stop();
-
-
-    zoomAnimation =
-        Matrix4Tween(
-
-          begin:
-          Matrix4.copy(
-            transformationController
-                .value,
-          ),
-
-          end:
-          target,
-        ).animate(
-
-          CurvedAnimation(
-
-            parent:
-            animationController,
-
-            curve:
-            Curves.easeOutCubic,
-          ),
-        );
-
-
-    animationController
-        .forward(
-      from:
-      0,
-    );
-  }
-
-
-  // ========================================
-  // DOUBLE TAP POSITION
-  // ========================================
-
-  void _handleDoubleTapDown(
-      TapDownDetails details,
-      ) {
-
-    doubleTapPosition =
-        details.localPosition;
-  }
-
-
-  // ========================================
-  // DOUBLE TAP
-  //
-  // 1X -> 2.5X
-  // >1X -> 1X
-  // ========================================
-
-  void _handleDoubleTap() {
-
-    final currentScale =
-    transformationController
-        .value
-        .getMaxScaleOnAxis();
-
-
-    if (
-    currentScale >
-        1.05
-    ) {
-
-      _animateTransformation(
-        Matrix4.identity(),
-      );
-
-
-      return;
-    }
-
-
-    final x =
-        -doubleTapPosition.dx *
-            (
-                doubleTapScale -
-                    1
-            );
-
-
-    final y =
-        -doubleTapPosition.dy *
-            (
-                doubleTapScale -
-                    1
-            );
-
-
-    final target =
-    Matrix4.identity()
-
-      ..translateByDouble(
-        x,
-        y,
-        0.0,
-        1.0,
-      )
-
-      ..scaleByDouble(
-        doubleTapScale,
-        doubleTapScale,
-        doubleTapScale,
-        1.0,
-      );
-
-
-    _animateTransformation(
-      target,
-    );
-  }
-
-
-  @override
-  void dispose() {
-
-    transformationController
-        .removeListener(
-      _handleTransformationChanged,
-    );
-
-
-    animationController
-        .removeListener(
-      _handleZoomAnimation,
-    );
-
-
-    animationController
-        .dispose();
-
-
-    transformationController
-        .dispose();
-
-
-    super.dispose();
-  }
-
-
-  @override
-  Widget build(
-      BuildContext context,
-      ) {
-
-    return GestureDetector(
-
-      behavior:
-      HitTestBehavior.opaque,
-
-      // ========================================
-      // SINGLE TAP
-      // -> an / hien controls
-      // ========================================
-
-      onTap:
-      widget.onTap,
-
-
-      onDoubleTapDown:
-      _handleDoubleTapDown,
-
-
-      onDoubleTap:
-      _handleDoubleTap,
-
-
-      child:
-      InteractiveViewer(
-
-        transformationController:
-        transformationController,
-
-
-        minScale:
-        1.0,
-
-
-        maxScale:
-        5.0,
-
-
-        // ========================================
-        // CHI PAN KHI DANG ZOOM.
-        //
-        // KHI 1X:
-        // VUOT NGANG DUOC NHUONG CHO PAGEVIEW.
-        // ========================================
-
-        panEnabled:
-        zoomed,
-
-
-        scaleEnabled:
-        true,
-
-
-        boundaryMargin:
-        const EdgeInsets.all(
-          100,
-        ),
-
-
-        clipBehavior:
-        Clip.none,
-
-
-        onInteractionStart:
-            (
-            details,
-            ) {
-
-          if (
-          animationController
-              .isAnimating
-          ) {
-
-            animationController
-                .stop();
-          }
-        },
-
-
-        child:
-        Center(
-
-          child:
-          HeroMode(
-
-            enabled:
-            widget.heroEnabled,
-
-
-            child:
-            Hero(
-
-              tag:
-              widget.item
-                  .heroTag,
-
-
-              child:
-              Image.network(
-
-                widget.item.url,
-
-
-                fit:
-                BoxFit.contain,
-
-
-                loadingBuilder:
-                    (
-                    context,
-                    child,
-                    progress,
-                    ) {
-
-                  if (
-                  progress ==
-                      null
-                  ) {
-
-                    return child;
-                  }
-
-
-                  return const SizedBox(
-
-                    width:
-                    42,
-
-                    height:
-                    42,
-
-                    child:
-                    CircularProgressIndicator(
-
-                      strokeWidth:
-                      2.5,
-
-                      color:
-                      Colors.white,
-                    ),
-                  );
-                },
-
-
-                errorBuilder:
-                    (
-                    context,
-                    error,
-                    stackTrace,
-                    ) {
-
-                  return const Column(
-
-                    mainAxisSize:
-                    MainAxisSize.min,
-
-                    children: [
-
-                      Icon(
-
-                        Icons
-                            .broken_image_outlined,
-
-                        size:
-                        48,
-
-                        color:
-                        Colors.white70,
-                      ),
-
-
-                      SizedBox(
-                        height:
-                        10,
-                      ),
-
-
-                      Text(
-
-                        'Không thể tải ảnh',
-
-                        style:
-                        TextStyle(
-
-                          color:
-                          Colors.white70,
-
-                          fontSize:
-                          14,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class ChatPage
-    extends StatefulWidget {
-
+import '../../config/app_config.dart';
+
+import '../../services/backend_service.dart';
+import '../../services/chat_state_service.dart';
+
+import 'chat_date_separator.dart';
+import 'chat_sender_avatar.dart';
+import 'chat_message_composer.dart';
+import 'chat_app_bar.dart';
+import 'chat_message_list.dart';
+import 'chat_background.dart';
+import 'voice_message_bubble.dart';
+import 'file_message_bubble.dart';
+import 'sticker_message_bubble.dart';
+import 'simple_media_row.dart';
+import 'video_viewer_page.dart';
+import 'video_message_bubble.dart';
+import 'photo_viewer_page.dart';
+import 'photo_message_bubble.dart';
+import 'photo_media_row.dart';
+import 'text_message_bubble.dart';
+import 'text_message_row.dart';
+
+class ChatPage extends StatefulWidget {
   final String groupId;
   final String groupName;
   final String? groupAvatar;
 
-
   // Dung cho Lich su nhan sau nay.
   final String? targetMsgId;
   final String? targetCliMsgId;
-
 
   const ChatPage({
     super.key,
@@ -2749,99 +50,62 @@ class ChatPage
     this.targetCliMsgId,
   });
 
-
   @override
-  State<ChatPage>
-  createState() =>
-      _ChatPageState();
+  State<ChatPage> createState() => _ChatPageState();
 }
 
+class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
+  // ========================================
+  // VOICE PLAYER
+  // ========================================
 
-class _ChatPageState
-    extends State<ChatPage>
-    with WidgetsBindingObserver {
-
-  bool get _isDarkTheme =>
-      Theme.of(context).brightness ==
-          Brightness.dark;
-
-// ========================================
-// VOICE PLAYER
-// ========================================
-
-  final AudioPlayer voicePlayer =
-  AudioPlayer();
+  final AudioPlayer voicePlayer = AudioPlayer();
 
   String? playingVoiceUrl;
 
-  Duration voicePosition =
-      Duration.zero;
+  Duration voicePosition = Duration.zero;
 
-  Duration voiceDuration =
-      Duration.zero;
+  Duration voiceDuration = Duration.zero;
 
-  final ScrollController
-  scrollController =
-  ScrollController();
+  final ScrollController scrollController = ScrollController();
 
-  final TextEditingController
-  messageController =
-  TextEditingController();
+  final TextEditingController messageController = TextEditingController();
 
-  final ImagePicker
-  imagePicker =
-  ImagePicker();
+  final ImagePicker imagePicker = ImagePicker();
 
-  bool sendingPhoto =
-  false;
+  bool sendingPhoto = false;
 
-  final FocusNode
-  messageFocusNode =
-  FocusNode();
+  final FocusNode messageFocusNode = FocusNode();
 
+  bool sendingMessage = false;
 
-  bool sendingMessage =
-  false;
+  String? undoingMessageKey;
 
-  String?
-  undoingMessageKey;
+  String? deletingMessageKey;
 
-  String?
-  deletingMessageKey;
-
-  bool canSendMessage =
-  false;
+  bool canSendMessage = false;
 
   // ========================================
   // MESSAGE DANG DUOC REPLY
   // ========================================
 
-  Map<String, dynamic>?
-  replyingToMessage;
+  Map<String, dynamic>? replyingToMessage;
 
-  StreamSubscription<Map<String, dynamic>>?
-  realtimeSubscription;
+  StreamSubscription<Map<String, dynamic>>? realtimeSubscription;
 
   // ========================================
   // MARK READ
   // ========================================
 
-  Timer?
-  markReadTimer;
+  Timer? markReadTimer;
 
+  bool markReadInFlight = false;
 
-  bool markReadInFlight =
-  false;
-
-
-  bool markReadPending =
-  false;
-
+  bool markReadPending = false;
 
   // Chỉ đánh dấu đã đọc khi app
   // thực sự đang foreground.
-  bool appIsActive =
-  true;
+  bool appIsActive = true;
 
   Timer? realtimeReloadTimer;
 
@@ -2857,779 +121,287 @@ class _ChatPageState
 
   bool targetNoticeShown = false;
 
-  bool isSameMessage(
-      Map<String, dynamic> a,
-      Map<String, dynamic> b,
-      ) {
+  bool isSameMessage(Map<String, dynamic> a, Map<String, dynamic> b) {
+    const keys = ['msgId', 'cliMsgId', 'id'];
 
-    const keys = [
-      'msgId',
-      'cliMsgId',
-      'id',
-    ];
+    for (final key in keys) {
+      final aValue = a[key]?.toString();
 
+      final bValue = b[key]?.toString();
 
-    for (
-    final key
-    in keys
-    ) {
-
-      final aValue =
-      a[key]
-          ?.toString();
-
-      final bValue =
-      b[key]
-          ?.toString();
-
-
-      if (
-      aValue != null &&
+      if (aValue != null &&
           aValue.isNotEmpty &&
           bValue != null &&
           bValue.isNotEmpty &&
-          aValue ==
-              bValue
-      ) {
-
+          aValue == bValue) {
         return true;
       }
     }
     return false;
   }
 
-  String _formatVoiceDuration(
-      Duration duration,
-      ) {
-
-    final minutes =
-    duration.inMinutes
-        .toString()
-        .padLeft(
-      1,
-      '0',
-    );
-
-
-    final seconds =
-    (duration.inSeconds % 60)
-        .toString()
-        .padLeft(
-      2,
-      '0',
-    );
-
-
-    return '$minutes:$seconds';
-  }
-
-  String _messageActionKey(
-      Map<String, dynamic> message,
-      ) {
-
-    return message['id']
-        ?.toString() ??
-        message['msgId']
-            ?.toString() ??
-        message['cliMsgId']
-            ?.toString() ??
+  String _messageActionKey(Map<String, dynamic> message) {
+    return message['id']?.toString() ??
+        message['msgId']?.toString() ??
+        message['cliMsgId']?.toString() ??
         '';
   }
 
-  void _removeMessageFromUi(
-      Map<String, dynamic> message,
-      ) {
-
+  void _removeMessageFromUi(Map<String, dynamic> message) {
     if (!mounted) {
       return;
     }
 
-
-    final removeIndex =
-    messages.indexWhere(
-          (
-          item,
-          ) =>
-          isSameMessage(
-            item,
-            message,
-          ),
+    final removeIndex = messages.indexWhere(
+      (item) => isSameMessage(item, message),
     );
 
-
-    if (
-    removeIndex < 0
-    ) {
+    if (removeIndex < 0) {
       return;
     }
 
-
     setState(() {
-
       // ========================================
       // XOA HAN MESSAGE KHOI DANH SACH
       // ========================================
 
-      messages.removeAt(
-        removeIndex,
-      );
-
+      messages.removeAt(removeIndex);
 
       // ========================================
       // SUA TARGET INDEX NEU MESSAGE BI XOA
       // NAM TRUOC / DUNG TARGET
       // ========================================
 
-      if (
-      targetIndex != null
-      ) {
+      if (targetIndex != null) {
+        if (targetIndex == removeIndex) {
+          targetIndex = null;
 
-        if (
-        targetIndex ==
-            removeIndex
-        ) {
-
-          targetIndex =
-          null;
-
-          highlightTarget =
-          false;
-
-        } else if (
-        removeIndex <
-            targetIndex!
-        ) {
-
-          targetIndex =
-              targetIndex! - 1;
+          highlightTarget = false;
+        } else if (removeIndex < targetIndex!) {
+          targetIndex = targetIndex! - 1;
         }
       }
-
 
       // ========================================
       // NEU DANG REPLY MESSAGE VUA XOA
       // THI HUY REPLY
       // ========================================
 
-      if (
-      replyingToMessage !=
-          null &&
-          isSameMessage(
-            replyingToMessage!,
-            message,
-          )
-      ) {
-
-        replyingToMessage =
-        null;
+      if (replyingToMessage != null &&
+          isSameMessage(replyingToMessage!, message)) {
+        replyingToMessage = null;
       }
     });
   }
 
-  int? _messageTimestampMs(
-      Map<String, dynamic> message,
-      ) {
-
-    final raw =
-    int.tryParse(
-      message['timestamp']
-          ?.toString() ??
-          '',
-    );
-
-
-    if (
-    raw == null ||
-        raw <= 0
-    ) {
-      return null;
-    }
-
-
-    // ========================================
-    // HO TRO UNIX SECOND
-    // ========================================
-
-    if (
-    raw <
-        100000000000
-    ) {
-
-      return raw *
-          1000;
-    }
-
-
-    return raw;
-  }
-
-  bool _isSameCalendarDay(
-      Map<String, dynamic> first,
-      Map<String, dynamic> second,
-      ) {
-    final firstMs =
-    _messageTimestampMs(
-      first,
-    );
-
-
-    final secondMs =
-    _messageTimestampMs(
-      second,
-    );
-
-
-    if (
-    firstMs == null ||
-        secondMs == null
-    ) {
-      return false;
-    }
-
-
-    final firstDate =
-    DateTime
-        .fromMillisecondsSinceEpoch(
-      firstMs,
-      isUtc: false,
-    );
-
-
-    final secondDate =
-    DateTime
-        .fromMillisecondsSinceEpoch(
-      secondMs,
-      isUtc: false,
-    );
-
-
-    return
-      firstDate.year ==
-          secondDate.year &&
-          firstDate.month ==
-              secondDate.month &&
-          firstDate.day ==
-              secondDate.day;
-  }
-
-  String _formatDateSeparator(
-      Map<String, dynamic> message,
-      ) {
-    final timestampMs =
-    _messageTimestampMs(
-      message,
-    );
-
-    if (timestampMs == null) {
-      return '';
-    }
-
-    final date =
-    DateTime.fromMillisecondsSinceEpoch(
-      timestampMs,
-    ).toLocal();
-
-    final now =
-    DateTime.now();
-
-    // ========================================
-    // SO SANH NGAY THUC TE
-    // ========================================
-
-    final isToday =
-        date.year == now.year &&
-            date.month == now.month &&
-            date.day == now.day;
-
-    if (isToday) {
-      return 'Hôm nay';
-    }
-
-    // ========================================
-    // HOM QUA
-    // ========================================
-
-    final yesterday =
-    DateTime(
-      now.year,
-      now.month,
-      now.day,
-    ).subtract(
-      const Duration(
-        days: 1,
-      ),
-    );
-
-    final isYesterday =
-        date.year == yesterday.year &&
-            date.month == yesterday.month &&
-            date.day == yesterday.day;
-
-    if (isYesterday) {
-      return 'Hôm qua';
-    }
-
-    // ========================================
-    // NGAY CU
-    // ========================================
-
-    return
-      '${date.day.toString().padLeft(2, '0')}/'
-          '${date.month.toString().padLeft(2, '0')}/'
-          '${date.year}';
-  }
-
-  Widget _buildDateSeparator(
-      String label,
-      ) {
-    if (label.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-
-    final colorScheme =
-        Theme.of(context)
-            .colorScheme;
-
-
-    return Padding(
-
-      padding:
-      const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 12,
-      ),
-
-      child:
-      Center(
-
-        child:
-        Text(
-
-          label,
-
-          style:
-          TextStyle(
-
-            fontSize:
-            12,
-
-            fontWeight:
-            FontWeight.w500,
-
-            color:
-            colorScheme
-                .onSurfaceVariant,
-          ),
-        ),
-      ),
-    );
-  }
-
-
-  bool _isRecallExpired(
-      Map<String, dynamic> message,
-      ) {
-
-    final timestampMs =
-    _messageTimestampMs(
-      message,
-    );
-
+  bool _isRecallExpired(Map<String, dynamic> message) {
+    final timestampMs = messageTimestampMs(message);
 
     // Khong ro timestamp thi
     // de backend quyet dinh.
-    if (
-    timestampMs == null
-    ) {
+    if (timestampMs == null) {
       return false;
     }
 
+    final now = DateTime.now().millisecondsSinceEpoch;
 
-    final now =
-        DateTime.now()
-            .millisecondsSinceEpoch;
+    final ageMs = now - timestampMs;
 
-
-    final ageMs =
-        now -
-            timestampMs;
-
-
-    if (
-    ageMs < 0
-    ) {
+    if (ageMs < 0) {
       return false;
     }
 
-
-    return ageMs >=
-        const Duration(
-          hours:
-          1,
-        ).inMilliseconds;
+    return ageMs >= const Duration(hours: 1).inMilliseconds;
   }
 
-  int _findMessageIndexByIds({
-    String? msgId,
-    String? cliMsgId,
-  }) {
+  int _findMessageIndexByIds({String? msgId, String? cliMsgId}) {
+    final safeMsgId = msgId?.trim() ?? '';
 
-    final safeMsgId =
-        msgId
-            ?.trim() ??
-            '';
+    final safeCliMsgId = cliMsgId?.trim() ?? '';
 
+    return messages.indexWhere((message) {
+      final messageMsgId = message['msgId']?.toString().trim() ?? '';
 
-    final safeCliMsgId =
-        cliMsgId
-            ?.trim() ??
-            '';
+      final messageCliMsgId = message['cliMsgId']?.toString().trim() ?? '';
 
+      final sameMsgId =
+          safeMsgId.isNotEmpty &&
+          messageMsgId.isNotEmpty &&
+          safeMsgId == messageMsgId;
 
-    return messages.indexWhere(
-          (
-          message,
-          ) {
+      final sameCliMsgId =
+          safeCliMsgId.isNotEmpty &&
+          messageCliMsgId.isNotEmpty &&
+          safeCliMsgId == messageCliMsgId;
 
-        final messageMsgId =
-            message['msgId']
-                ?.toString()
-                .trim() ??
-                '';
-
-
-        final messageCliMsgId =
-            message['cliMsgId']
-                ?.toString()
-                .trim() ??
-                '';
-
-
-        final sameMsgId =
-            safeMsgId.isNotEmpty &&
-                messageMsgId.isNotEmpty &&
-                safeMsgId ==
-                    messageMsgId;
-
-
-        final sameCliMsgId =
-            safeCliMsgId.isNotEmpty &&
-                messageCliMsgId.isNotEmpty &&
-                safeCliMsgId ==
-                    messageCliMsgId;
-
-
-        return sameMsgId ||
-            sameCliMsgId;
-      },
-    );
+      return sameMsgId || sameCliMsgId;
+    });
   }
 
-  final GlobalKey targetMessageKey =
-  GlobalKey();
+  final GlobalKey targetMessageKey = GlobalKey();
 
-  final BackendService backend =
-  BackendService(
-    baseUrl:
-    AppConfig.backendUrl,
-  );
+  final BackendService backend = BackendService(baseUrl: AppConfig.backendUrl);
 
+  List<Map<String, dynamic>> messages = [];
 
-  List<Map<String, dynamic>>
-  messages = [];
+  bool loading = true;
 
+  static const int pageSize = 50;
 
-  bool loading =
-  true;
+  bool loadingOlder = false;
 
-  static const int pageSize =
-  50;
+  bool hasMoreOlder = false;
 
-  bool loadingOlder =
-  false;
+  bool hasMoreNewer = false;
 
-  bool hasMoreOlder =
-  false;
-
-  bool hasMoreNewer =
-  false;
-
-
-// Khong cho pagination chay
-// truoc khi scroll target / scroll bottom
-// lan dau hoan tat.
-  bool paginationReady =
-  false;
+  // Khong cho pagination chay
+  // truoc khi scroll target / scroll bottom
+  // lan dau hoan tat.
+  bool paginationReady = false;
 
   // ========================================
-// DANG TU DONG TIM TARGET TU TIN MOI NHAT
-// ========================================
+  // DANG TU DONG TIM TARGET TU TIN MOI NHAT
+  // ========================================
 
-  bool seekingTarget =
-  false;
+  bool seekingTarget = false;
 
-
-// Moi lan tim target load 30 tin cu.
-  static const int targetSeekPageSize =
-  30;
-
+  // Moi lan tim target load 30 tin cu.
+  static const int targetSeekPageSize = 30;
 
   @override
   void initState() {
     super.initState();
 
-    ChatStateService
-        .instance
-        .openGroup(
-      widget.groupId,
-    );
+    ChatStateService.instance.openGroup(widget.groupId);
 
     _setupVoicePlayer();
 
-    WidgetsBinding
-        .instance
-        .addObserver(
-      this,
-    );
+    WidgetsBinding.instance.addObserver(this);
 
-
-    final lifecycleState =
-        WidgetsBinding
-            .instance
-            .lifecycleState;
-
+    final lifecycleState = WidgetsBinding.instance.lifecycleState;
 
     appIsActive =
-        lifecycleState == null ||
-            lifecycleState ==
-                AppLifecycleState.resumed;
+        lifecycleState == null || lifecycleState == AppLifecycleState.resumed;
 
-    messageController
-        .addListener(
-      _handleComposerChanged,
-    );
+    messageController.addListener(_handleComposerChanged);
 
     initializeChat();
   }
 
   void _handleComposerChanged() {
+    final next = messageController.text.trim().isNotEmpty;
 
-    final next =
-        messageController
-            .text
-            .trim()
-            .isNotEmpty;
-
-
-    if (
-    next ==
-        canSendMessage
-    ) {
+    if (next == canSendMessage) {
       return;
     }
-
 
     if (!mounted) {
       return;
     }
 
-
     setState(() {
-
-      canSendMessage =
-          next;
+      canSendMessage = next;
     });
   }
 
-  void _startReply(
-      Map<String, dynamic> message,
-      ) {
-
-    final status =
-        message['status']
-            ?.toString() ??
-            'normal';
-
+  void _startReply(Map<String, dynamic> message) {
+    final status = message['status']?.toString() ?? 'normal';
 
     // ========================================
     // KHONG REPLY TIN DA THU HOI / XOA
     // ========================================
 
-    if (
-    status !=
-        'normal'
-    ) {
-
-      ScaffoldMessenger
-          .of(context)
-          .showSnackBar(
-        const SnackBar(
-          content:
-          Text(
-            'Tin nhắn này không còn có thể trả lời.',
-          ),
-        ),
+    if (status != 'normal') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tin nhắn này không còn có thể trả lời.')),
       );
-
 
       return;
     }
 
+    final msgId = message['msgId']?.toString();
 
-    final msgId =
-    message['msgId']
-        ?.toString();
+    final cliMsgId = message['cliMsgId']?.toString();
 
-
-    final cliMsgId =
-    message['cliMsgId']
-        ?.toString();
-
-
-    if (
-    (
-        msgId == null ||
-            msgId.isEmpty
-    ) &&
-        (
-            cliMsgId == null ||
-                cliMsgId.isEmpty
-        )
-    ) {
-
-      ScaffoldMessenger
-          .of(context)
-          .showSnackBar(
+    if ((msgId == null || msgId.isEmpty) &&
+        (cliMsgId == null || cliMsgId.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content:
-          Text(
-            'Tin nhắn này chưa có ID Zalo để trả lời.',
-          ),
+          content: Text('Tin nhắn này chưa có ID Zalo để trả lời.'),
         ),
       );
 
-
       return;
     }
-
 
     setState(() {
-
-      replyingToMessage =
-      Map<String, dynamic>.from(
-        message,
-      );
+      replyingToMessage = Map<String, dynamic>.from(message);
     });
 
-
-    messageFocusNode
-        .requestFocus();
+    messageFocusNode.requestFocus();
   }
 
-
   void _cancelReply() {
-
-    if (
-    replyingToMessage ==
-        null
-    ) {
+    if (replyingToMessage == null) {
       return;
     }
 
-
     setState(() {
-
-      replyingToMessage =
-      null;
+      replyingToMessage = null;
     });
   }
 
   void _setupVoicePlayer() {
+    voicePlayer.onPositionChanged.listen((position) {
+      if (!mounted) {
+        return;
+      }
 
-    voicePlayer.onPositionChanged.listen(
-          (position) {
+      setState(() {
+        voicePosition = position;
+      });
+    });
 
-        if (!mounted) {
-          return;
-        }
+    voicePlayer.onDurationChanged.listen((duration) {
+      if (!mounted) {
+        return;
+      }
 
-        setState(() {
-          voicePosition =
-              position;
-        });
-      },
-    );
+      setState(() {
+        voiceDuration = duration;
+      });
+    });
 
+    voicePlayer.onPlayerComplete.listen((_) {
+      if (!mounted) {
+        return;
+      }
 
-    voicePlayer.onDurationChanged.listen(
-          (duration) {
+      setState(() {
+        playingVoiceUrl = null;
 
-        if (!mounted) {
-          return;
-        }
-
-        setState(() {
-          voiceDuration =
-              duration;
-        });
-      },
-    );
-
-
-    voicePlayer.onPlayerComplete.listen(
-          (_) {
-
-        if (!mounted) {
-          return;
-        }
-
-        setState(() {
-
-          playingVoiceUrl =
-          null;
-
-          voicePosition =
-              Duration.zero;
-        });
-      },
-    );
+        voicePosition = Duration.zero;
+      });
+    });
   }
 
-  Future<void> _toggleVoice(
-      String url,
-      ) async {
-
-    final trimmedUrl =
-    url.trim();
-
+  Future<void> _toggleVoice(String url) async {
+    final trimmedUrl = url.trim();
 
     if (trimmedUrl.isEmpty) {
       return;
     }
 
-
     // ========================================
     // DANG PHAT CHINH VOICE NAY
     // ========================================
 
-    if (
-    playingVoiceUrl ==
-        trimmedUrl
-    ) {
-
-      if (
-      voicePlayer.state ==
-          PlayerState.playing
-      ) {
-
+    if (playingVoiceUrl == trimmedUrl) {
+      if (voicePlayer.state == PlayerState.playing) {
         await voicePlayer.pause();
-
       } else {
-
         await voicePlayer.resume();
       }
-
 
       if (!mounted) {
         return;
@@ -3640,304 +412,156 @@ class _ChatPageState
       return;
     }
 
-
     // ========================================
     // CHUYEN SANG VOICE KHAC
     // ========================================
 
     await voicePlayer.stop();
 
-
     if (!mounted) {
       return;
     }
 
-
     setState(() {
+      playingVoiceUrl = trimmedUrl;
 
-      playingVoiceUrl =
-          trimmedUrl;
+      voicePosition = Duration.zero;
 
-      voicePosition =
-          Duration.zero;
-
-      voiceDuration =
-          Duration.zero;
+      voiceDuration = Duration.zero;
     });
 
-
-    await voicePlayer.play(
-      UrlSource(
-        trimmedUrl,
-      ),
-    );
+    await voicePlayer.play(UrlSource(trimmedUrl));
   }
 
-  Future<void>
-  _confirmUndoMessage(
-      Map<String, dynamic> message,
-      ) async {
-
+  Future<void> _confirmUndoMessage(Map<String, dynamic> message) async {
     // ========================================
-// TIN QUA 1 GIO
-//
-// VAN HIEN NUT THU HOI,
-// NHUNG BAM VAO THI THONG BAO NGAY.
-// ========================================
+    // TIN QUA 1 GIO
+    //
+    // VAN HIEN NUT THU HOI,
+    // NHUNG BAM VAO THI THONG BAO NGAY.
+    // ========================================
 
-    if (
-    _isRecallExpired(
-      message,
-    )
-    ) {
-
+    if (_isRecallExpired(message)) {
       _showTopNotice(
         'Bạn chỉ có thể thu hồi tin nhắn trong 1 giờ sau khi gửi.',
       );
 
-
       return;
     }
 
-    final confirmed =
-    await showDialog<bool>(
-      context:
-      context,
+    final confirmed = await showDialog<bool>(
+      context: context,
 
-      builder:
-          (
-          dialogContext,
-          ) {
-
+      builder: (dialogContext) {
         return AlertDialog(
+          title: const Text('Thu hồi tin nhắn?'),
 
-          title:
-          const Text(
-            'Thu hồi tin nhắn?',
-          ),
-
-
-          content:
-          const Text(
+          content: const Text(
             'Tin nhắn này sẽ được thu hồi với mọi người trong nhóm Zalo.',
           ),
 
-
           actions: [
-
             TextButton(
-              onPressed:
-                  () {
-
-                Navigator.of(
-                  dialogContext,
-                ).pop(
-                  false,
-                );
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
               },
 
-              child:
-              const Text(
-                'Hủy',
-              ),
+              child: const Text('Hủy'),
             ),
 
-
             FilledButton(
-              onPressed:
-                  () {
-
-                Navigator.of(
-                  dialogContext,
-                ).pop(
-                  true,
-                );
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
               },
 
-              child:
-              const Text(
-                'Thu hồi',
-              ),
+              child: const Text('Thu hồi'),
             ),
           ],
         );
       },
     );
 
-
-    if (
-    confirmed !=
-        true
-    ) {
+    if (confirmed != true) {
       return;
     }
 
-
-    await _undoMessage(
-      message,
-    );
+    await _undoMessage(message);
   }
 
-  Future<void>
-  _confirmDeleteMessage(
-      Map<String, dynamic> message,
-      ) async {
+  Future<void> _confirmDeleteMessage(Map<String, dynamic> message) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
 
-    final confirmed =
-    await showDialog<bool>(
-      context:
-      context,
-
-      builder:
-          (
-          dialogContext,
-          ) {
-
+      builder: (dialogContext) {
         return AlertDialog(
+          title: const Text('Xóa tin nhắn?'),
 
-          title:
-          const Text(
-            'Xóa tin nhắn?',
-          ),
-
-
-          content:
-          const Text(
+          content: const Text(
             'Tin nhắn sẽ bị xóa ở phía bạn. Người khác trong nhóm Zalo vẫn có thể thấy tin nhắn.',
           ),
 
-
           actions: [
-
             TextButton(
-              onPressed:
-                  () {
-
-                Navigator.of(
-                  dialogContext,
-                ).pop(
-                  false,
-                );
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
               },
 
-              child:
-              const Text(
-                'Hủy',
-              ),
+              child: const Text('Hủy'),
             ),
 
-
             FilledButton(
-              onPressed:
-                  () {
-
-                Navigator.of(
-                  dialogContext,
-                ).pop(
-                  true,
-                );
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
               },
 
-              child:
-              const Text(
-                'Xóa',
-              ),
+              child: const Text('Xóa'),
             ),
           ],
         );
       },
     );
 
-
-    if (
-    confirmed !=
-        true
-    ) {
+    if (confirmed != true) {
       return;
     }
 
-
-    await _deleteMessage(
-      message,
-    );
+    await _deleteMessage(message);
   }
 
-  Future<void>
-  _deleteMessage(
-      Map<String, dynamic> message,
-      ) async {
+  Future<void> _deleteMessage(Map<String, dynamic> message) async {
+    final actionKey = _messageActionKey(message);
 
-    final actionKey =
-    _messageActionKey(
-      message,
-    );
-
-
-    if (
-    actionKey.isEmpty ||
-        deletingMessageKey != null
-    ) {
+    if (actionKey.isEmpty || deletingMessageKey != null) {
       return;
     }
 
+    final msgId = message['msgId']?.toString().trim();
 
-    final msgId =
-    message['msgId']
-        ?.toString()
-        .trim();
+    final cliMsgId = message['cliMsgId']?.toString().trim();
 
-
-    final cliMsgId =
-    message['cliMsgId']
-        ?.toString()
-        .trim();
-
-
-    if (
-    (
-        msgId == null ||
-            msgId.isEmpty
-    ) &&
-        (
-            cliMsgId == null ||
-                cliMsgId.isEmpty
-        )
-    ) {
-
-      _showTopNotice(
-        'Tin nhắn thiếu ID để xóa',
-      );
+    if ((msgId == null || msgId.isEmpty) &&
+        (cliMsgId == null || cliMsgId.isEmpty)) {
+      _showTopNotice('Tin nhắn thiếu ID để xóa');
 
       return;
     }
-
 
     setState(() {
-
-      deletingMessageKey =
-          actionKey;
+      deletingMessageKey = actionKey;
     });
 
-
     try {
+      await backend.deleteConversationMessage(
+        groupId: widget.groupId,
 
-      await backend
-          .deleteConversationMessage(
-        groupId:
-        widget.groupId,
+        msgId: msgId,
 
-        msgId:
-        msgId,
-
-        cliMsgId:
-        cliMsgId,
+        cliMsgId: cliMsgId,
       );
-
 
       if (!mounted) {
         return;
       }
-
 
       // ========================================
       // API THANH CONG
@@ -3945,146 +569,75 @@ class _ChatPageState
       // XOA HAN BUBBLE KHOI CHATPAGE.
       // ========================================
 
-      _removeMessageFromUi(
-        message,
-      );
+      _removeMessageFromUi(message);
 
-
-      _showTopNotice(
-        'Đã xóa tin nhắn',
-      );
-
+      _showTopNotice('Đã xóa tin nhắn');
     } catch (error) {
-
       if (!mounted) {
         return;
       }
 
+      _showTopNotice('Xóa tin nhắn thất bại');
 
-      _showTopNotice(
-        'Xóa tin nhắn thất bại',
-      );
-
-
-      debugPrint(
-        'DELETE MESSAGE ERROR: $error',
-      );
-
+      debugPrint('DELETE MESSAGE ERROR: $error');
     } finally {
-
       if (mounted) {
-
         setState(() {
-
-          deletingMessageKey =
-          null;
+          deletingMessageKey = null;
         });
       }
     }
   }
 
-  Future<void>
-  _undoMessage(
-      Map<String, dynamic> message,
-      ) async {
-
-    if (
-    _isRecallExpired(
-      message,
-    )
-    ) {
-
+  Future<void> _undoMessage(Map<String, dynamic> message) async {
+    if (_isRecallExpired(message)) {
       _showTopNotice(
         'Bạn chỉ có thể thu hồi tin nhắn trong 1 giờ sau khi gửi.',
       );
 
-
       return;
     }
 
-    final actionKey =
-    _messageActionKey(
-      message,
-    );
+    final actionKey = _messageActionKey(message);
 
-
-    if (
-    actionKey.isEmpty ||
-        undoingMessageKey !=
-            null
-    ) {
+    if (actionKey.isEmpty || undoingMessageKey != null) {
       return;
     }
 
-
-    final isSelf =
-        message['isSelf'] ==
-            true;
-
+    final isSelf = message['isSelf'] == true;
 
     if (!isSelf) {
-
-      _showTopNotice(
-        'Chỉ có thể thu hồi tin nhắn của bạn',
-      );
+      _showTopNotice('Chỉ có thể thu hồi tin nhắn của bạn');
 
       return;
     }
 
+    final msgId = message['msgId']?.toString().trim() ?? '';
 
-    final msgId =
-        message['msgId']
-            ?.toString()
-            .trim() ??
-            '';
+    final cliMsgId = message['cliMsgId']?.toString().trim() ?? '';
 
-
-    final cliMsgId =
-        message['cliMsgId']
-            ?.toString()
-            .trim() ??
-            '';
-
-
-    if (
-    msgId.isEmpty ||
-        cliMsgId.isEmpty
-    ) {
-
-      _showTopNotice(
-        'Tin nhắn thiếu ID để thu hồi',
-      );
+    if (msgId.isEmpty || cliMsgId.isEmpty) {
+      _showTopNotice('Tin nhắn thiếu ID để thu hồi');
 
       return;
     }
-
 
     setState(() {
-
-      undoingMessageKey =
-          actionKey;
+      undoingMessageKey = actionKey;
     });
 
-
     try {
+      await backend.undoConversationMessage(
+        groupId: widget.groupId,
 
-      await backend
-          .undoConversationMessage(
-        groupId:
-        widget.groupId,
+        msgId: msgId,
 
-        msgId:
-        msgId,
-
-        cliMsgId:
-        cliMsgId,
+        cliMsgId: cliMsgId,
       );
-
 
       if (!mounted) {
         return;
       }
-
 
       // ========================================
       // KHONG TU SUA MESSAGE THANH recalled.
@@ -4093,233 +646,118 @@ class _ChatPageState
       // conversation_message_updated VE.
       // ========================================
 
-      _showTopNotice(
-        'Đã thu hồi tin nhắn',
-      );
-
+      _showTopNotice('Đã thu hồi tin nhắn');
     } catch (error) {
-
       if (!mounted) {
         return;
       }
 
-
-      final errorText =
-      error
-          .toString()
-          .replaceFirst(
-        'Exception: ',
-        '',
-      );
-
+      final errorText = error.toString().replaceFirst('Exception: ', '');
 
       // ========================================
       // BACKEND XAC DINH DA QUA 1 GIO
       // ========================================
 
-      if (
-      errorText.contains(
-        '1 giờ',
-      )
-      ) {
-
+      if (errorText.contains('1 giờ')) {
         _showTopNotice(
           'Bạn chỉ có thể thu hồi tin nhắn trong 1 giờ sau khi gửi.',
         );
-
       } else {
-
-        _showTopNotice(
-          'Thu hồi tin nhắn thất bại',
-        );
+        _showTopNotice('Thu hồi tin nhắn thất bại');
       }
 
-
-      debugPrint(
-        'UNDO MESSAGE ERROR: $error',
-      );
-
+      debugPrint('UNDO MESSAGE ERROR: $error');
     } finally {
-
       if (mounted) {
-
         setState(() {
-
-          undoingMessageKey =
-          null;
+          undoingMessageKey = null;
         });
       }
     }
   }
 
-  void _showMessageActions(
-      Map<String, dynamic> message,
-      ) {
-
-    final status =
-        message['status']
-            ?.toString() ??
-            'normal';
-
+  void _showMessageActions(Map<String, dynamic> message) {
+    final status = message['status']?.toString() ?? 'normal';
 
     // ========================================
     // MESSAGE DA XOA LOCAL
     // KHONG CON ACTION NAO NUA
     // ========================================
 
-    if (
-    status ==
-        'deleted_local'
-    ) {
+    if (status == 'deleted_local') {
       return;
     }
 
+    final isSelf = message['isSelf'] == true;
 
-    final isSelf =
-        message['isSelf'] ==
-            true;
+    final msgId = message['msgId']?.toString().trim() ?? '';
 
+    final cliMsgId = message['cliMsgId']?.toString().trim() ?? '';
 
-    final msgId =
-        message['msgId']
-            ?.toString()
-            .trim() ??
-            '';
-
-
-    final cliMsgId =
-        message['cliMsgId']
-            ?.toString()
-            .trim() ??
-            '';
-
-
-    final messageContent =
-        message['content']
-            ?.toString() ??
-            '';
-
+    final messageContent = message['content']?.toString() ?? '';
 
     // ========================================
     // QUYEN CUA TUNG ACTION
     // ========================================
 
-    final canReply =
-        status ==
-            'normal';
+    final canReply = status == 'normal';
 
-
-    final canCopy =
-        status ==
-            'normal' &&
-            messageContent
-                .trim()
-                .isNotEmpty;
-
+    final canCopy = status == 'normal' && messageContent.trim().isNotEmpty;
 
     final canUndo =
-        isSelf &&
-            status ==
-                'normal' &&
-            msgId.isNotEmpty &&
-            cliMsgId.isNotEmpty;
-
+        isSelf && status == 'normal' && msgId.isNotEmpty && cliMsgId.isNotEmpty;
 
     showModalBottomSheet<void>(
-      context:
-      context,
+      context: context,
 
-      showDragHandle:
-      true,
+      showDragHandle: true,
 
-      builder:
-          (
-          sheetContext,
-          ) {
-
+      builder: (sheetContext) {
         return SafeArea(
-          child:
-          Column(
-            mainAxisSize:
-            MainAxisSize.min,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
 
             children: [
-
               // ========================================
               // TRA LOI
               // ========================================
 
               if (canReply)
                 ListTile(
-                  leading:
-                  const Icon(
-                    Icons.reply_rounded,
-                  ),
+                  leading: const Icon(Icons.reply_rounded),
 
-                  title:
-                  const Text(
-                    'Trả lời',
-                  ),
+                  title: const Text('Trả lời'),
 
-                  onTap:
-                      () {
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
 
-                    Navigator.of(
-                      sheetContext,
-                    ).pop();
-
-
-                    _startReply(
-                      message,
-                    );
+                    _startReply(message);
                   },
                 ),
-
 
               // ========================================
               // SAO CHEP
               // ========================================
-
               if (canCopy)
                 ListTile(
-                  leading:
-                  const Icon(
-                    Icons.copy_rounded,
-                  ),
+                  leading: const Icon(Icons.copy_rounded),
 
-                  title:
-                  const Text(
-                    'Sao chép',
-                  ),
+                  title: const Text('Sao chép'),
 
-                  onTap:
-                      () async {
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
 
-                    Navigator.of(
-                      sheetContext,
-                    ).pop();
-
-
-                    await Clipboard
-                        .setData(
-                      ClipboardData(
-                        text:
-                        messageContent,
-                      ),
+                    await Clipboard.setData(
+                      ClipboardData(text: messageContent),
                     );
-
 
                     if (!mounted) {
                       return;
                     }
 
-
-                    _showTopNotice(
-                      'Đã sao chép tin nhắn',
-                    );
+                    _showTopNotice('Đã sao chép tin nhắn');
                   },
                 ),
-
 
               // ========================================
               // THU HOI
@@ -4332,46 +770,28 @@ class _ChatPageState
               // _confirmUndoMessage SE THONG BAO
               // NEU DA QUA 1 GIO.
               // ========================================
-
               if (canUndo)
                 ListTile(
-                  leading:
-                  Icon(
+                  leading: Icon(
                     Icons.undo_rounded,
 
-                    color:
-                    Theme.of(context)
-                        .colorScheme
-                        .error,
+                    color: Theme.of(context).colorScheme.error,
                   ),
 
-                  title:
-                  Text(
+                  title: Text(
                     'Thu hồi',
 
-                    style:
-                    TextStyle(
-                      color:
-                      Theme.of(context)
-                          .colorScheme
-                          .error,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
                     ),
                   ),
 
-                  onTap:
-                      () {
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
 
-                    Navigator.of(
-                      sheetContext,
-                    ).pop();
-
-
-                    _confirmUndoMessage(
-                      message,
-                    );
+                    _confirmUndoMessage(message);
                   },
                 ),
-
 
               // ========================================
               // XOA LOCAL
@@ -4381,50 +801,27 @@ class _ChatPageState
               //
               // TIN RECALLED CUNG CO THE XOA.
               // ========================================
-
               ListTile(
-                leading:
-                Icon(
+                leading: Icon(
                   Icons.delete_outline_rounded,
 
-                  color:
-                  Theme.of(context)
-                      .colorScheme
-                      .error,
+                  color: Theme.of(context).colorScheme.error,
                 ),
 
-                title:
-                Text(
+                title: Text(
                   'Xóa',
 
-                  style:
-                  TextStyle(
-                    color:
-                    Theme.of(context)
-                        .colorScheme
-                        .error,
-                  ),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
 
-                onTap:
-                    () {
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
 
-                  Navigator.of(
-                    sheetContext,
-                  ).pop();
-
-
-                  _confirmDeleteMessage(
-                    message,
-                  );
+                  _confirmDeleteMessage(message);
                 },
               ),
 
-
-              const SizedBox(
-                height:
-                8,
-              ),
+              const SizedBox(height: 8),
             ],
           ),
         );
@@ -4432,85 +829,46 @@ class _ChatPageState
     );
   }
 
-  void _showTopNotice(
-      String message,
-      ) {
-
+  void _showTopNotice(String message) {
     if (!mounted) {
       return;
     }
 
+    topNoticeTimer?.cancel();
 
-    topNoticeTimer
-        ?.cancel();
-
-
-    final messenger =
-    ScaffoldMessenger
-        .of(context);
-
+    final messenger = ScaffoldMessenger.of(context);
 
     // ========================================
     // XOA BANNER CU NEU DANG HIEN
     // ========================================
 
-    messenger
-        .hideCurrentMaterialBanner();
-
+    messenger.hideCurrentMaterialBanner();
 
     // ========================================
     // HIEN THONG BAO NGAY DUOI APP BAR
     // ========================================
 
-    messenger
-        .showMaterialBanner(
+    messenger.showMaterialBanner(
       MaterialBanner(
+        backgroundColor: Theme.of(context).colorScheme.surface,
 
-        backgroundColor:
-        Theme.of(context)
-            .colorScheme
-            .surface,
+        elevation: 2,
 
-        elevation:
-        2,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
 
-        padding:
-        const EdgeInsets.symmetric(
-          horizontal:
-          16,
+        leading: Icon(
+          Icons.check_circle_outline_rounded,
 
-          vertical:
-          8,
+          size: 20,
+
+          color: Theme.of(context).colorScheme.primary,
         ),
 
-        leading:
-        Icon(
-          Icons
-              .check_circle_outline_rounded,
-
-          size:
-          20,
-
-          color:
-          Theme.of(context)
-              .colorScheme
-              .primary,
-        ),
-
-        content:
-        Text(
+        content: Text(
           message,
 
-          style:
-          const TextStyle(
-            fontSize:
-            14,
-
-            fontWeight:
-            FontWeight.w500,
-          ),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
         ),
-
 
         // ========================================
         // MaterialBanner BAT BUOC actions
@@ -4519,530 +877,263 @@ class _ChatPageState
         // DUNG SizedBox.shrink()
         // DE KHONG HIEN NUT THUA.
         // ========================================
-
-        actions:
-        const [
-
-          SizedBox.shrink(),
-        ],
+        actions: const [SizedBox.shrink()],
       ),
     );
-
 
     // ========================================
     // TU DONG AN SAU 1.2 GIAY
     // ========================================
 
-    topNoticeTimer =
-        Timer(
-          const Duration(
-            milliseconds:
-            1200,
-          ),
+    topNoticeTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (!mounted) {
+        return;
+      }
 
-              () {
-
-            if (!mounted) {
-              return;
-            }
-
-
-            ScaffoldMessenger
-                .of(context)
-                .hideCurrentMaterialBanner();
-          },
-        );
+      ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+    });
   }
 
-  Future<void>
-  _pickAndSendPhoto() async {
+  Future<void> _pickAndSendPhoto() async {
+    if (sendingPhoto || sendingMessage || loading || seekingTarget) {
+      return;
+    }
 
-    if (
-    sendingPhoto ||
-        sendingMessage ||
-        loading ||
-        seekingTarget
-    ) {
+    if (replyingToMessage != null) {
+      _showTopNotice('Trả lời bằng ảnh sẽ được hỗ trợ sau.');
 
       return;
     }
 
-
-    if (
-    replyingToMessage !=
-        null
-    ) {
-
-      _showTopNotice(
-        'Trả lời bằng ảnh sẽ được hỗ trợ sau.',
-      );
-
-
-      return;
-    }
-
-
-    List<XFile>
-    pickedPhotos;
-
+    List<XFile> pickedPhotos;
 
     try {
+      pickedPhotos = await imagePicker.pickMultiImage(
+        maxWidth: 2048,
 
-      pickedPhotos =
-      await imagePicker
-          .pickMultiImage(
-
-        maxWidth:
-        2048,
-
-        imageQuality:
-        90,
+        imageQuality: 90,
       );
-
     } catch (error) {
-
       if (!mounted) {
         return;
       }
 
+      _showTopNotice('Không thể mở thư viện ảnh');
 
-      _showTopNotice(
-        'Không thể mở thư viện ảnh',
-      );
-
-
-      debugPrint(
-        'MULTI IMAGE PICKER ERROR: $error',
-      );
-
+      debugPrint('MULTI IMAGE PICKER ERROR: $error');
 
       return;
     }
 
-
-    if (
-    pickedPhotos.isEmpty ||
-        !mounted
-    ) {
-
+    if (pickedPhotos.isEmpty || !mounted) {
       return;
     }
 
-
-    if (
-    pickedPhotos.length >
-        10
-    ) {
-
-      _showTopNotice(
-        'Mỗi lần chỉ chọn tối đa 10 ảnh',
-      );
-
+    if (pickedPhotos.length > 10) {
+      _showTopNotice('Mỗi lần chỉ chọn tối đa 10 ảnh');
 
       return;
     }
-
 
     setState(() {
-
-      sendingPhoto =
-      true;
+      sendingPhoto = true;
     });
 
-
     try {
+      await backend.sendConversationPhotos(
+        groupId: widget.groupId,
 
-      await backend
-          .sendConversationPhotos(
-
-        groupId:
-        widget.groupId,
-
-        filePaths:
-        pickedPhotos
-            .map(
-              (
-              photo,
-              ) =>
-          photo.path,
-        )
-            .toList(),
+        filePaths: pickedPhotos.map((photo) => photo.path).toList(),
       );
-
 
       if (!mounted) {
         return;
       }
 
-
-      if (
-      pickedPhotos.length ==
-          1
-      ) {
-
-        _showTopNotice(
-          'Đã gửi ảnh',
-        );
-
+      if (pickedPhotos.length == 1) {
+        _showTopNotice('Đã gửi ảnh');
       } else {
-
-        _showTopNotice(
-          'Đã gửi ${pickedPhotos.length} ảnh',
-        );
+        _showTopNotice('Đã gửi ${pickedPhotos.length} ảnh');
       }
 
+      // ========================================
+      // REFRESH NGAY SAU KHI GUI ANH
+      //
+      // Realtime van la nguon chinh.
+      //
+      // Tuy nhien message do CHINH MINH gui
+      // co the khong duoc websocket echo ve ngay.
+      //
+      // Vi vay:
+      // 1. reload ngay
+      // 2. reload lai sau 1 giay lam fallback
+      // ========================================
 
-      // Realtime la nguon chinh.
-      // REST reload chi la fallback.
-      Future.delayed(
-        const Duration(
-          milliseconds:
-          1000,
-        ),
+      scheduleRealtimeReload(force: true);
 
-            () {
+      Future.delayed(const Duration(milliseconds: 1000), () {
+        if (!mounted) {
+          return;
+        }
 
-          if (!mounted) {
-            return;
-          }
-
-
-          scheduleRealtimeReload(
-            force:
-            true,
-          );
-        },
-      );
-
+        scheduleRealtimeReload(force: true);
+      });
     } catch (error) {
-
       if (!mounted) {
         return;
       }
 
+      final message = error.toString().replaceFirst('Exception: ', '');
 
-      final message =
-      error
-          .toString()
-          .replaceFirst(
-        'Exception: ',
-        '',
-      );
+      _showTopNotice(message.isEmpty ? 'Gửi ảnh thất bại' : message);
 
-
-      _showTopNotice(
-        message.isEmpty
-            ? 'Gửi ảnh thất bại'
-            : message,
-      );
-
-
-      debugPrint(
-        'SEND PHOTOS ERROR: $error',
-      );
-
+      debugPrint('SEND PHOTOS ERROR: $error');
     } finally {
-
       if (mounted) {
-
         setState(() {
-
-          sendingPhoto =
-          false;
+          sendingPhoto = false;
         });
       }
     }
   }
 
-  Widget _buildChatBackground({
-    required Widget child,
-  }) {
-    final image =
-    _isDarkTheme
-        ? 'assets/images/chat_bg_dark.png'
-        : 'assets/images/chat_bg_light.png';
-
-    return Container(
-      decoration:
-      BoxDecoration(
-        image:
-        DecorationImage(
-          image:
-          AssetImage(
-            image,
-          ),
-
-          fit:
-          BoxFit.cover,
-        ),
-      ),
-
-      child:
-      child,
-    );
-  }
-
-  Future<void>
-  _sendChatMessage() async {
-
-    if (
-    sendingMessage
-    ) {
+  Future<void> _sendChatMessage() async {
+    if (sendingMessage) {
       return;
     }
 
-
-    final text =
-    messageController
-        .text
-        .trim();
-
+    final text = messageController.text.trim();
 
     if (text.isEmpty) {
       return;
     }
 
-
     // ========================================
     // REPLY TARGET
     // ========================================
 
-    final replyMessage =
-        replyingToMessage;
+    final replyMessage = replyingToMessage;
 
+    final replyMsgId = replyMessage?['msgId']?.toString();
 
-    final replyMsgId =
-    replyMessage?['msgId']
-        ?.toString();
-
-
-    final replyCliMsgId =
-    replyMessage?['cliMsgId']
-        ?.toString();
-
+    final replyCliMsgId = replyMessage?['cliMsgId']?.toString();
 
     // ========================================
     // KHOA NUT SEND
     // ========================================
 
     setState(() {
-
-      sendingMessage =
-      true;
+      sendingMessage = true;
     });
 
-
     try {
+      await backend.sendConversationMessage(
+        groupId: widget.groupId,
 
-      await backend
-          .sendConversationMessage(
-        groupId:
-        widget.groupId,
+        text: text,
 
-        text:
-        text,
+        replyToMsgId: replyMsgId,
 
-        replyToMsgId:
-        replyMsgId,
-
-        replyToCliMsgId:
-        replyCliMsgId,
+        replyToCliMsgId: replyCliMsgId,
       );
-
 
       if (!mounted) {
         return;
       }
 
-
-      messageController
-          .clear();
-
+      messageController.clear();
 
       setState(() {
+        replyingToMessage = null;
 
-        replyingToMessage =
-        null;
+        targetIndex = null;
 
-
-        targetIndex =
-        null;
-
-
-        highlightTarget =
-        false;
+        highlightTarget = false;
       });
 
+      messageFocusNode.requestFocus();
 
-      messageFocusNode
-          .requestFocus();
-
-
-      WidgetsBinding
-          .instance
-          .addPostFrameCallback(
-            (_) {
-
-          _scrollToBottom();
-        },
-      );
-
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToBottom();
+      });
     } catch (error) {
-
       if (!mounted) {
         return;
       }
 
+      _showTopNotice('Gửi tin nhắn thất bại');
 
-      _showTopNotice(
-        'Gửi tin nhắn thất bại',
-      );
-
-
-      debugPrint(
-        'SEND MESSAGE ERROR: $error',
-      );
-
+      debugPrint('SEND MESSAGE ERROR: $error');
     } finally {
-
       if (mounted) {
-
         setState(() {
-
-          sendingMessage =
-          false;
+          sendingMessage = false;
         });
       }
     }
   }
 
   // ========================================
-// SCHEDULE MARK READ
-//
-// Debounce de album 4 anh hoac nhieu
-// message lien tuc khong tao 4-10 request.
-// ========================================
+  // SCHEDULE MARK READ
+  //
+  // Debounce de album 4 anh hoac nhieu
+  // message lien tuc khong tao 4-10 request.
+  // ========================================
 
-  void _scheduleMarkConversationRead({
-    bool immediate = false,
-  }) {
+  void _scheduleMarkConversationRead({bool immediate = false}) {
+    if (!mounted || !appIsActive) {
+      return;
+    }
 
-    if (
-    !mounted ||
-        !appIsActive
-    ) {
+    markReadTimer?.cancel();
+
+    if (immediate) {
+      unawaited(_markConversationReadNow());
 
       return;
     }
 
+    markReadTimer = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted || !appIsActive) {
+        return;
+      }
 
-    markReadTimer
-        ?.cancel();
-
-
-    if (
-    immediate
-    ) {
-
-      unawaited(
-        _markConversationReadNow(),
-      );
-
-
-      return;
-    }
-
-
-    markReadTimer =
-        Timer(
-
-          const Duration(
-            milliseconds:
-            250,
-          ),
-
-              () {
-
-            if (
-            !mounted ||
-                !appIsActive
-            ) {
-
-              return;
-            }
-
-
-            unawaited(
-              _markConversationReadNow(),
-            );
-          },
-        );
+      unawaited(_markConversationReadNow());
+    });
   }
 
   // ========================================
-// MARK READ NOW
-// ========================================
+  // MARK READ NOW
+  // ========================================
 
-  Future<void>
-  _markConversationReadNow() async {
-
-    if (
-    !mounted ||
-        !appIsActive
-    ) {
-
+  Future<void> _markConversationReadNow() async {
+    if (!mounted || !appIsActive) {
       return;
     }
-
 
     // ========================================
     // Neu request truoc van dang chay,
     // ghi nho rang can chay them 1 lan.
     // ========================================
 
-    if (
-    markReadInFlight
-    ) {
-
-      markReadPending =
-      true;
-
+    if (markReadInFlight) {
+      markReadPending = true;
 
       return;
     }
 
-
-    markReadInFlight =
-    true;
-
+    markReadInFlight = true;
 
     try {
+      await backend.markConversationRead(groupId: widget.groupId);
 
-      await backend
-          .markConversationRead(
-
-        groupId:
-        widget.groupId,
-      );
-
-
-      debugPrint(
-        'CHAT MARK READ: ${widget.groupId}',
-      );
-
+      debugPrint('CHAT MARK READ: ${widget.groupId}');
     } catch (error) {
-
       // Mark read loi KHONG DUOC
       // lam hong ChatPage.
-      debugPrint(
-        'CHAT MARK READ ERROR: $error',
-      );
-
+      debugPrint('CHAT MARK READ ERROR: $error');
     } finally {
-
-      markReadInFlight =
-      false;
-
+      markReadInFlight = false;
 
       // ========================================
       // Trong luc request dang chay
@@ -5051,230 +1142,109 @@ class _ChatPageState
       // Chay them mot lan nua.
       // ========================================
 
-      if (
-      markReadPending
-      ) {
-
-        markReadPending =
-        false;
-
+      if (markReadPending) {
+        markReadPending = false;
 
         _scheduleMarkConversationRead();
       }
     }
   }
 
-  Future<void> _openVideo(
-      Map<String, dynamic> message,
-      ) async {
-
-    final url =
-    _messageMediaUrl(
-      message,
-    );
-
+  Future<void> _openVideo(Map<String, dynamic> message) async {
+    final url = _messageMediaUrl(message);
 
     debugPrint(
       'OPEN VIDEO CALLED: '
-          'mediaUrl=$url',
+      'mediaUrl=$url',
     );
 
+    if (url == null || url.isEmpty) {
+      _showTopNotice('Video không có đường dẫn');
 
-    if (
-    url == null ||
-        url.isEmpty
-    ) {
-
-      _showTopNotice(
-        'Video không có đường dẫn',
-      );
-
-
-      debugPrint(
-        'OPEN VIDEO ABORT: EMPTY URL',
-      );
-
+      debugPrint('OPEN VIDEO ABORT: EMPTY URL');
 
       return;
     }
 
+    final uri = Uri.tryParse(url);
 
-    final uri =
-    Uri.tryParse(
-      url,
-    );
+    if (uri == null || !uri.hasScheme) {
+      _showTopNotice('Đường dẫn video không hợp lệ');
 
-
-    if (
-    uri == null ||
-        !uri.hasScheme
-    ) {
-
-      _showTopNotice(
-        'Đường dẫn video không hợp lệ',
-      );
-
-
-      debugPrint(
-        'OPEN VIDEO ABORT: INVALID URL',
-      );
-
+      debugPrint('OPEN VIDEO ABORT: INVALID URL');
 
       return;
     }
-
 
     try {
+      debugPrint('OPEN VIDEO NAVIGATING...');
 
-      debugPrint(
-        'OPEN VIDEO NAVIGATING...',
-      );
-
-
-      await Navigator.of(
-        context,
-      ).push(
-
+      await Navigator.of(context).push(
         MaterialPageRoute<void>(
-
-          builder:
-              (
-              context,
-              ) {
-
-            return _VideoViewerPage(
-
-              videoUrl:
-              url,
-            );
+          builder: (context) {
+            return VideoViewerPage(videoUrl: url);
           },
         ),
       );
 
-
-      debugPrint(
-        'OPEN VIDEO PAGE CLOSED',
-      );
-
+      debugPrint('OPEN VIDEO PAGE CLOSED');
     } catch (error) {
-
       debugPrint(
         'OPEN VIDEO NAVIGATION ERROR: '
-            '$error',
+        '$error',
       );
-
 
       if (!mounted) {
         return;
       }
 
-
-      _showTopNotice(
-        'Không thể mở video',
-      );
+      _showTopNotice('Không thể mở video');
     }
   }
 
-  Future<void> _openFileMessage(
-      Map<String, dynamic> message,
-      ) async {
+  Future<void> _openFileMessage(Map<String, dynamic> message) async {
+    final rawUrl = _messageMediaUrl(message);
 
-    final rawUrl =
-    _messageMediaUrl(
-      message,
-    );
-
-
-    if (
-    rawUrl == null ||
-        rawUrl.isEmpty
-    ) {
-
-      _showTopNotice(
-        'Tệp không có đường dẫn',
-      );
-
+    if (rawUrl == null || rawUrl.isEmpty) {
+      _showTopNotice('Tệp không có đường dẫn');
 
       return;
     }
 
+    final uri = Uri.tryParse(rawUrl);
 
-    final uri =
-    Uri.tryParse(
-      rawUrl,
-    );
-
-
-    if (
-    uri == null
-    ) {
-
-      _showTopNotice(
-        'Đường dẫn tệp không hợp lệ',
-      );
-
+    if (uri == null) {
+      _showTopNotice('Đường dẫn tệp không hợp lệ');
 
       return;
     }
-
 
     try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
 
-      final opened =
-      await launchUrl(
-
-        uri,
-
-        mode:
-        LaunchMode.externalApplication,
-      );
-
-
-      if (
-      !opened &&
-          mounted
-      ) {
-
-        _showTopNotice(
-          'Không thể mở tệp',
-        );
+      if (!opened && mounted) {
+        _showTopNotice('Không thể mở tệp');
       }
-
     } catch (error) {
-
-      debugPrint(
-        'OPEN FILE ERROR: $error',
-      );
-
+      debugPrint('OPEN FILE ERROR: $error');
 
       if (!mounted) {
         return;
       }
 
-
-      _showTopNotice(
-        'Không thể mở tệp',
-      );
+      _showTopNotice('Không thể mở tệp');
     }
   }
 
   // ========================================
-// APP LIFECYCLE
-// ========================================
+  // APP LIFECYCLE
+  // ========================================
 
   @override
-  void didChangeAppLifecycleState(
-      AppLifecycleState state,
-      ) {
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final wasActive = appIsActive;
 
-    final wasActive =
-        appIsActive;
-
-
-    appIsActive =
-        state ==
-            AppLifecycleState.resumed;
-
+    appIsActive = state == AppLifecycleState.resumed;
 
     // ========================================
     // APP RA BACKGROUND
@@ -5282,17 +1252,11 @@ class _ChatPageState
     // Khong duoc tu coi message la da doc.
     // ========================================
 
-    if (
-    !appIsActive
-    ) {
-
-      markReadTimer
-          ?.cancel();
-
+    if (!appIsActive) {
+      markReadTimer?.cancel();
 
       return;
     }
-
 
     // ========================================
     // USER QUAY LAI APP
@@ -5301,31 +1265,21 @@ class _ChatPageState
     // coi conversation hien tai la da doc.
     // ========================================
 
-    if (
-    !wasActive &&
-        mounted
-    ) {
-
-      _scheduleMarkConversationRead(
-        immediate:
-        true,
-      );
+    if (!wasActive && mounted) {
+      _scheduleMarkConversationRead(immediate: true);
     }
   }
 
   Future<void> initializeChat() async {
-
     // ========================================
     // 1. LOAD CHAT
     // ========================================
 
     await loadMessages();
 
-
     if (!mounted) {
       return;
     }
-
 
     // ========================================
     // 2. BAT REALTIME
@@ -5333,48 +1287,23 @@ class _ChatPageState
 
     startRealtime();
 
-
     // ========================================
     // 3. USER DA MO CONVERSATION
     // -> DANH DA DOC.
     // ========================================
 
-    _scheduleMarkConversationRead(
-      immediate:
-      true,
-    );
+    _scheduleMarkConversationRead(immediate: true);
   }
 
   bool get hasTarget {
-
-    return
-      (
-          widget.targetMsgId !=
-              null &&
-              widget.targetMsgId!
-                  .isNotEmpty
-      ) ||
-          (
-              widget.targetCliMsgId !=
-                  null &&
-                  widget.targetCliMsgId!
-                      .isNotEmpty
-          );
+    return (widget.targetMsgId != null && widget.targetMsgId!.isNotEmpty) ||
+        (widget.targetCliMsgId != null && widget.targetCliMsgId!.isNotEmpty);
   }
 
   int _findTargetIndex() {
+    final safeTargetMsgId = widget.targetMsgId?.trim() ?? '';
 
-    final safeTargetMsgId =
-        widget.targetMsgId
-            ?.trim() ??
-            '';
-
-
-    final safeTargetCliMsgId =
-        widget.targetCliMsgId
-            ?.trim() ??
-            '';
-
+    final safeTargetCliMsgId = widget.targetCliMsgId?.trim() ?? '';
 
     // ========================================
     // QUAN TRONG:
@@ -5386,89 +1315,47 @@ class _ChatPageState
     // ghi de ket qua.
     // ========================================
 
-    if (
-    safeTargetMsgId.isNotEmpty
-    ) {
+    if (safeTargetMsgId.isNotEmpty) {
+      return messages.indexWhere((message) {
+        final messageMsgId = message['msgId']?.toString().trim() ?? '';
 
-      return messages.indexWhere(
-            (
-            message,
-            ) {
-
-          final messageMsgId =
-              message['msgId']
-                  ?.toString()
-                  .trim() ??
-                  '';
-
-
-          return messageMsgId.isNotEmpty &&
-              messageMsgId ==
-                  safeTargetMsgId;
-        },
-      );
+        return messageMsgId.isNotEmpty && messageMsgId == safeTargetMsgId;
+      });
     }
-
 
     // ========================================
     // CHI KHI KHONG CO msgId
     // MOI FALLBACK SANG cliMsgId.
     // ========================================
 
-    if (
-    safeTargetCliMsgId.isNotEmpty
-    ) {
+    if (safeTargetCliMsgId.isNotEmpty) {
+      return messages.indexWhere((message) {
+        final messageCliMsgId = message['cliMsgId']?.toString().trim() ?? '';
 
-      return messages.indexWhere(
-            (
-            message,
-            ) {
-
-          final messageCliMsgId =
-              message['cliMsgId']
-                  ?.toString()
-                  .trim() ??
-                  '';
-
-
-          return messageCliMsgId.isNotEmpty &&
-              messageCliMsgId ==
-                  safeTargetCliMsgId;
-        },
-      );
+        return messageCliMsgId.isNotEmpty &&
+            messageCliMsgId == safeTargetCliMsgId;
+      });
     }
-
 
     return -1;
   }
 
   Future<void> loadMessages() async {
+    paginationReady = false;
 
-    paginationReady =
-    false;
-
-    seekingTarget =
-    false;
-
+    seekingTarget = false;
 
     if (mounted) {
-
       setState(() {
+        loading = true;
 
-        loading =
-        true;
+        targetIndex = null;
 
-        targetIndex =
-        null;
-
-        highlightTarget =
-        false;
+        highlightTarget = false;
       });
     }
 
-
     try {
-
       // ========================================
       // LUON BAT DAU TU TIN MOI NHAT
       //
@@ -5477,38 +1364,22 @@ class _ChatPageState
       // DEU GIONG NHAU.
       // ========================================
 
-      final page =
-      await backend
-          .getConversationMessagesPage(
-        groupId:
-        widget.groupId,
+      final page = await backend.getConversationMessagesPage(
+        groupId: widget.groupId,
 
-        limit:
-        pageSize,
+        limit: pageSize,
       );
-
 
       if (!mounted) {
         return;
       }
 
-
-      final loadedMessages =
-      _extractMessages(
-        page['messages'],
-      );
-
+      final loadedMessages = _extractMessages(page['messages']);
 
       setState(() {
+        messages = loadedMessages;
 
-        messages =
-            loadedMessages;
-
-
-        hasMoreOlder =
-            page['hasBefore'] ==
-                true;
-
+        hasMoreOlder = page['hasBefore'] == true;
 
         // ========================================
         // TA BAT DAU TU LATEST.
@@ -5517,175 +1388,111 @@ class _ChatPageState
         // PAGINATION NEWER.
         // ========================================
 
-        hasMoreNewer =
-        false;
+        hasMoreNewer = false;
 
+        targetErrorReason = null;
 
-        targetErrorReason =
-        null;
-
-
-        loading =
-        false;
+        loading = false;
       });
-
 
       // ========================================
       // DOI LISTVIEW BUILD
       // ========================================
 
-      await WidgetsBinding
-          .instance
-          .endOfFrame;
-
+      await WidgetsBinding.instance.endOfFrame;
 
       if (!mounted) {
         return;
       }
 
-
       // ========================================
       // BAT DAU CHINH XAC O TIN MOI NHAT
       // ========================================
 
-            await _jumpToBottomInitial();
+      await _jumpToBottomInitial();
 
-
-            if (!mounted) {
-              return;
-            }
-
+      if (!mounted) {
+        return;
+      }
 
       // ========================================
       // MO TU LICH SU NHAN
       // ========================================
 
       if (hasTarget) {
-
         await _seekTargetFromLatest();
 
         return;
       }
 
-
       // ========================================
       // CHAT BINH THUONG
       // ========================================
 
-      paginationReady =
-      true;
+      paginationReady = true;
 
-
-      Future.microtask(
-            () =>
-            _ensureHistoryScrollable(),
-      );
-
+      Future.microtask(() => _ensureHistoryScrollable());
     } catch (error) {
-
       if (!mounted) {
         return;
       }
 
-
       setState(() {
+        loading = false;
 
-        loading =
-        false;
-
-        seekingTarget =
-        false;
+        seekingTarget = false;
       });
 
+      paginationReady = true;
 
-      paginationReady =
-      true;
-
-
-      ScaffoldMessenger
-          .of(context)
-          .showSnackBar(
-        SnackBar(
-          content:
-          Text(
-            'Không thể tải hội thoại: $error',
-          ),
-        ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể tải hội thoại: $error')),
       );
     }
   }
 
-  Future<void>
-  _seekTargetFromLatest() async {
-
-    if (
-    seekingTarget ||
-        !hasTarget
-    ) {
+  Future<void> _seekTargetFromLatest() async {
+    if (seekingTarget || !hasTarget) {
       return;
     }
 
+    seekingTarget = true;
 
-    seekingTarget =
-    true;
-
-    paginationReady =
-    false;
-
+    paginationReady = false;
 
     try {
-
-      while (
-      mounted
-      ) {
-
+      while (mounted) {
         // ========================================
         // TARGET DA NAM TRONG SO MESSAGE
         // DA LOAD CHUA?
         // ========================================
 
-        final foundIndex =
-        _findTargetIndex();
+        final foundIndex = _findTargetIndex();
 
-
-        if (
-        foundIndex >= 0
-        ) {
-
+        if (foundIndex >= 0) {
           setState(() {
+            targetIndex = foundIndex;
 
-            targetIndex =
-                foundIndex;
-
-            targetErrorReason =
-            null;
+            targetErrorReason = null;
           });
 
-
-          final centered =
-          await _centerTargetMessage();
-
+          final centered = await _centerTargetMessage();
 
           if (!mounted) {
-          return;
+            return;
           }
-
 
           if (!centered) {
+            debugPrint(
+              'TARGET FOUND BUT CENTER FAILED: '
+              'index=$foundIndex',
+            );
 
-          debugPrint(
-          'TARGET FOUND BUT CENTER FAILED: '
-          'index=$foundIndex',
-          );
-
-          return;
+            return;
           }
 
-
           setState(() {
-
-          highlightTarget =
-          true;
+            highlightTarget = true;
           });
 
           _removeTargetHighlightLater();
@@ -5693,648 +1500,357 @@ class _ChatPageState
           return;
         }
 
-
         // ========================================
         // KHONG CON TIN CU DE TIM
         // ========================================
 
-        if (
-        !hasMoreOlder
-        ) {
+        if (!hasMoreOlder) {
+          targetErrorReason = 'not_found';
 
-          targetErrorReason =
-          'not_found';
-
-
-          WidgetsBinding
-              .instance
-              .addPostFrameCallback(
-                (_) {
-
-              _showTargetNotFound();
-            },
-          );
-
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _showTargetNotFound();
+          });
 
           return;
         }
 
+        final beforeId = messages.first['id']?.toString();
 
-        final beforeId =
-        messages.first['id']
-            ?.toString();
-
-
-        if (
-        beforeId ==
-            null ||
-            beforeId.isEmpty
-        ) {
-
-          targetErrorReason =
-          'not_found';
-
+        if (beforeId == null || beforeId.isEmpty) {
+          targetErrorReason = 'not_found';
 
           _showTargetNotFound();
 
           return;
         }
 
-
         // ========================================
         // LOAD THEM MOT PAGE TIN CU
         // ========================================
 
-        final page =
-        await backend
-            .getConversationMessagesPage(
-          groupId:
-          widget.groupId,
+        final page = await backend.getConversationMessagesPage(
+          groupId: widget.groupId,
 
-          limit:
-          targetSeekPageSize,
+          limit: targetSeekPageSize,
 
-          beforeId:
-          beforeId,
+          beforeId: beforeId,
         );
-
 
         if (!mounted) {
           return;
         }
 
+        final older = _extractMessages(page['messages']);
 
-        final older =
-        _extractMessages(
-          page['messages'],
-        );
+        final uniqueOlder = older.where((incoming) {
+          return !messages.any((existing) => isSameMessage(existing, incoming));
+        }).toList();
 
-
-        final uniqueOlder =
-        older
-            .where(
-              (
-              incoming,
-              ) {
-
-            return !messages.any(
-                  (
-                  existing,
-                  ) =>
-                  isSameMessage(
-                    existing,
-                    incoming,
-                  ),
-            );
-          },
-        )
-            .toList();
-
-
-        if (
-        uniqueOlder.isEmpty
-        ) {
-
-          hasMoreOlder =
-          false;
+        if (uniqueOlder.isEmpty) {
+          hasMoreOlder = false;
 
           continue;
         }
 
-
         setState(() {
+          messages = [...uniqueOlder, ...messages];
 
-          messages = [
-            ...uniqueOlder,
-            ...messages,
-          ];
-
-
-          hasMoreOlder =
-              page['hasBefore'] ==
-                  true;
+          hasMoreOlder = page['hasBefore'] == true;
         });
 
+        // ========================================
+        // DOI PAGE MOI DUOC BUILD
+        // ========================================
 
-// ========================================
-// DOI PAGE MOI DUOC BUILD
-// ========================================
-
-        await WidgetsBinding
-            .instance
-            .endOfFrame;
-
+        await WidgetsBinding.instance.endOfFrame;
 
         if (!mounted) {
           return;
         }
 
+        // ========================================
+        // CUC KY QUAN TRONG:
+        //
+        // KIEM TRA TARGET NGAY SAU KHI
+        // PAGE MOI VUA DUOC THEM.
+        //
+        // NEU TARGET NAM TRONG PAGE NAY
+        // THI DUNG NGAY TAI TARGET.
+        //
+        // KHONG CHAY QUA TARGET DEN CUOI PAGE.
+        // ========================================
 
-// ========================================
-// CUC KY QUAN TRONG:
-//
-// KIEM TRA TARGET NGAY SAU KHI
-// PAGE MOI VUA DUOC THEM.
-//
-// NEU TARGET NAM TRONG PAGE NAY
-// THI DUNG NGAY TAI TARGET.
-//
-// KHONG CHAY QUA TARGET DEN CUOI PAGE.
-// ========================================
+        final foundAfterLoad = _findTargetIndex();
 
-        final foundAfterLoad =
-        _findTargetIndex();
-
-
-        if (
-        foundAfterLoad >= 0
-        ) {
-
+        if (foundAfterLoad >= 0) {
           setState(() {
+            targetIndex = foundAfterLoad;
 
-            targetIndex =
-                foundAfterLoad;
-
-            targetErrorReason =
-            null;
+            targetErrorReason = null;
           });
 
-
-          final centered =
-          await _centerTargetMessage();
-
+          final centered = await _centerTargetMessage();
 
           if (!mounted) {
             return;
           }
 
-
           if (!centered) {
-
             debugPrint(
               'TARGET FOUND AFTER LOAD '
-                  'BUT CENTER FAILED: '
-                  'index=$foundAfterLoad',
+              'BUT CENTER FAILED: '
+              'index=$foundAfterLoad',
             );
 
             return;
           }
 
-
           setState(() {
-
-            highlightTarget =
-            true;
+            highlightTarget = true;
           });
-
 
           _removeTargetHighlightLater();
 
           return;
         }
 
+        // ========================================
+        // TARGET CHUA NAM TRONG PAGE VUA LOAD.
+        //
+        // BAY GIO MOI CHAY LEN DAU PAGE
+        // DE TIEP TUC LOAD PAGE CU HON.
+        // ========================================
 
-// ========================================
-// TARGET CHUA NAM TRONG PAGE VUA LOAD.
-//
-// BAY GIO MOI CHAY LEN DAU PAGE
-// DE TIEP TUC LOAD PAGE CU HON.
-// ========================================
-
-        if (
-        !scrollController
-            .hasClients
-        ) {
+        if (!scrollController.hasClients) {
           continue;
         }
 
+        await scrollController.animateTo(
+          scrollController.position.maxScrollExtent,
 
-        await scrollController
-            .animateTo(
-          scrollController
-              .position
-              .maxScrollExtent,
+          duration: const Duration(milliseconds: 180),
 
-          duration:
-          const Duration(
-            milliseconds:
-            180,
-          ),
-
-          curve:
-          Curves.easeOut,
+          curve: Curves.easeOut,
         );
       }
-
     } catch (error) {
-
-      debugPrint(
-        'TARGET SEEK ERROR: $error',
-      );
-
-
-      if (
-      mounted
-      ) {
-
-        ScaffoldMessenger
-            .of(context)
-            .showSnackBar(
-          SnackBar(
-            content:
-            Text(
-              'Không thể tìm tin nhắn: $error',
-            ),
-          ),
-        );
-      }
-
-    } finally {
-
-      seekingTarget =
-      false;
-
+      debugPrint('TARGET SEEK ERROR: $error');
 
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không thể tìm tin nhắn: $error')),
+        );
+      }
+    } finally {
+      seekingTarget = false;
 
-        paginationReady =
-        true;
+      if (mounted) {
+        paginationReady = true;
       }
     }
   }
 
-  Future<void>
-  _jumpToQuotedMessage(
-      Map<String, dynamic> quote,
-      ) async {
-
-    if (
-    seekingTarget
-    ) {
+  Future<void> _jumpToQuotedMessage(Map<String, dynamic> quote) async {
+    if (seekingTarget) {
       return;
     }
 
+    final quoteMsgId = quote['msgId']?.toString().trim();
 
-    final quoteMsgId =
-    quote['msgId']
-        ?.toString()
-        .trim();
-
-
-    final quoteCliMsgId =
-    quote['cliMsgId']
-        ?.toString()
-        .trim();
-
+    final quoteCliMsgId = quote['cliMsgId']?.toString().trim();
 
     // ========================================
     // QUOTE PHAI CO IT NHAT MOT ID
     // ========================================
 
-    if (
-    (
-        quoteMsgId ==
-            null ||
-            quoteMsgId.isEmpty
-    ) &&
-        (
-            quoteCliMsgId ==
-                null ||
-                quoteCliMsgId.isEmpty
-        )
-    ) {
-
+    if ((quoteMsgId == null || quoteMsgId.isEmpty) &&
+        (quoteCliMsgId == null || quoteCliMsgId.isEmpty)) {
       debugPrint(
         'QUOTE WITHOUT MESSAGE ID: '
-            '${quote.keys.toList()}',
+        '${quote.keys.toList()}',
       );
 
-
       if (mounted) {
-
-        ScaffoldMessenger
-            .of(context)
-            .showSnackBar(
-          const SnackBar(
-            content:
-            Text(
-              'Không thể xác định tin nhắn gốc.',
-            ),
-          ),
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể xác định tin nhắn gốc.')),
         );
       }
 
-
       return;
     }
-
 
     // ========================================
     // BAT DAU CHE DO TIM TARGET
     // ========================================
 
-    targetHighlightTimer
-        ?.cancel();
-
+    targetHighlightTimer?.cancel();
 
     setState(() {
+      seekingTarget = true;
 
-      seekingTarget =
-      true;
+      targetIndex = null;
 
-      targetIndex =
-      null;
-
-      highlightTarget =
-      false;
+      highlightTarget = false;
     });
 
-
-    paginationReady =
-    false;
-
+    paginationReady = false;
 
     try {
-
-      while (
-      mounted
-      ) {
-
+      while (mounted) {
         // ========================================
         // 1. TARGET DA DUOC LOAD CHUA?
         // ========================================
 
-        final foundIndex =
-        _findMessageIndexByIds(
-          msgId:
-          quoteMsgId,
+        final foundIndex = _findMessageIndexByIds(
+          msgId: quoteMsgId,
 
-          cliMsgId:
-          quoteCliMsgId,
+          cliMsgId: quoteCliMsgId,
         );
 
-
-        if (
-        foundIndex >= 0
-        ) {
-
+        if (foundIndex >= 0) {
           setState(() {
-
-            targetIndex =
-                foundIndex;
+            targetIndex = foundIndex;
           });
-
 
           // ========================================
           // DUA TIN GOC VAO GIUA MAN HINH
           // ========================================
 
-          final centered =
-          await _centerTargetMessage();
-
+          final centered = await _centerTargetMessage();
 
           if (!mounted) {
             return;
           }
 
-
-          if (
-          !centered
-          ) {
-
-            ScaffoldMessenger
-                .of(context)
-                .showSnackBar(
+          if (!centered) {
+            ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content:
-                Text(
+                content: Text(
                   'Đã tìm thấy tin nhắn nhưng không thể cuộn tới vị trí đó.',
                 ),
               ),
             );
 
-
             return;
           }
-
 
           // ========================================
           // HIGHLIGHT SAU KHI DA CENTER
           // ========================================
 
           setState(() {
-
-            highlightTarget =
-            true;
+            highlightTarget = true;
           });
-
 
           _removeTargetHighlightLater();
 
-
           debugPrint(
             'QUOTE TARGET FOUND: '
-                'index=$foundIndex '
-                'msgId=$quoteMsgId '
-                'cliMsgId=$quoteCliMsgId',
+            'index=$foundIndex '
+            'msgId=$quoteMsgId '
+            'cliMsgId=$quoteCliMsgId',
           );
-
 
           return;
         }
-
 
         // ========================================
         // 2. CHUA TIM THAY
         // NHUNG KHONG CON HISTORY CU HON
         // ========================================
 
-        if (
-        !hasMoreOlder ||
-            messages.isEmpty
-        ) {
-
+        if (!hasMoreOlder || messages.isEmpty) {
           if (mounted) {
-
-            ScaffoldMessenger
-                .of(context)
-                .showSnackBar(
+            ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content:
-                Text(
-                  'Không tìm thấy tin nhắn gốc trong lịch sử.',
-                ),
+                content: Text('Không tìm thấy tin nhắn gốc trong lịch sử.'),
               ),
             );
           }
 
-
           return;
         }
-
 
         // ========================================
         // 3. LOAD THEM MESSAGE CU HON
         // ========================================
 
-        final beforeId =
-        messages.first['id']
-            ?.toString();
+        final beforeId = messages.first['id']?.toString();
 
-
-        if (
-        beforeId ==
-            null ||
-            beforeId.isEmpty
-        ) {
-
+        if (beforeId == null || beforeId.isEmpty) {
           return;
         }
 
+        final page = await backend.getConversationMessagesPage(
+          groupId: widget.groupId,
 
-        final page =
-        await backend
-            .getConversationMessagesPage(
-          groupId:
-          widget.groupId,
+          limit: targetSeekPageSize,
 
-          limit:
-          targetSeekPageSize,
-
-          beforeId:
-          beforeId,
+          beforeId: beforeId,
         );
-
 
         if (!mounted) {
           return;
         }
 
+        final older = _extractMessages(page['messages']);
 
-        final older =
-        _extractMessages(
-          page['messages'],
-        );
-
-
-        final uniqueOlder =
-        older.where(
-              (
-              incoming,
-              ) {
-
-            return !messages.any(
-                  (
-                  existing,
-                  ) =>
-                  isSameMessage(
-                    existing,
-                    incoming,
-                  ),
-            );
-          },
-        ).toList();
-
+        final uniqueOlder = older.where((incoming) {
+          return !messages.any((existing) => isSameMessage(existing, incoming));
+        }).toList();
 
         // ========================================
         // BACKEND KHONG TRA THEM DU LIEU
         // ========================================
 
-        if (
-        uniqueOlder.isEmpty
-        ) {
-
-          hasMoreOlder =
-          false;
-
+        if (uniqueOlder.isEmpty) {
+          hasMoreOlder = false;
 
           continue;
         }
 
-
         setState(() {
+          messages = [...uniqueOlder, ...messages];
 
-          messages = [
-            ...uniqueOlder,
-            ...messages,
-          ];
-
-
-          hasMoreOlder =
-              page['hasBefore'] ==
-                  true;
+          hasMoreOlder = page['hasBefore'] == true;
         });
-
 
         // ========================================
         // DOI LIST BUILD XONG ROI TIM LAI
         // ========================================
 
-        await WidgetsBinding
-            .instance
-            .endOfFrame;
+        await WidgetsBinding.instance.endOfFrame;
       }
-
     } catch (error) {
-
       debugPrint(
         'JUMP TO QUOTED MESSAGE ERROR: '
-            '$error',
+        '$error',
       );
 
-
       if (mounted) {
-
-        ScaffoldMessenger
-            .of(context)
-            .showSnackBar(
-          SnackBar(
-            content:
-            Text(
-              'Không thể mở tin nhắn gốc: $error',
-            ),
-          ),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không thể mở tin nhắn gốc: $error')),
         );
       }
-
     } finally {
-
-      seekingTarget =
-      false;
-
+      seekingTarget = false;
 
       if (mounted) {
-
-        paginationReady =
-        true;
+        paginationReady = true;
       }
     }
   }
 
-  Future<bool>
-  _centerTargetMessage() async {
-
-    if (
-    targetIndex ==
-        null
-    ) {
+  Future<bool> _centerTargetMessage() async {
+    if (targetIndex == null) {
       return false;
     }
 
+    await WidgetsBinding.instance.endOfFrame;
 
-    await WidgetsBinding
-        .instance
-        .endOfFrame;
-
-
-    if (
-    !mounted ||
-        !scrollController
-            .hasClients
-    ) {
+    if (!mounted || !scrollController.hasClients) {
       return false;
     }
-
 
     // ========================================
     // KHONG UOC LUONG BANG INDEX NUA.
@@ -6348,282 +1864,157 @@ class _ChatPageState
     // max = cu nhat
     // ========================================
 
-    const scanStep =
-    300.0;
+    const scanStep = 300.0;
 
-
-    for (
-    int attempt = 0;
-    attempt < 200;
-    attempt++
-    ) {
-
+    for (int attempt = 0; attempt < 200; attempt++) {
       if (!mounted) {
         return false;
       }
-
 
       // ========================================
       // TARGET DA DUOC BUILD
       // ========================================
 
-      final targetContext =
-          targetMessageKey
-              .currentContext;
+      final targetContext = targetMessageKey.currentContext;
 
-
-      if (
-      targetContext != null &&
-          targetContext.mounted
-      ) {
-
-        await Scrollable
-            .ensureVisible(
+      if (targetContext != null && targetContext.mounted) {
+        await Scrollable.ensureVisible(
           targetContext,
 
-          alignment:
-          0.5,
+          alignment: 0.5,
 
-          duration:
-          const Duration(
-            milliseconds:
-            220,
-          ),
+          duration: const Duration(milliseconds: 220),
 
-          curve:
-          Curves.easeInOut,
+          curve: Curves.easeInOut,
         );
 
         return true;
       }
 
-
-      if (
-      !scrollController
-          .hasClients
-      ) {
+      if (!scrollController.hasClients) {
         return false;
       }
 
+      final position = scrollController.position;
 
-      final position =
-          scrollController.position;
+      final currentPixels = position.pixels;
 
-
-      final currentPixels =
-          position.pixels;
-
-
-      final maxPixels =
-          position.maxScrollExtent;
-
+      final maxPixels = position.maxScrollExtent;
 
       // ========================================
       // DA DEN TAN CUNG PHIA TIN CU
       // MA TARGET VAN CHUA BUILD
       // ========================================
 
-      if (
-      currentPixels >=
-          maxPixels - 1
-      ) {
-
+      if (currentPixels >= maxPixels - 1) {
         break;
       }
-
 
       // ========================================
       // DI THEM MOT DOAN VE PHIA TIN CU
       // ========================================
 
-      final nextPixels =
-      (
-          currentPixels +
-              scanStep
-      ).clamp(
-        position
-            .minScrollExtent,
+      final nextPixels = (currentPixels + scanStep)
+          .clamp(position.minScrollExtent, maxPixels)
+          .toDouble();
 
-        maxPixels,
-      ).toDouble();
-
-
-      await scrollController
-          .animateTo(
+      await scrollController.animateTo(
         nextPixels,
 
-        duration:
-        const Duration(
-          milliseconds:
-          70,
-        ),
+        duration: const Duration(milliseconds: 70),
 
-        curve:
-        Curves.linear,
+        curve: Curves.linear,
       );
-
 
       // Cho Flutter build cac bubble
       // vua di vao viewport.
-      await WidgetsBinding
-          .instance
-          .endOfFrame;
+      await WidgetsBinding.instance.endOfFrame;
     }
-
 
     // ========================================
     // KIEM TRA LAN CUOI
     // ========================================
 
-    final finalContext =
-        targetMessageKey
-            .currentContext;
+    final finalContext = targetMessageKey.currentContext;
 
-
-    if (
-    finalContext != null &&
-        finalContext.mounted
-    ) {
-
-      await Scrollable
-          .ensureVisible(
+    if (finalContext != null && finalContext.mounted) {
+      await Scrollable.ensureVisible(
         finalContext,
 
-        alignment:
-        0.5,
+        alignment: 0.5,
 
-        duration:
-        const Duration(
-          milliseconds:
-          220,
-        ),
+        duration: const Duration(milliseconds: 220),
 
-        curve:
-        Curves.easeInOut,
+        curve: Curves.easeInOut,
       );
-
 
       return true;
     }
 
-
     debugPrint(
       'TARGET CENTER FAILED: '
-          'index=$targetIndex '
-          'messages=${messages.length} '
-          'pixels=${scrollController.position.pixels} '
-          'max=${scrollController.position.maxScrollExtent}',
+      'index=$targetIndex '
+      'messages=${messages.length} '
+      'pixels=${scrollController.position.pixels} '
+      'max=${scrollController.position.maxScrollExtent}',
     );
-
 
     return false;
   }
 
-  Future<void>
-  loadOlderMessages() async {
-
-    if (
-    !paginationReady ||
-        loadingOlder ||
-        !hasMoreOlder ||
-        messages.isEmpty
-    ) {
+  Future<void> loadOlderMessages() async {
+    if (!paginationReady || loadingOlder || !hasMoreOlder || messages.isEmpty) {
       return;
     }
 
+    final beforeId = messages.first['id']?.toString();
 
-    final beforeId =
-    messages.first['id']
-        ?.toString();
-
-
-    if (
-    beforeId == null ||
-        beforeId.isEmpty
-    ) {
+    if (beforeId == null || beforeId.isEmpty) {
       return;
     }
 
-
-    loadingOlder =
-    true;
-
+    loadingOlder = true;
 
     // ========================================
     // KHOA PAGINATION TRONG LUC LOAD
     // ========================================
 
-    paginationReady =
-    false;
-
+    paginationReady = false;
 
     try {
+      final page = await backend.getConversationMessagesPage(
+        groupId: widget.groupId,
 
-      final page =
-      await backend
-          .getConversationMessagesPage(
-        groupId:
-        widget.groupId,
+        limit: pageSize,
 
-        limit:
-        pageSize,
-
-        beforeId:
-        beforeId,
+        beforeId: beforeId,
       );
-
 
       if (!mounted) {
         return;
       }
 
-
-      final older =
-      _extractMessages(
-        page['messages'],
-      );
+      final older = _extractMessages(page['messages']);
 
       debugPrint(
         'TARGET SEEK PAGE: '
-            'older=${older.length} '
-            'hasBefore=${page['hasBefore']} '
-            'currentTotal=${messages.length} '
-            'targetMsgId=${widget.targetMsgId} '
-            'targetCliMsgId=${widget.targetCliMsgId}',
+        'older=${older.length} '
+        'hasBefore=${page['hasBefore']} '
+        'currentTotal=${messages.length} '
+        'targetMsgId=${widget.targetMsgId} '
+        'targetCliMsgId=${widget.targetCliMsgId}',
       );
-
 
       // ========================================
       // CHONG TRUNG MESSAGE
       // ========================================
 
-      final uniqueOlder =
-      older
-          .where(
-            (
-            incoming,
-            ) {
-
-          return !messages.any(
-                (
-                existing,
-                ) =>
-                isSameMessage(
-                  existing,
-                  incoming,
-                ),
-          );
-        },
-      )
-          .toList();
-
+      final uniqueOlder = older.where((incoming) {
+        return !messages.any((existing) => isSameMessage(existing, incoming));
+      }).toList();
 
       setState(() {
-
-        if (
-        uniqueOlder.isNotEmpty
-        ) {
-
+        if (uniqueOlder.isNotEmpty) {
           // ========================================
           // VAN GIU MESSAGES THEO THU TU:
           //
@@ -6632,32 +2023,19 @@ class _ChatPageState
           // MOI NHAT
           // ========================================
 
-          messages = [
-            ...uniqueOlder,
-            ...messages,
-          ];
-
+          messages = [...uniqueOlder, ...messages];
 
           // ========================================
           // TARGET INDEX TRONG MANG BI DICH
           // ========================================
 
-          if (
-          targetIndex != null
-          ) {
-
-            targetIndex =
-                targetIndex! +
-                    uniqueOlder.length;
+          if (targetIndex != null) {
+            targetIndex = targetIndex! + uniqueOlder.length;
           }
         }
 
-
-        hasMoreOlder =
-            page['hasBefore'] ==
-                true;
+        hasMoreOlder = page['hasBefore'] == true;
       });
-
 
       // ========================================
       // QUAN TRONG:
@@ -6671,191 +2049,101 @@ class _ChatPageState
       //
       // reverse ListView SE TU GIU VI TRI
       // ========================================
-
     } catch (error) {
-
-      debugPrint(
-        'LOAD OLDER MESSAGES ERROR: $error',
-      );
-
+      debugPrint('LOAD OLDER MESSAGES ERROR: $error');
     } finally {
-
-      loadingOlder =
-      false;
-
+      loadingOlder = false;
 
       if (mounted) {
-
-        paginationReady =
-        true;
+        paginationReady = true;
       }
     }
   }
 
   void _scrollToBottom() {
-
-    if (
-    !scrollController
-        .hasClients
-    ) {
+    if (!scrollController.hasClients) {
       return;
     }
 
-
     scrollController.animateTo(
-      scrollController
-          .position
-          .minScrollExtent,
+      scrollController.position.minScrollExtent,
 
-      duration:
-      const Duration(
-        milliseconds:
-        350,
-      ),
+      duration: const Duration(milliseconds: 350),
 
-      curve:
-      Curves.easeOut,
+      curve: Curves.easeOut,
     );
   }
 
   void _removeTargetHighlightLater() {
-
     // Neu user bam mot quote khac
     // trong luc target cu dang highlight,
     // huy timer cu.
-    targetHighlightTimer
-        ?.cancel();
+    targetHighlightTimer?.cancel();
 
+    targetHighlightTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) {
+        return;
+      }
 
-    targetHighlightTimer =
-        Timer(
-          const Duration(
-            seconds:
-            2,
-          ),
-
-              () {
-
-            if (!mounted) {
-              return;
-            }
-
-
-            setState(() {
-
-              highlightTarget =
-              false;
-            });
-          },
-        );
+      setState(() {
+        highlightTarget = false;
+      });
+    });
   }
 
   void _showTargetNotFound() {
-
-    if (
-    !mounted ||
-        targetNoticeShown
-    ) {
+    if (!mounted || targetNoticeShown) {
       return;
     }
 
-
-    targetNoticeShown =
-    true;
-
+    targetNoticeShown = true;
 
     String description;
 
-
-    switch (
-    targetErrorReason
-    ) {
-
+    switch (targetErrorReason) {
       case 'recalled':
-
-        description =
-        'Tin nhắn này đã được thu hồi.';
+        description = 'Tin nhắn này đã được thu hồi.';
 
         break;
-
 
       case 'deleted_local':
-
-        description =
-        'Tin nhắn này đã bị xóa.';
+        description = 'Tin nhắn này đã bị xóa.';
 
         break;
-
 
       case 'not_found':
-
-        description =
-        'Tin nhắn không còn tồn tại hoặc chưa được lưu trong lịch sử hội thoại.';
+        description = 'Tin nhắn không còn tồn tại hoặc chưa được lưu trong lịch sử hội thoại.';
 
         break;
 
-
       default:
-
-        description =
-        'Không thể tìm thấy tin nhắn gốc của cuốc này.';
+        description = 'Không thể tìm thấy tin nhắn gốc của cuốc này.';
     }
 
-
     showDialog<void>(
-      context:
-      context,
+      context: context,
 
-      builder:
-          (
-          dialogContext,
-          ) {
-
+      builder: (dialogContext) {
         return AlertDialog(
-
-          title:
-          const Row(
+          title: const Row(
             children: [
+              Icon(Icons.search_off_outlined),
 
-              Icon(
-                Icons.search_off_outlined,
-              ),
+              SizedBox(width: 10),
 
-              SizedBox(
-                width: 10,
-              ),
-
-              Expanded(
-                child:
-                Text(
-                  'Không tìm thấy tin nhắn',
-                ),
-              ),
+              Expanded(child: Text('Không tìm thấy tin nhắn')),
             ],
           ),
 
-
-          content:
-          Text(
-            description,
-          ),
-
+          content: Text(description),
 
           actions: [
-
             TextButton(
-              onPressed:
-                  () {
-
-                Navigator.of(
-                  dialogContext,
-                ).pop();
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
               },
 
-              child:
-              const Text(
-                'OK',
-              ),
+              child: const Text('OK'),
             ),
           ],
         );
@@ -6864,337 +2152,194 @@ class _ChatPageState
   }
 
   void startRealtime() {
+    realtimeSubscription?.cancel();
 
-    realtimeSubscription
-        ?.cancel();
+    realtimeSubscription = backend.connectRealtime().listen(
+      (event) {
+        if (!mounted) {
+          return;
+        }
 
+        final type = event['type']?.toString();
 
-    realtimeSubscription =
-        backend
-            .connectRealtime()
-            .listen(
-              (
-              event,
-              ) {
+        // ========================================
+        // BACKEND VUA YEU CAU AUTH
+        // ========================================
 
-            if (!mounted) {
-              return;
+        if (type == 'auth_required') {
+          return;
+        }
+
+        // ========================================
+        // WEBSOCKET VUA KET NOI / KET NOI LAI
+        //
+        // CUC KY QUAN TRONG:
+        //
+        // Co the backend da sync old_messages
+        // TRUOC KHI Flutter WebSocket ket noi lai.
+        //
+        // Vi vay moi lan authenticated,
+        // ChatPage phai hoi backend lay latest.
+        //
+        // Nhu vay khong phu thuoc vao viec
+        // co nhan duoc conversation_history_synced
+        // hay khong.
+        // ========================================
+
+        if (type == 'authenticated') {
+          debugPrint(
+            'CHAT REALTIME AUTHENTICATED '
+            '-> reload latest messages',
+          );
+
+          scheduleRealtimeReload(force: true);
+
+          _scheduleMarkConversationRead();
+
+          return;
+        }
+
+        // ========================================
+        // BACKEND VUA DONG BO TIN NHAN BI LO
+        // ========================================
+
+        if (type == 'conversation_history_synced') {
+          final rawSyncData = event['data'];
+
+          if (rawSyncData is Map) {
+            final syncData = Map<String, dynamic>.from(rawSyncData);
+
+            final syncGroupId = syncData['groupId']?.toString();
+
+            // Chi reload neu history vua sync
+            // thuoc group dang mo.
+            if (syncGroupId == widget.groupId) {
+              debugPrint(
+                'CHAT HISTORY SYNCED: '
+                'group=$syncGroupId '
+                'count=${syncData['count']}',
+              );
+
+              scheduleRealtimeReload(force: true);
             }
+          }
 
+          _scheduleMarkConversationRead();
 
-            final type =
-            event['type']
-                ?.toString();
+          return;
+        }
 
+        // ========================================
+        // AUTH LOI
+        // ========================================
 
-// ========================================
-// BACKEND VUA YEU CAU AUTH
-// ========================================
+        if (type == 'auth_error') {
+          debugPrint('CHAT REALTIME AUTH ERROR');
 
-                if (
-                type ==
-                    'auth_required'
-                ) {
+          return;
+        }
 
-                  return;
-                }
+        // ========================================
+        // MESSAGE REALTIME BINH THUONG
+        // ========================================
 
+        if (type != 'conversation_message' &&
+            type != 'conversation_message_updated') {
+          return;
+        }
 
-// ========================================
-// WEBSOCKET VUA KET NOI / KET NOI LAI
-//
-// CUC KY QUAN TRONG:
-//
-// Co the backend da sync old_messages
-// TRUOC KHI Flutter WebSocket ket noi lai.
-//
-// Vi vay moi lan authenticated,
-// ChatPage phai hoi backend lay latest.
-//
-// Nhu vay khong phu thuoc vao viec
-// co nhan duoc conversation_history_synced
-// hay khong.
-// ========================================
+        final rawData = event['data'];
 
-                if (
-                type ==
-                    'authenticated'
-                ) {
+        if (rawData is! Map) {
+          return;
+        }
 
-                  debugPrint(
-                    'CHAT REALTIME AUTHENTICATED '
-                        '-> reload latest messages',
-                  );
+        final data = Map<String, dynamic>.from(rawData);
 
+        final eventGroupId = data['groupId']?.toString();
 
-                  scheduleRealtimeReload(
-                    force:
-                      true,
-                  );
+        // ========================================
+        // CHI NHAN MESSAGE CUA GROUP DANG MO
+        // ========================================
 
-                  _scheduleMarkConversationRead();
+        if (eventGroupId != widget.groupId) {
+          return;
+        }
 
-                  return;
-                }
+        final rawMessage = data['message'];
 
+        if (rawMessage is! Map) {
+          scheduleRealtimeReload();
 
-// ========================================
-// BACKEND VUA DONG BO TIN NHAN BI LO
-// ========================================
+          return;
+        }
 
-                if (
-                type ==
-                    'conversation_history_synced'
-                ) {
+        final incoming = Map<String, dynamic>.from(rawMessage);
 
-                  final rawSyncData =
-                  event['data'];
+        upsertRealtimeMessage(incoming);
 
+        // ========================================
+        // DANG MO DUNG GROUP NAY
+        // + APP DANG FOREGROUND
+        // + TIN CUA NGUOI KHAC
+        //
+        // -> COI LA DA DOC.
+        // ========================================
 
-                  if (
-                  rawSyncData is Map
-                  ) {
+        if (type == 'conversation_message' && incoming['isSelf'] != true) {
+          _scheduleMarkConversationRead();
+        }
+      },
 
-                    final syncData =
-                    Map<String, dynamic>.from(
-                      rawSyncData,
-                    );
-
-
-                    final syncGroupId =
-                    syncData['groupId']
-                        ?.toString();
-
-
-                    // Chi reload neu history vua sync
-                    // thuoc group dang mo.
-                    if (
-                    syncGroupId ==
-                        widget.groupId
-                    ) {
-
-                      debugPrint(
-                        'CHAT HISTORY SYNCED: '
-                            'group=$syncGroupId '
-                            'count=${syncData['count']}',
-                      );
-
-
-                      scheduleRealtimeReload(
-                        force:
-                        true,
-                      );
-                    }
-                  }
-
-                  _scheduleMarkConversationRead();
-
-                  return;
-                }
-
-
-// ========================================
-// AUTH LOI
-// ========================================
-
-                if (
-                type ==
-                    'auth_error'
-                ) {
-
-                  debugPrint(
-                    'CHAT REALTIME AUTH ERROR',
-                  );
-
-
-                  return;
-                }
-
-
-// ========================================
-// MESSAGE REALTIME BINH THUONG
-// ========================================
-
-                if (
-                type !=
-                    'conversation_message' &&
-                    type !=
-                        'conversation_message_updated'
-                ) {
-
-                  return;
-                }
-
-
-            final rawData =
-            event['data'];
-
-
-            if (
-            rawData is! Map
-            ) {
-              return;
-            }
-
-
-            final data =
-            Map<String, dynamic>.from(
-              rawData,
-            );
-
-
-            final eventGroupId =
-            data['groupId']
-                ?.toString();
-
-
-            // ========================================
-            // CHI NHAN MESSAGE CUA GROUP DANG MO
-            // ========================================
-
-            if (
-            eventGroupId !=
-                widget.groupId
-            ) {
-              return;
-            }
-
-
-            final rawMessage =
-            data['message'];
-
-
-            if (
-            rawMessage is! Map
-            ) {
-
-              scheduleRealtimeReload();
-
-              return;
-            }
-
-
-            final incoming =
-            Map<String, dynamic>.from(
-              rawMessage,
-            );
-
-
-            upsertRealtimeMessage(
-              incoming,
-            );
-
-                // ========================================
-// DANG MO DUNG GROUP NAY
-// + APP DANG FOREGROUND
-// + TIN CUA NGUOI KHAC
-//
-// -> COI LA DA DOC.
-// ========================================
-
-                if (
-                type ==
-                    'conversation_message' &&
-                    incoming['isSelf'] !=
-                        true
-                ) {
-
-                  _scheduleMarkConversationRead();
-                }
-          },
-
-          onError:
-              (
-              error,
-              ) {
-
-            debugPrint(
-              'CHAT REALTIME ERROR: $error',
-            );
-          },
-        );
+      onError: (error) {
+        debugPrint('CHAT REALTIME ERROR: $error');
+      },
+    );
   }
 
-  Future<void>
-  _ensureHistoryScrollable({
-    int attempt = 0,
-  }) async {
-
-    if (
-    !mounted ||
+  Future<void> _ensureHistoryScrollable({int attempt = 0}) async {
+    if (!mounted ||
         !paginationReady ||
         loading ||
         loadingOlder ||
         !hasMoreOlder ||
-        messages.isEmpty
-    ) {
+        messages.isEmpty) {
       return;
     }
-
 
     // ========================================
     // DOI LISTVIEW BUILD XONG
     // ========================================
 
-    await WidgetsBinding
-        .instance
-        .endOfFrame;
-
+    await WidgetsBinding.instance.endOfFrame;
 
     if (!mounted) {
       return;
     }
 
-
     // ========================================
     // DOI SCROLL CONTROLLER SAN SANG
     // ========================================
 
-    if (
-    !scrollController
-        .hasClients
-    ) {
-
-      if (
-      attempt >= 10
-      ) {
+    if (!scrollController.hasClients) {
+      if (attempt >= 10) {
         return;
       }
 
+      await Future.delayed(const Duration(milliseconds: 60));
 
-      await Future.delayed(
-        const Duration(
-          milliseconds:
-          60,
-        ),
-      );
-
-
-      return _ensureHistoryScrollable(
-        attempt:
-        attempt + 1,
-      );
+      return _ensureHistoryScrollable(attempt: attempt + 1);
     }
 
-
-    final position =
-        scrollController
-            .position;
-
+    final position = scrollController.position;
 
     // ========================================
     // DA DU TIN DE CUON
     // ========================================
 
-    if (
-    position
-        .maxScrollExtent >
-        800
-    ) {
-
+    if (position.maxScrollExtent > 800) {
       return;
     }
-
 
     // ========================================
     // MAN HINH CHUA DU TIN
@@ -7205,280 +2350,160 @@ class _ChatPageState
 
     debugPrint(
       'CHAT AUTO FILL OLDER: '
-          'messages=${messages.length} '
-          'hasMoreOlder=$hasMoreOlder',
+      'messages=${messages.length} '
+      'hasMoreOlder=$hasMoreOlder',
     );
-
 
     await loadOlderMessages();
 
-
-    if (
-    !mounted ||
-        !hasMoreOlder ||
-        attempt >= 10
-    ) {
-
+    if (!mounted || !hasMoreOlder || attempt >= 10) {
       return;
     }
-
 
     // ========================================
     // NEU VAN CHUA DAY MAN HINH
     // LOAD THEM 1 PAGE NUA
     // ========================================
 
-    await _ensureHistoryScrollable(
-      attempt:
-      attempt + 1,
-    );
+    await _ensureHistoryScrollable(attempt: attempt + 1);
   }
 
-  void scheduleRealtimeReload({
-    bool force = false,
-  }) {
+  void scheduleRealtimeReload({bool force = false}) {
+    realtimeReloadTimer?.cancel();
 
-    realtimeReloadTimer
-        ?.cancel();
+    realtimeReloadTimer = Timer(const Duration(milliseconds: 250), () async {
+      if (!mounted) {
+        return;
+      }
 
+      // ========================================
+      // DANG XEM HISTORY CU
+      //
+      // REALTIME BINH THUONG:
+      // KHONG DUOC NHAY VE HIEN TAI.
+      //
+      // NHUNG NEU:
+      // - websocket vua reconnect
+      // - backend vua sync message bi lo
+      //
+      // force = true
+      // THI PHAI LAY LATEST.
+      // ========================================
 
-    realtimeReloadTimer =
-        Timer(
-          const Duration(
-            milliseconds:
-            250,
-          ),
+      if (hasMoreNewer && !force) {
+        return;
+      }
 
-              () async {
+      try {
+        final page = await backend.getConversationMessagesPage(
+          groupId: widget.groupId,
 
+          limit: pageSize,
+        );
+
+        if (!mounted) {
+          return;
+        }
+
+        final latest = _extractMessages(page['messages']);
+
+        // ========================================
+        // USER CO DANG O GAN CUOI CHAT KHONG?
+        //
+        // reverse:true
+        // minScrollExtent = tin moi nhat.
+        // ========================================
+
+        final wasNearBottom =
+            !scrollController.hasClients ||
+            (scrollController.position.pixels -
+                    scrollController.position.minScrollExtent) <
+                140;
+
+        setState(() {
+          for (final incoming in latest) {
+            final existingIndex = messages.indexWhere(
+              (existing) => isSameMessage(existing, incoming),
+            );
+
+            if (existingIndex >= 0) {
+              // ========================================
+              // MESSAGE DA CO
+              //
+              // UPDATE:
+              // - recall
+              // - thay doi server
+              // ========================================
+
+              messages[existingIndex] = incoming;
+            } else {
+              // ========================================
+              // MESSAGE MOI / MESSAGE VUA CATCH UP
+              // ========================================
+
+              messages.add(incoming);
+            }
+          }
+
+          // ========================================
+          // SAP XEP:
+          // CU NHAT -> MOI NHAT
+          // ========================================
+
+          messages.sort((a, b) {
+            final aTime = int.tryParse(a['timestamp']?.toString() ?? '') ?? 0;
+
+            final bTime = int.tryParse(b['timestamp']?.toString() ?? '') ?? 0;
+
+            return aTime.compareTo(bTime);
+          });
+
+          // Sau khi force lay latest,
+          // ta dang co dau moi nhat.
+          if (force) {
+            hasMoreNewer = false;
+          }
+        });
+
+        // ========================================
+        // NEU USER DANG O CUOI CHAT
+        // THI GIU MAN HINH O CUOI.
+        //
+        // NEU USER DANG DOC TIN CU
+        // THI KHONG KEo MAN HINH.
+        // ========================================
+
+        if (wasNearBottom) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) {
               return;
             }
 
+            _scrollToBottom();
+          });
+        }
 
-            // ========================================
-            // DANG XEM HISTORY CU
-            //
-            // REALTIME BINH THUONG:
-            // KHONG DUOC NHAY VE HIEN TAI.
-            //
-            // NHUNG NEU:
-            // - websocket vua reconnect
-            // - backend vua sync message bi lo
-            //
-            // force = true
-            // THI PHAI LAY LATEST.
-            // ========================================
-
-            if (
-            hasMoreNewer &&
-                !force
-            ) {
-
-              return;
-            }
-
-
-            try {
-
-              final page =
-              await backend
-                  .getConversationMessagesPage(
-                groupId:
-                widget.groupId,
-
-                limit:
-                pageSize,
-              );
-
-
-              if (!mounted) {
-                return;
-              }
-
-
-              final latest =
-              _extractMessages(
-                page['messages'],
-              );
-
-
-              // ========================================
-              // USER CO DANG O GAN CUOI CHAT KHONG?
-              //
-              // reverse:true
-              // minScrollExtent = tin moi nhat.
-              // ========================================
-
-              final wasNearBottom =
-                  !scrollController
-                      .hasClients ||
-                      (
-                          scrollController
-                              .position
-                              .pixels -
-                              scrollController
-                                  .position
-                                  .minScrollExtent
-                      ) <
-                          140;
-
-
-              setState(() {
-
-                for (
-                final incoming
-                in latest
-                ) {
-
-                  final existingIndex =
-                  messages.indexWhere(
-                        (
-                        existing,
-                        ) =>
-                        isSameMessage(
-                          existing,
-                          incoming,
-                        ),
-                  );
-
-
-                  if (
-                  existingIndex >= 0
-                  ) {
-
-                    // ========================================
-                    // MESSAGE DA CO
-                    //
-                    // UPDATE:
-                    // - recall
-                    // - thay doi server
-                    // ========================================
-
-                    messages[
-                    existingIndex] =
-                        incoming;
-
-                  } else {
-
-                    // ========================================
-                    // MESSAGE MOI / MESSAGE VUA CATCH UP
-                    // ========================================
-
-                    messages.add(
-                      incoming,
-                    );
-                  }
-                }
-
-
-                // ========================================
-                // SAP XEP:
-                // CU NHAT -> MOI NHAT
-                // ========================================
-
-                messages.sort(
-                      (
-                      a,
-                      b,
-                      ) {
-
-                    final aTime =
-                        int.tryParse(
-                          a['timestamp']
-                              ?.toString() ??
-                              '',
-                        ) ??
-                            0;
-
-
-                    final bTime =
-                        int.tryParse(
-                          b['timestamp']
-                              ?.toString() ??
-                              '',
-                        ) ??
-                            0;
-
-
-                    return aTime.compareTo(
-                      bTime,
-                    );
-                  },
-                );
-
-
-                // Sau khi force lay latest,
-                // ta dang co dau moi nhat.
-                if (force) {
-
-                  hasMoreNewer =
-                  false;
-                }
-              });
-
-
-              // ========================================
-              // NEU USER DANG O CUOI CHAT
-              // THI GIU MAN HINH O CUOI.
-              //
-              // NEU USER DANG DOC TIN CU
-              // THI KHONG KEo MAN HINH.
-              // ========================================
-
-              if (
-              wasNearBottom
-              ) {
-
-                WidgetsBinding
-                    .instance
-                    .addPostFrameCallback(
-                      (_) {
-
-                    if (!mounted) {
-                      return;
-                    }
-
-
-                    _scrollToBottom();
-                  },
-                );
-              }
-
-
-              debugPrint(
-                'CHAT REALTIME RELOAD DONE: '
-                    'latest=${latest.length} '
-                    'total=${messages.length} '
-                    'force=$force',
-              );
-
-            } catch (error) {
-
-              debugPrint(
-                'CHAT REALTIME RELOAD ERROR: '
-                    '$error',
-              );
-            }
-          },
+        debugPrint(
+          'CHAT REALTIME RELOAD DONE: '
+          'latest=${latest.length} '
+          'total=${messages.length} '
+          'force=$force',
         );
+      } catch (error) {
+        debugPrint(
+          'CHAT REALTIME RELOAD ERROR: '
+          '$error',
+        );
+      }
+    });
   }
 
-
-  void upsertRealtimeMessage(
-      Map<String, dynamic> incoming,
-      ) {
-
+  void upsertRealtimeMessage(Map<String, dynamic> incoming) {
     if (!mounted) {
       return;
     }
 
-
-    final incomingStatus =
-        incoming['status']
-            ?.toString() ??
-            'normal';
-
+    final incomingStatus = incoming['status']?.toString() ?? 'normal';
 
     // ========================================
     // MESSAGE DA XOA
@@ -7486,71 +2511,39 @@ class _ChatPageState
     // BIEN MAT HOAN TOAN KHOI UI.
     // ========================================
 
-    if (
-    incomingStatus ==
-        'deleted_local'
-    ) {
-
-      _removeMessageFromUi(
-        incoming,
-      );
+    if (incomingStatus == 'deleted_local') {
+      _removeMessageFromUi(incoming);
 
       return;
     }
-
 
     // ========================================
     // KHONG CHO EVENT RONG TRO THANH
     // BUBBLE [Tin nhắn]
     // ========================================
 
-    if (
-    !_shouldDisplayMessage(
-      incoming,
-    )
-    ) {
-
+    if (!_shouldDisplayMessage(incoming)) {
       debugPrint(
         'CHAT SKIP NON-DISPLAY MESSAGE: '
-            'msgId=${incoming['msgId']} '
-            'cliMsgId=${incoming['cliMsgId']} '
-            'msgType=${incoming['msgType']}',
+        'msgId=${incoming['msgId']} '
+        'cliMsgId=${incoming['cliMsgId']} '
+        'msgType=${incoming['msgType']}',
       );
-
 
       return;
     }
-
 
     // ========================================
     // USER DANG O GAN CUOI CHAT?
     // ========================================
 
     final wasNearBottom =
-        !scrollController
-            .hasClients ||
-            (
-                scrollController
-                    .position
-                    .pixels -
-                    scrollController
-                        .position
-                        .minScrollExtent
-            ) <
-                140;
+        !scrollController.hasClients ||
+        (scrollController.position.pixels -
+                scrollController.position.minScrollExtent) <
+            140;
 
-
-    final index =
-    messages.indexWhere(
-          (
-          item,
-          ) =>
-          isSameMessage(
-            item,
-            incoming,
-          ),
-    );
-
+    final index = messages.indexWhere((item) => isSameMessage(item, incoming));
 
     // ========================================
     // DANG XEM MOT DOAN HISTORY CU
@@ -7560,223 +2553,118 @@ class _ChatPageState
     // GIUA HISTORY.
     // ========================================
 
-    if (
-    index < 0 &&
-        hasMoreNewer
-    ) {
-
+    if (index < 0 && hasMoreNewer) {
       return;
     }
 
-
     setState(() {
-
-      if (
-      index >= 0
-      ) {
-
+      if (index >= 0) {
         // ========================================
         // UPDATE MESSAGE DA CO
         // ========================================
 
-        messages[index] =
-            incoming;
-
+        messages[index] = incoming;
       } else {
-
         // ========================================
         // MESSAGE MOI
         // ========================================
 
-        messages.add(
-          incoming,
-        );
+        messages.add(incoming);
       }
     });
-
 
     // ========================================
     // MESSAGE MOI + USER DANG O CUOI CHAT
     // -> TU DONG CUON THEO
     // ========================================
 
-    if (
-    index < 0 &&
-        wasNearBottom &&
-        targetIndex == null
-    ) {
+    if (index < 0 && wasNearBottom && targetIndex == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
 
-      WidgetsBinding
-          .instance
-          .addPostFrameCallback(
-            (_) {
-
-          if (!mounted) {
-            return;
-          }
-
-
-          _scrollToBottom();
-        },
-      );
+        _scrollToBottom();
+      });
     }
   }
 
-  bool _handleScrollNotification(
-      ScrollNotification notification,
-      ) {
-
-    if (
-    !mounted ||
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (!mounted ||
         !paginationReady ||
         seekingTarget ||
         loading ||
         loadingOlder ||
         messages.isEmpty ||
-        !hasMoreOlder
-    ) {
+        !hasMoreOlder) {
       return false;
     }
-
 
     // ========================================
     // USER DANG KEO TRONG LIST
     // ========================================
 
-    if (
-    notification
-    is ScrollUpdateNotification
-    ) {
-
-      if (
-      notification.dragDetails ==
-          null
-      ) {
+    if (notification is ScrollUpdateNotification) {
+      if (notification.dragDetails == null) {
         return false;
       }
 
+      final delta = notification.scrollDelta ?? 0.0;
 
-      final delta =
-          notification.scrollDelta ??
-              0.0;
+      final metrics = notification.metrics;
 
-
-      final metrics =
-          notification.metrics;
-
-
-      final distanceToOlderEdge =
-          metrics.maxScrollExtent -
-              metrics.pixels;
-
+      final distanceToOlderEdge = metrics.maxScrollExtent - metrics.pixels;
 
       // reverse:true
       //
       // delta > 0 = di ve tin cu.
-      if (
-      delta > 0 &&
-          distanceToOlderEdge <=
-              500
-      ) {
-
+      if (delta > 0 && distanceToOlderEdge <= 500) {
         loadOlderMessages();
       }
 
-
       return false;
     }
-
 
     // ========================================
     // USER DA O SAT MEP TIN CU
     // VAN CO KEo THEM
     // ========================================
 
-    if (
-    notification
-    is OverscrollNotification
-    ) {
-
-      if (
-      notification.dragDetails ==
-          null
-      ) {
+    if (notification is OverscrollNotification) {
+      if (notification.dragDetails == null) {
         return false;
       }
 
+      final metrics = notification.metrics;
 
-      final metrics =
-          notification.metrics;
-
-
-      if (
-      metrics.pixels >=
-          metrics.maxScrollExtent -
-              5
-      ) {
-
+      if (metrics.pixels >= metrics.maxScrollExtent - 5) {
         loadOlderMessages();
       }
     }
 
-
     return false;
   }
 
-  bool _shouldDisplayMessage(
-      Map<String, dynamic> message,
-      ) {
+  bool _shouldDisplayMessage(Map<String, dynamic> message) {
+    final status = message['status']?.toString() ?? 'normal';
 
-    final status =
-        message['status']
-            ?.toString() ??
-            'normal';
-
-
-    if (
-    status ==
-        'deleted_local'
-    ) {
-
+    if (status == 'deleted_local') {
       return false;
     }
 
-
-    if (
-    status ==
-        'recalled'
-    ) {
-
+    if (status == 'recalled') {
       return true;
     }
 
+    final content = message['content']?.toString().trim() ?? '';
 
-    final content =
-        message['content']
-            ?.toString()
-            .trim() ??
-            '';
-
-
-    if (
-    content.isNotEmpty
-    ) {
-
+    if (content.isNotEmpty) {
       return true;
     }
 
+    final msgType = message['msgType']?.toString().trim().toLowerCase() ?? '';
 
-    final msgType =
-        message['msgType']
-            ?.toString()
-            .trim()
-            .toLowerCase() ??
-            '';
-
-
-    const stringAttachmentTypes =
-    <String>{
-
+    const stringAttachmentTypes = <String>{
       'chat.photo',
 
       'chat.sticker',
@@ -7795,376 +2683,134 @@ class _ChatPageState
       'chat.audio',
     };
 
-
-    if (
-    stringAttachmentTypes
-        .contains(
-      msgType,
-    )
-    ) {
-
+    if (stringAttachmentTypes.contains(msgType)) {
       return true;
     }
 
+    final numericType = int.tryParse(msgType);
 
-    final numericType =
-    int.tryParse(
-      msgType,
-    );
+    const numericAttachmentTypes = <int>{31, 32, 44, 46, 49};
 
-
-    const numericAttachmentTypes =
-    <int>{
-      31,
-      32,
-      44,
-      46,
-      49,
-    };
-
-
-    return numericType != null &&
-        numericAttachmentTypes
-            .contains(
-          numericType,
-        );
+    return numericType != null && numericAttachmentTypes.contains(numericType);
   }
 
-  List<Map<String, dynamic>>
-  _extractMessages(
-      dynamic raw,
-      ) {
-
-    if (
-    raw is! List
-    ) {
+  List<Map<String, dynamic>> _extractMessages(dynamic raw) {
+    if (raw is! List) {
       return [];
     }
 
-
     return raw
         .whereType<Map>()
-        .map(
-          (
-          item,
-          ) =>
-      Map<String, dynamic>.from(
-        item,
-      ),
-    )
-        .where(
-      _shouldDisplayMessage,
-    )
+        .map((item) => Map<String, dynamic>.from(item))
+        .where(_shouldDisplayMessage)
         .toList();
   }
 
-  Future<void>
-  _jumpToBottomInitial({
-    int attempt = 0,
-  }) async {
-
+  Future<void> _jumpToBottomInitial({int attempt = 0}) async {
     if (!mounted) {
       return;
     }
 
-
-    if (
-    !scrollController
-        .hasClients
-    ) {
-
-      if (
-      attempt >= 10
-      ) {
-
-        debugPrint(
-          'JUMP TO LATEST FAILED',
-        );
+    if (!scrollController.hasClients) {
+      if (attempt >= 10) {
+        debugPrint('JUMP TO LATEST FAILED');
 
         return;
       }
 
-
-      await Future.delayed(
-        const Duration(
-          milliseconds:
-          80,
-        ),
-      );
-
+      await Future.delayed(const Duration(milliseconds: 80));
 
       if (!mounted) {
         return;
       }
 
-
-      return _jumpToBottomInitial(
-        attempt:
-        attempt + 1,
-      );
+      return _jumpToBottomInitial(attempt: attempt + 1);
     }
 
-
-    scrollController.jumpTo(
-      scrollController
-          .position
-          .minScrollExtent,
-    );
-
+    scrollController.jumpTo(scrollController.position.minScrollExtent);
 
     // Cho viewport on dinh
     // truoc khi bat dau seek.
-    await WidgetsBinding
-        .instance
-        .endOfFrame;
+    await WidgetsBinding.instance.endOfFrame;
   }
 
   // ========================================
   // TIME
   // ========================================
 
-  String formatTime(
-      dynamic timestamp,
-      ) {
+  String formatTime(dynamic timestamp) {
+    final raw = int.tryParse(timestamp?.toString() ?? '');
 
-    final raw =
-    int.tryParse(
-      timestamp
-          ?.toString() ??
-          '',
-    );
-
-
-    if (
-    raw == null ||
-        raw <= 0
-    ) {
+    if (raw == null || raw <= 0) {
       return '';
     }
 
+    final timestampMs = raw < 100000000000 ? raw * 1000 : raw;
 
-    final timestampMs =
-    raw <
-        100000000000
-        ? raw * 1000
-        : raw;
+    final time = DateTime.fromMillisecondsSinceEpoch(timestampMs).toLocal();
 
+    final hour = time.hour.toString().padLeft(2, '0');
 
-    final time =
-    DateTime
-        .fromMillisecondsSinceEpoch(
-      timestampMs,
-    )
-        .toLocal();
-
-
-    final hour =
-    time.hour
-        .toString()
-        .padLeft(
-      2,
-      '0',
-    );
-
-
-    final minute =
-    time.minute
-        .toString()
-        .padLeft(
-      2,
-      '0',
-    );
-
+    final minute = time.minute.toString().padLeft(2, '0');
 
     return '$hour:$minute';
   }
 
-  Map<String, dynamic>?
-  _extractQuote(
-      Map<String, dynamic> message,
-      ) {
-
+  Map<String, dynamic>? _extractQuote(Map<String, dynamic> message) {
     // ========================================
     // 1. rawData LA message.data TU zca-js
     // ========================================
 
-    final raw =
-    message['rawData'];
+    final raw = message['rawData'];
 
+    if (raw is Map) {
+      final rawMap = Map<String, dynamic>.from(raw);
 
-    if (
-    raw is Map
-    ) {
+      final quote = rawMap['quote'];
 
-      final rawMap =
-      Map<String, dynamic>.from(
-        raw,
-      );
-
-
-      final quote =
-      rawMap['quote'];
-
-
-      if (
-      quote is Map
-      ) {
-
-        return Map<String, dynamic>.from(
-          quote,
-        );
+      if (quote is Map) {
+        return Map<String, dynamic>.from(quote);
       }
     }
-
 
     // ========================================
     // 2. FALLBACK NEU SAU NAY BACKEND
     // DUA quote LEN CAP MESSAGE
     // ========================================
 
-    final directQuote =
-    message['quote'];
+    final directQuote = message['quote'];
 
-
-    if (
-    directQuote is Map
-    ) {
-
-      return Map<String, dynamic>.from(
-        directQuote,
-      );
+    if (directQuote is Map) {
+      return Map<String, dynamic>.from(directQuote);
     }
-
 
     return null;
   }
 
-  String _messageInitials(
-      String? name,
-      ) {
+  Map<String, dynamic>? _extractPhotoContent(Map<String, dynamic> message) {
+    final raw = message['rawData'];
 
-    final safeName =
-    name
-        ?.trim();
-
-
-    if (
-    safeName == null ||
-        safeName.isEmpty
-    ) {
-
-      return '?';
+    if (raw is! Map) {
+      return null;
     }
 
+    final rawMap = Map<String, dynamic>.from(raw);
 
-    final parts =
-    safeName
-        .split(
-      RegExp(
-        r'\s+',
-      ),
-    )
-        .where(
-          (
-          part,
-          ) =>
-      part.isNotEmpty,
-    )
-        .toList();
+    final content = rawMap['content'];
 
-
-    if (
-    parts.isEmpty
-    ) {
-
-      return '?';
+    if (content is! Map) {
+      return null;
     }
 
-
-    if (
-    parts.length ==
-        1
-    ) {
-
-      return parts.first
-          .substring(
-        0,
-        1,
-      )
-          .toUpperCase();
-    }
-
-
-    return (
-        parts.first.substring(
-          0,
-          1,
-        ) +
-            parts.last.substring(
-              0,
-              1,
-            )
-    ).toUpperCase();
+    return Map<String, dynamic>.from(content);
   }
 
-  Map<String, dynamic>?
-  _extractPhotoContent(
-      Map<String, dynamic> message,
-      ) {
+  String? _extractPhotoUrl(Map<String, dynamic> message) {
+    final content = _extractPhotoContent(message);
 
-    final raw =
-    message['rawData'];
-
-
-    if (
-    raw is! Map
-    ) {
-
+    if (content == null) {
       return null;
     }
-
-
-    final rawMap =
-    Map<String, dynamic>.from(
-      raw,
-    );
-
-
-    final content =
-    rawMap['content'];
-
-
-    if (
-    content is! Map
-    ) {
-
-      return null;
-    }
-
-
-    return Map<String, dynamic>.from(
-      content,
-    );
-  }
-
-  String?
-  _extractPhotoUrl(
-      Map<String, dynamic> message,
-      ) {
-
-    final content =
-    _extractPhotoContent(
-      message,
-    );
-
-
-    if (
-    content == null
-    ) {
-
-      return null;
-    }
-
 
     // ========================================
     // 1. HREF
@@ -8173,91 +2819,43 @@ class _ChatPageState
     // content.href = URL anh.
     // ========================================
 
-    final href =
-    content['href']
-        ?.toString()
-        .trim();
+    final href = content['href']?.toString().trim();
 
-
-    if (
-    href != null &&
-        href.isNotEmpty
-    ) {
-
+    if (href != null && href.isNotEmpty) {
       return href;
     }
-
 
     // ========================================
     // 2. FALLBACK THUMB
     // ========================================
 
-    final thumb =
-    content['thumb']
-        ?.toString()
-        .trim();
+    final thumb = content['thumb']?.toString().trim();
 
-
-    if (
-    thumb != null &&
-        thumb.isNotEmpty
-    ) {
-
+    if (thumb != null && thumb.isNotEmpty) {
       return thumb;
     }
-
 
     return null;
   }
 
-  String _photoHeroTag(
-      Map<String, dynamic> message,
-      ) {
+  String _photoHeroTag(Map<String, dynamic> message) {
+    final id = message['id']?.toString().trim();
 
-    final id =
-    message['id']
-        ?.toString()
-        .trim();
-
-
-    if (
-    id != null &&
-        id.isNotEmpty
-    ) {
-
+    if (id != null && id.isNotEmpty) {
       return 'chat-photo-$id';
     }
 
+    final msgId = message['msgId']?.toString().trim();
 
-    final msgId =
-    message['msgId']
-        ?.toString()
-        .trim();
-
-
-    if (
-    msgId != null &&
-        msgId.isNotEmpty
-    ) {
-
+    if (msgId != null && msgId.isNotEmpty) {
       return 'chat-photo-$msgId';
     }
 
+    final cliMsgId = message['cliMsgId']?.toString().trim();
 
-    final cliMsgId =
-    message['cliMsgId']
-        ?.toString()
-        .trim();
-
-
-    if (
-    cliMsgId != null &&
-        cliMsgId.isNotEmpty
-    ) {
-
+    if (cliMsgId != null && cliMsgId.isNotEmpty) {
       return 'chat-photo-$cliMsgId';
     }
-
 
     // ========================================
     // FALLBACK ON DINH TRONG PHIEN APP
@@ -8266,58 +2864,26 @@ class _ChatPageState
     return 'chat-photo-${identityHashCode(message)}';
   }
 
-  List<Map<String, dynamic>>
-  _allLoadedPhotoMessages() {
+  List<Map<String, dynamic>> _allLoadedPhotoMessages() {
+    final photos = messages.where((item) {
+      // ========================================
+      // CHI LAY PHOTO DANG TON TAI
+      // ========================================
 
-    final photos =
-    messages
-        .where(
-          (
-          item,
-          ) {
+      final status = item['status']?.toString() ?? 'normal';
 
-        // ========================================
-        // CHI LAY PHOTO DANG TON TAI
-        // ========================================
+      if (status != 'normal') {
+        return false;
+      }
 
-        final status =
-            item['status']
-                ?.toString() ??
-                'normal';
+      if (!_isPhotoMessage(item)) {
+        return false;
+      }
 
+      final url = _extractPhotoUrl(item);
 
-        if (
-        status !=
-            'normal'
-        ) {
-
-          return false;
-        }
-
-
-        if (
-        !_isPhotoMessage(
-          item,
-        )
-        ) {
-
-          return false;
-        }
-
-
-        final url =
-        _extractPhotoUrl(
-          item,
-        );
-
-
-        return url !=
-            null &&
-            url.isNotEmpty;
-      },
-    )
-        .toList();
-
+      return url != null && url.isNotEmpty;
+    }).toList();
 
     // ========================================
     // SAP XEP THEO THOI GIAN CHAT
@@ -8329,140 +2895,61 @@ class _ChatPageState
     // - mediaGroupId nao
     // ========================================
 
-    photos.sort(
-          (
-          a,
-          b,
-          ) {
+    photos.sort((a, b) {
+      final aTime = int.tryParse(a['timestamp']?.toString() ?? '') ?? 0;
 
-        final aTime =
-            int.tryParse(
-              a['timestamp']
-                  ?.toString() ??
-                  '',
-            ) ??
-                0;
+      final bTime = int.tryParse(b['timestamp']?.toString() ?? '') ?? 0;
 
+      // ========================================
+      // NEU CUNG TIMESTAMP
+      // THI DUNG THU TU TRONG ALBUM
+      // DE ANH KHONG BI DAO LON.
+      // ========================================
 
-        final bTime =
-            int.tryParse(
-              b['timestamp']
-                  ?.toString() ??
-                  '',
-            ) ??
-                0;
+      if (aTime == bTime) {
+        final aGroupIndex = _mediaGroupIndex(a) ?? 0;
 
+        final bGroupIndex = _mediaGroupIndex(b) ?? 0;
 
-        // ========================================
-        // NEU CUNG TIMESTAMP
-        // THI DUNG THU TU TRONG ALBUM
-        // DE ANH KHONG BI DAO LON.
-        // ========================================
+        return aGroupIndex.compareTo(bGroupIndex);
+      }
 
-        if (
-        aTime ==
-            bTime
-        ) {
-
-          final aGroupIndex =
-              _mediaGroupIndex(
-                a,
-              ) ??
-                  0;
-
-
-          final bGroupIndex =
-              _mediaGroupIndex(
-                b,
-              ) ??
-                  0;
-
-
-          return aGroupIndex
-              .compareTo(
-            bGroupIndex,
-          );
-        }
-
-
-        return aTime
-            .compareTo(
-          bTime,
-        );
-      },
-    );
-
+      return aTime.compareTo(bTime);
+    });
 
     return photos;
   }
 
-  List<_PhotoViewerItem>
-  _buildPhotoViewerItems(
-      List<Map<String, dynamic>>
-      sourceMessages,
-      ) {
+  List<PhotoViewerItem> _buildPhotoViewerItems(
+    List<Map<String, dynamic>> sourceMessages,
+  ) {
+    final result = <PhotoViewerItem>[];
 
-    final result =
-    <_PhotoViewerItem>[];
+    for (final message in sourceMessages) {
+      final photoUrl = _extractPhotoUrl(message);
 
-
-    for (
-    final message
-    in sourceMessages
-    ) {
-
-      final photoUrl =
-      _extractPhotoUrl(
-        message,
-      );
-
-
-      if (
-      photoUrl == null ||
-          photoUrl.isEmpty
-      ) {
-
+      if (photoUrl == null || photoUrl.isEmpty) {
         continue;
       }
 
-
       result.add(
-
-        _PhotoViewerItem(
-
-          url:
-          photoUrl,
-
-          heroTag:
-          _photoHeroTag(
-            message,
-          ),
-        ),
+        PhotoViewerItem(url: photoUrl, heroTag: _photoHeroTag(message)),
       );
     }
-
 
     return result;
   }
 
-  Future<_PhotoViewerLoadResult>
-  _loadOlderPhotoViewerItems() async {
-
+  Future<PhotoViewerLoadResult> _loadOlderPhotoViewerItems() async {
     // ========================================
     // SO ANH TRUOC KHI LOAD THEM HISTORY
     // ========================================
 
-    final beforePhotos =
-    _allLoadedPhotoMessages();
+    final beforePhotos = _allLoadedPhotoMessages();
 
+    final beforeCount = beforePhotos.length;
 
-    final beforeCount =
-        beforePhotos.length;
-
-
-    var attempts =
-    0;
-
+    var attempts = 0;
 
     // ========================================
     // MOT PAGE HISTORY CO THE KHONG CO ANH.
@@ -8473,2904 +2960,591 @@ class _ChatPageState
     // KHONG LOAD TOAN BO HISTORY MOT LUC.
     // ========================================
 
-    while (
-    mounted &&
-        hasMoreOlder &&
-        attempts <
-            6
-    ) {
-
-      attempts +=
-      1;
-
+    while (mounted && hasMoreOlder && attempts < 6) {
+      attempts += 1;
 
       await loadOlderMessages();
 
-
       if (!mounted) {
-
         break;
       }
 
-
-      final currentPhotos =
-      _allLoadedPhotoMessages();
-
+      final currentPhotos = _allLoadedPhotoMessages();
 
       // ========================================
       // DA TIM THAY IT NHAT MOT ANH CU HON
       // ========================================
 
-      if (
-      currentPhotos.length >
-          beforeCount
-      ) {
+      if (currentPhotos.length > beforeCount) {
+        return PhotoViewerLoadResult(
+          items: _buildPhotoViewerItems(currentPhotos),
 
-        return _PhotoViewerLoadResult(
-
-          items:
-          _buildPhotoViewerItems(
-            currentPhotos,
-          ),
-
-          hasMoreOlder:
-          hasMoreOlder,
+          hasMoreOlder: hasMoreOlder,
         );
       }
-
 
       // ========================================
       // HET HISTORY
       // ========================================
 
-      if (
-      !hasMoreOlder
-      ) {
-
+      if (!hasMoreOlder) {
         break;
       }
     }
 
+    final photos = _allLoadedPhotoMessages();
 
-    final photos =
-    _allLoadedPhotoMessages();
+    return PhotoViewerLoadResult(
+      items: _buildPhotoViewerItems(photos),
 
-
-    return _PhotoViewerLoadResult(
-
-      items:
-      _buildPhotoViewerItems(
-        photos,
-      ),
-
-      hasMoreOlder:
-      hasMoreOlder,
+      hasMoreOlder: hasMoreOlder,
     );
   }
 
-  Future<void> _openPhotoViewer(
-      Map<String, dynamic> message,
-      ) async {
-
+  Future<void> _openPhotoViewer(Map<String, dynamic> message) async {
     // ========================================
     // TAT CA PHOTO HIEN DA LOAD
     //
     // KHONG PHAN BIET ALBUM.
     // ========================================
 
-    final sourceMessages =
-    _allLoadedPhotoMessages();
+    final sourceMessages = _allLoadedPhotoMessages();
 
+    final viewerItems = _buildPhotoViewerItems(sourceMessages);
 
-    final viewerItems =
-    _buildPhotoViewerItems(
-      sourceMessages,
-    );
-
-
-    if (
-    viewerItems.isEmpty
-    ) {
-
-      _showTopNotice(
-        'Không có ảnh để xem',
-      );
-
+    if (viewerItems.isEmpty) {
+      _showTopNotice('Không có ảnh để xem');
 
       return;
     }
-
 
     // ========================================
     // TIM DUNG ANH USER VUA BAM
     // ========================================
 
-    final clickedHeroTag =
-    _photoHeroTag(
-      message,
+    final clickedHeroTag = _photoHeroTag(message);
+
+    var initialIndex = viewerItems.indexWhere(
+      (item) => item.heroTag == clickedHeroTag,
     );
 
-
-    var initialIndex =
-    viewerItems.indexWhere(
-          (
-          item,
-          ) =>
-      item.heroTag ==
-          clickedHeroTag,
-    );
-
-
-    if (
-    initialIndex <
-        0
-    ) {
-
-      initialIndex =
-      0;
+    if (initialIndex < 0) {
+      initialIndex = 0;
     }
 
-
-    await Navigator.of(
-      context,
-    ).push(
-
+    await Navigator.of(context).push(
       PageRouteBuilder<void>(
+        opaque: true,
 
-        opaque:
-        true,
+        transitionDuration: const Duration(milliseconds: 250),
 
+        reverseTransitionDuration: const Duration(milliseconds: 220),
 
-        transitionDuration:
-        const Duration(
-          milliseconds:
-          250,
-        ),
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return PhotoViewerPage(
+            items: viewerItems,
 
-
-        reverseTransitionDuration:
-        const Duration(
-          milliseconds:
-          220,
-        ),
-
-
-        pageBuilder:
-            (
-            context,
-            animation,
-            secondaryAnimation,
-            ) {
-
-          return _PhotoViewerPage(
-
-            items:
-            viewerItems,
-
-            initialIndex:
-            initialIndex,
-
+            initialIndex: initialIndex,
 
             // ========================================
             // PAGINATION
             // ========================================
+            initialHasMoreOlder: hasMoreOlder,
 
-            initialHasMoreOlder:
-            hasMoreOlder,
-
-            onLoadOlder:
-            _loadOlderPhotoViewerItems,
+            onLoadOlder: _loadOlderPhotoViewerItems,
           );
         },
 
-
-        transitionsBuilder:
-            (
-            context,
-            animation,
-            secondaryAnimation,
-            child,
-            ) {
-
-          return FadeTransition(
-
-            opacity:
-            animation,
-
-            child:
-            child,
-          );
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
         },
       ),
     );
   }
 
-  bool _isPhotoMessage(
-      Map<String, dynamic> message,
-      ) {
+  bool _isPhotoMessage(Map<String, dynamic> message) {
+    final msgType = message['msgType']?.toString().trim().toLowerCase() ?? '';
 
-    final msgType =
-        message['msgType']
-            ?.toString()
-            .trim()
-            .toLowerCase() ??
-            '';
-
-
-    return msgType ==
-        'chat.photo' ||
-        msgType ==
-            '32';
+    return msgType == 'chat.photo' || msgType == '32';
   }
 
-  bool _isStickerMessage(
-      Map<String, dynamic> message,
-      ) {
-
+  bool _isStickerMessage(Map<String, dynamic> message) {
     final mediaType =
-        message['mediaType']
-            ?.toString()
-            .trim()
-            .toLowerCase() ??
-            '';
+        message['mediaType']?.toString().trim().toLowerCase() ?? '';
 
+    final msgType = message['msgType']?.toString().trim().toLowerCase() ?? '';
 
-    final msgType =
-        message['msgType']
-            ?.toString()
-            .trim()
-            .toLowerCase() ??
-            '';
-
-
-    return mediaType ==
-        'sticker' ||
-        msgType ==
-            'chat.sticker';
+    return mediaType == 'sticker' || msgType == 'chat.sticker';
   }
 
-
-  bool _isVideoMessage(
-      Map<String, dynamic> message,
-      ) {
-
+  bool _isVideoMessage(Map<String, dynamic> message) {
     final mediaType =
-        message['mediaType']
-            ?.toString()
-            .trim()
-            .toLowerCase() ??
-            '';
+        message['mediaType']?.toString().trim().toLowerCase() ?? '';
 
+    final msgType = message['msgType']?.toString().trim().toLowerCase() ?? '';
 
-    final msgType =
-        message['msgType']
-            ?.toString()
-            .trim()
-            .toLowerCase() ??
-            '';
-
-
-    return mediaType ==
-        'video' ||
-        msgType ==
-            'chat.video' ||
-        msgType ==
-            'chat.video.msg' ||
-        msgType ==
-            '44';
+    return mediaType == 'video' ||
+        msgType == 'chat.video' ||
+        msgType == 'chat.video.msg' ||
+        msgType == '44';
   }
 
-
-  bool _isFileMessage(
-      Map<String, dynamic> message,
-      ) {
-
+  bool _isFileMessage(Map<String, dynamic> message) {
     final mediaType =
-        message['mediaType']
-            ?.toString()
-            .trim()
-            .toLowerCase() ??
-            '';
+        message['mediaType']?.toString().trim().toLowerCase() ?? '';
 
+    final msgType = message['msgType']?.toString().trim().toLowerCase() ?? '';
 
-    final msgType =
-        message['msgType']
-            ?.toString()
-            .trim()
-            .toLowerCase() ??
-            '';
-
-
-    return mediaType ==
-        'file' ||
-        msgType ==
-            'share.file' ||
-        msgType ==
-            'chat.file' ||
-        msgType ==
-            'chat.file.msg' ||
-        msgType ==
-            '46';
+    return mediaType == 'file' ||
+        msgType == 'share.file' ||
+        msgType == 'chat.file' ||
+        msgType == 'chat.file.msg' ||
+        msgType == '46';
   }
 
+  String? _messageMediaUrl(Map<String, dynamic> message) {
+    final value = message['mediaUrl']?.toString().trim();
 
-  String? _messageMediaUrl(
-      Map<String, dynamic> message,
-      ) {
-
-    final value =
-    message['mediaUrl']
-        ?.toString()
-        .trim();
-
-
-    if (
-    value == null ||
-        value.isEmpty
-    ) {
-
+    if (value == null || value.isEmpty) {
       return null;
     }
-
 
     return value;
   }
 
+  String? _messageMediaThumbUrl(Map<String, dynamic> message) {
+    final value = message['mediaThumbUrl']?.toString().trim();
 
-  String? _messageMediaThumbUrl(
-      Map<String, dynamic> message,
-      ) {
-
-    final value =
-    message['mediaThumbUrl']
-        ?.toString()
-        .trim();
-
-
-    if (
-    value == null ||
-        value.isEmpty
-    ) {
-
+    if (value == null || value.isEmpty) {
       return null;
     }
-
 
     return value;
   }
 
+  Map<String, dynamic> _photoParams(Map<String, dynamic> message) {
+    final raw = message['rawData'];
 
-  String _formatFileSize(
-      dynamic value,
-      ) {
-
-    final bytes =
-    int.tryParse(
-      value
-          ?.toString() ??
-          '',
-    );
-
-
-    if (
-    bytes == null ||
-        bytes <= 0
-    ) {
-
-      return '';
-    }
-
-
-    if (
-    bytes <
-        1024
-    ) {
-
-      return '$bytes B';
-    }
-
-
-    final kb =
-        bytes /
-            1024;
-
-
-    if (
-    kb <
-        1024
-    ) {
-
-      return '${kb.toStringAsFixed(1)} KB';
-    }
-
-
-    final mb =
-        kb /
-            1024;
-
-
-    if (
-    mb <
-        1024
-    ) {
-
-      return '${mb.toStringAsFixed(1)} MB';
-    }
-
-
-    final gb =
-        mb /
-            1024;
-
-
-    return '${gb.toStringAsFixed(1)} GB';
-  }
-
-  Map<String, dynamic>
-  _photoParams(
-      Map<String, dynamic> message,
-      ) {
-
-    final raw =
-    message['rawData'];
-
-
-    if (
-    raw is! Map
-    ) {
-
+    if (raw is! Map) {
       return {};
     }
 
+    final rawMap = Map<String, dynamic>.from(raw);
 
-    final rawMap =
-    Map<String, dynamic>.from(
-      raw,
-    );
+    final content = rawMap['content'];
 
-
-    final content =
-    rawMap['content'];
-
-
-    if (
-    content is! Map
-    ) {
-
+    if (content is! Map) {
       return {};
     }
 
+    final contentMap = Map<String, dynamic>.from(content);
 
-    final contentMap =
-    Map<String, dynamic>.from(
-      content,
-    );
+    final params = contentMap['params'];
 
-
-    final params =
-    contentMap['params'];
-
-
-    if (
-    params is Map
-    ) {
-
-      return Map<String, dynamic>.from(
-        params,
-      );
+    if (params is Map) {
+      return Map<String, dynamic>.from(params);
     }
 
-
-    if (
-    params is String &&
-        params.trim().isNotEmpty
-    ) {
-
+    if (params is String && params.trim().isNotEmpty) {
       try {
+        final decoded = jsonDecode(params);
 
-        final decoded =
-        jsonDecode(
-          params,
-        );
-
-
-        if (
-        decoded is Map
-        ) {
-
-          return Map<String, dynamic>.from(
-            decoded,
-          );
+        if (decoded is Map) {
+          return Map<String, dynamic>.from(decoded);
         }
-
       } catch (_) {
         // Ignore malformed params.
       }
     }
 
-
     return {};
   }
 
-  String?
-  _mediaGroupId(
-      Map<String, dynamic> message,
-      ) {
+  String? _mediaGroupId(Map<String, dynamic> message) {
+    final direct = message['mediaGroupId']?.toString().trim();
 
-    final direct =
-    message['mediaGroupId']
-        ?.toString()
-        .trim();
-
-
-    if (
-    direct != null &&
-        direct.isNotEmpty
-    ) {
-
+    if (direct != null && direct.isNotEmpty) {
       return direct;
     }
 
-
-    final params =
-    _photoParams(
-      message,
-    );
-
+    final params = _photoParams(message);
 
     final grouped =
         int.tryParse(
-          (
-              params[
-              'is_group_layout'
-              ] ??
-                  params[
-                  'isGroupLayout'
-                  ] ??
-                  0
-          ).toString(),
+          (params['is_group_layout'] ?? params['isGroupLayout'] ?? 0)
+              .toString(),
         ) ==
-            1;
-
+        1;
 
     if (!grouped) {
       return null;
     }
 
-
-    final id =
-    (
-        params[
-        'group_layout_id'
-        ] ??
-            params[
-            'groupLayoutId'
-            ]
-    )
+    final id = (params['group_layout_id'] ?? params['groupLayoutId'])
         ?.toString()
         .trim();
 
-
-    if (
-    id == null ||
-        id.isEmpty
-    ) {
-
+    if (id == null || id.isEmpty) {
       return null;
     }
-
 
     return id;
   }
 
-  int?
-  _mediaGroupIndex(
-      Map<String, dynamic> message,
-      ) {
+  int? _mediaGroupIndex(Map<String, dynamic> message) {
+    final direct = int.tryParse(message['mediaGroupIndex']?.toString() ?? '');
 
-    final direct =
-    int.tryParse(
-      message[
-      'mediaGroupIndex'
-      ]
-          ?.toString() ??
-          '',
-    );
-
-
-    if (
-    direct != null
-    ) {
-
+    if (direct != null) {
       return direct;
     }
 
-
-    final params =
-    _photoParams(
-      message,
-    );
-
+    final params = _photoParams(message);
 
     return int.tryParse(
-      (
-          params[
-          'id_in_group'
-          ] ??
-              params[
-              'idInGroup'
-              ] ??
-              ''
-      ).toString(),
+      (params['id_in_group'] ?? params['idInGroup'] ?? '').toString(),
     );
   }
 
-  List<Map<String, dynamic>>
-  _albumMessagesFor(
-      Map<String, dynamic> message,
-      ) {
+  List<Map<String, dynamic>> _albumMessagesFor(Map<String, dynamic> message) {
+    final groupId = _mediaGroupId(message);
 
-    final groupId =
-    _mediaGroupId(
-      message,
-    );
-
-
-    if (
-    groupId == null
-    ) {
-
-      return [
-        message,
-      ];
+    if (groupId == null) {
+      return [message];
     }
 
+    final result = messages.where((item) {
+      if (item['status']?.toString() != 'normal') {
+        return false;
+      }
 
-    final result =
-    messages
-        .where(
-          (
-          item,
-          ) {
+      return _isPhotoMessage(item) && _mediaGroupId(item) == groupId;
+    }).toList();
 
-        if (
-        item['status']
-            ?.toString() !=
-            'normal'
-        ) {
+    result.sort((a, b) {
+      final aIndex = _mediaGroupIndex(a) ?? 999999;
 
-          return false;
-        }
+      final bIndex = _mediaGroupIndex(b) ?? 999999;
 
+      if (aIndex != bIndex) {
+        return aIndex.compareTo(bIndex);
+      }
 
-        return _isPhotoMessage(
-          item,
-        ) &&
-            _mediaGroupId(
-              item,
-            ) ==
-                groupId;
-      },
-    )
-        .toList();
-
-
-    result.sort(
-          (
-          a,
-          b,
-          ) {
-
-        final aIndex =
-            _mediaGroupIndex(
-              a,
-            ) ??
-                999999;
-
-
-        final bIndex =
-            _mediaGroupIndex(
-              b,
-            ) ??
-                999999;
-
-
-        if (
-        aIndex !=
-            bIndex
-        ) {
-
-          return aIndex
-              .compareTo(
-            bIndex,
-          );
-        }
-
-
-        return (
-            int.tryParse(
-              a['timestamp']
-                  ?.toString() ??
-                  '',
-            ) ??
-                0
-        ).compareTo(
-          int.tryParse(
-            b['timestamp']
-                ?.toString() ??
-                '',
-          ) ??
-              0,
-        );
-      },
-    );
-
+      return (int.tryParse(a['timestamp']?.toString() ?? '') ?? 0).compareTo(
+        int.tryParse(b['timestamp']?.toString() ?? '') ?? 0,
+      );
+    });
 
     return result;
   }
 
-  int _albumRenderIndex(
-      String groupId,
-      ) {
-
+  int _albumRenderIndex(String groupId) {
     // ========================================
     // NEU DANG TARGET MOT PHOTO TRONG ALBUM
     // THI RENDER ALBUM TAI CHINH TARGET DO.
     // ========================================
 
-    final target =
-        targetIndex;
+    final target = targetIndex;
 
-
-    if (
-    target != null &&
+    if (target != null &&
         target >= 0 &&
-        target <
-            messages.length &&
-        _mediaGroupId(
-          messages[target],
-        ) ==
-            groupId
-    ) {
-
+        target < messages.length &&
+        _mediaGroupId(messages[target]) == groupId) {
       return target;
     }
 
+    int bestIndex = -1;
 
-    int bestIndex =
-    -1;
+    int bestOrder = 999999;
 
+    for (var index = 0; index < messages.length; index += 1) {
+      final item = messages[index];
 
-    int bestOrder =
-    999999;
-
-
-    for (
-    var index = 0;
-    index <
-        messages.length;
-    index += 1
-    ) {
-
-      final item =
-      messages[index];
-
-
-      if (
-      item['status']
-          ?.toString() !=
-          'normal' ||
-          !_isPhotoMessage(
-            item,
-          ) ||
-          _mediaGroupId(
-            item,
-          ) !=
-              groupId
-      ) {
-
+      if (item['status']?.toString() != 'normal' ||
+          !_isPhotoMessage(item) ||
+          _mediaGroupId(item) != groupId) {
         continue;
       }
 
+      final order = _mediaGroupIndex(item) ?? 999998;
 
-      final order =
-          _mediaGroupIndex(
-            item,
-          ) ??
-              999998;
+      if (bestIndex < 0 || order < bestOrder) {
+        bestIndex = index;
 
-
-      if (
-      bestIndex <
-          0 ||
-          order <
-              bestOrder
-      ) {
-
-        bestIndex =
-            index;
-
-        bestOrder =
-            order;
+        bestOrder = order;
       }
     }
-
 
     return bestIndex;
   }
 
-  Widget _buildPhotoMessage(
-      Map<String, dynamic> message,
-      ) {
+  Widget _buildStickerMessage(Map<String, dynamic> message) {
+    final stickerUrl = _messageMediaUrl(message);
 
-    final photoUrl =
-    _extractPhotoUrl(
-      message,
-    );
+    return StickerMessageBubble(stickerUrl: stickerUrl);
+  }
 
+  Widget _buildVideoMessage(Map<String, dynamic> message) {
+    final thumbUrl = _messageMediaThumbUrl(message);
 
-    if (
-    photoUrl == null ||
-        photoUrl.isEmpty
-    ) {
+    final width = double.tryParse(message['mediaWidth']?.toString() ?? '');
 
-      return const SizedBox(
-        width:
-        180,
+    final height = double.tryParse(message['mediaHeight']?.toString() ?? '');
 
-        height:
-        120,
+    return VideoMessageBubble(
+      thumbnailUrl: thumbUrl,
 
-        child:
-        Center(
-          child:
-          Icon(
-            Icons
-                .broken_image_outlined,
+      mediaWidth: width,
 
-            size:
-            32,
-          ),
-        ),
-      );
-    }
+      mediaHeight: height,
 
-
-    final params =
-    _photoParams(
-      message,
-    );
-
-
-    final width =
-    double.tryParse(
-      (
-          message[
-          'mediaWidth'
-          ] ??
-              params[
-              'width'
-              ] ??
-              ''
-      ).toString(),
-    );
-
-
-    final height =
-    double.tryParse(
-      (
-          message[
-          'mediaHeight'
-          ] ??
-              params[
-              'height'
-              ] ??
-              ''
-      ).toString(),
-    );
-
-
-    const maxWidth =
-    290.0;
-
-
-    const maxHeight =
-    430.0;
-
-
-    double displayWidth =
-        maxWidth;
-
-
-    double displayHeight =
-    260;
-
-
-    if (
-    width != null &&
-        height != null &&
-        width > 0 &&
-        height > 0
-    ) {
-
-      final scale =
-      math.min(
-        maxWidth /
-            width,
-
-        maxHeight /
-            height,
-      );
-
-
-      displayWidth =
-          width *
-              scale;
-
-
-      displayHeight =
-          height *
-              scale;
-    }
-
-
-    final heroTag =
-    _photoHeroTag(
-      message,
-    );
-
-
-    return GestureDetector(
-
-      onTap:
-          () {
-
-        _openPhotoViewer(
-          message,
-        );
+      onTap: () {
+        _openVideo(message);
       },
-
-
-      child:
-      Hero(
-
-        tag:
-        heroTag,
-
-
-        child:
-        ClipRRect(
-
-          borderRadius:
-          BorderRadius.circular(
-            10,
-          ),
-
-
-          child:
-          SizedBox(
-
-            width:
-            displayWidth,
-
-            height:
-            displayHeight,
-
-
-            child:
-            Image.network(
-
-              photoUrl,
-
-
-              // QUAN TRONG:
-              // KHONG CROP ANH DON.
-              fit:
-              BoxFit.contain,
-
-
-              errorBuilder:
-                  (
-                  context,
-                  error,
-                  stackTrace,
-                  ) {
-
-                return const Center(
-                  child:
-                  Icon(
-                    Icons
-                        .broken_image_outlined,
-
-                    size:
-                    32,
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-      ),
     );
   }
 
-  Widget _buildStickerMessage(
-      Map<String, dynamic> message,
-      ) {
+  Widget _buildFileMessage(Map<String, dynamic> message) {
+    final fileName = message['fileName']?.toString();
 
-    final colorScheme =
-        Theme.of(context).colorScheme;
+    final fileExtension = message['fileExtension']?.toString();
 
-    final stickerUrl =
-    _messageMediaUrl(
-      message,
-    );
+    final fileSize = message['mediaFileSize'];
 
+    return FileMessageBubble(
+      fileName: fileName,
 
-    if (
-    stickerUrl == null
-    ) {
+      fileExtension: fileExtension,
 
-      return SizedBox(
-        width:
-        130,
+      fileSize: fileSize,
 
-        height:
-        130,
-
-        child:
-        Center(
-          child:
-          Icon(
-            Icons
-                .emoji_emotions_outlined,
-
-            size:
-            42,
-
-            color:
-            colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
-    }
-
-
-    return SizedBox(
-
-      width:
-      130,
-
-      height:
-      130,
-
-      child:
-      Image.network(
-
-        stickerUrl,
-
-        fit:
-        BoxFit.contain,
-
-        gaplessPlayback:
-        true,
-
-        loadingBuilder:
-            (
-            context,
-            child,
-            loadingProgress,
-            ) {
-
-          if (
-          loadingProgress ==
-              null
-          ) {
-
-            return child;
-          }
-
-
-          return const Center(
-
-            child:
-            SizedBox(
-
-              width:
-              24,
-
-              height:
-              24,
-
-              child:
-              CircularProgressIndicator(
-                strokeWidth:
-                2,
-              ),
-            ),
-          );
-        },
-
-        errorBuilder:
-            (
-            context,
-            error,
-            stackTrace,
-            ) {
-
-          return Center(
-
-            child:
-            Icon(
-
-              Icons
-                  .broken_image_outlined,
-
-              size:
-              36,
-
-              color:
-              colorScheme.onSurfaceVariant,
-            ),
-          );
-        },
-      ),
+      onTap: () {
+        _openFileMessage(message);
+      },
     );
   }
 
-  Widget _buildVideoMessage(
-      Map<String, dynamic> message,
-      ) {
+  Widget _buildVoiceMessage(Map<String, dynamic> message) {
+    final colorScheme = Theme.of(context).colorScheme;
 
-    final thumbUrl =
-    _messageMediaThumbUrl(
-      message,
-    );
+    // ========================================
+    // URL
+    // ========================================
 
+    final url = message['mediaUrl']?.toString().trim();
 
-    final videoUrl =
-    _messageMediaUrl(
-      message,
-    );
-
-
-    final width =
-    double.tryParse(
-      message['mediaWidth']
-          ?.toString() ??
-          '',
-    );
-
-
-    final height =
-    double.tryParse(
-      message['mediaHeight']
-          ?.toString() ??
-          '',
-    );
-
-
-    const maxWidth =
-    280.0;
-
-
-    const maxHeight =
-    390.0;
-
-
-    double displayWidth =
-    260;
-
-
-    double displayHeight =
-    200;
-
-
-    if (
-    width != null &&
-        height != null &&
-        width > 0 &&
-        height > 0
-    ) {
-
-      final scale =
-      math.min(
-        maxWidth /
-            width,
-
-        maxHeight /
-            height,
-      );
-
-
-      displayWidth =
-          width *
-              scale;
-
-
-      displayHeight =
-          height *
-              scale;
-    }
-
-
-    return Material(
-
-      color:
-      Colors.transparent,
-
-
-      child:
-      InkWell(
-
-        borderRadius:
-        BorderRadius.circular(
-          12,
-        ),
-
-
-        // ========================================
-        // BAM VIDEO
-        // ========================================
-
-        onTap:
-            () {
-
-          debugPrint(
-            'VIDEO TAP: '
-                'url=$videoUrl',
-          );
-
-
-          _openVideo(
-            message,
-          );
-        },
-
-
-        child:
-        ClipRRect(
-
-          borderRadius:
-          BorderRadius.circular(
-            12,
-          ),
-
-
-          child:
-          SizedBox(
-
-            width:
-            displayWidth,
-
-            height:
-            displayHeight,
-
-
-            child:
-            Stack(
-
-              fit:
-              StackFit.expand,
-
-
-              children: [
-
-                // ========================================
-                // THUMBNAIL
-                // ========================================
-
-                if (
-                thumbUrl !=
-                    null
-                )
-
-                  Image.network(
-
-                    thumbUrl,
-
-                    fit:
-                    BoxFit.cover,
-
-
-                    errorBuilder:
-                        (
-                        context,
-                        error,
-                        stackTrace,
-                        ) {
-
-                      return Container(
-
-                        color:
-                        Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest,
-
-                        alignment:
-                        Alignment.center,
-
-                        child:
-                        const Icon(
-                          Icons
-                              .videocam_outlined,
-
-                          size:
-                          46,
-                        ),
-                      );
-                    },
-                  )
-
-                else
-
-                  Container(
-
-                    color:
-                    Theme.of(context)
-                        .colorScheme
-                        .surfaceContainerHighest,
-
-                    alignment:
-                    Alignment.center,
-
-                    child:
-                    const Icon(
-
-                      Icons
-                          .videocam_outlined,
-
-                      size:
-                      46,
-                    ),
-                  ),
-
-
-                // ========================================
-                // DARK OVERLAY
-                // ========================================
-
-                const ColoredBox(
-
-                  color:
-                  Color(
-                    0x22000000,
-                  ),
-                ),
-
-
-                // ========================================
-                // PLAY BUTTON
-                // ========================================
-
-                const Center(
-
-                  child:
-                  IgnorePointer(
-
-                    child:
-                    DecoratedBox(
-
-                      decoration:
-                      BoxDecoration(
-
-                        color:
-                        Color(
-                          0xCC000000,
-                        ),
-
-                        shape:
-                        BoxShape.circle,
-                      ),
-
-
-                      child:
-                      Padding(
-
-                        padding:
-                        EdgeInsets.all(
-                          12,
-                        ),
-
-
-                        child:
-                        Icon(
-
-                          Icons
-                              .play_arrow_rounded,
-
-                          size:
-                          36,
-
-                          color:
-                          Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFileMessage(
-      Map<String, dynamic> message,
-      ) {
-
-    final colorScheme =
-        Theme.of(context).colorScheme;
-
-    final fileName =
-    message['fileName']
-        ?.toString()
-        .trim();
-
-
-    final extension =
-    message['fileExtension']
-        ?.toString()
-        .trim()
-        .toUpperCase();
-
-
-    final fileSize =
-    _formatFileSize(
-      message[
-      'mediaFileSize'
-      ],
-    );
-
-
-    final safeFileName =
-    fileName != null &&
-        fileName.isNotEmpty
-        ? fileName
-        : 'Tệp đính kèm';
-
-
-    return Material(
-
-      color:
-      Colors.transparent,
-
-
-      child:
-      InkWell(
-
-        borderRadius:
-        BorderRadius.circular(
-          12,
-        ),
-
-
-        onTap:
-            () {
-
-          _openFileMessage(
-            message,
-          );
-        },
-
-
-        child:
-        Container(
-
-          constraints:
-          const BoxConstraints(
-            maxWidth:
-            285,
-          ),
-
-          padding:
-          const EdgeInsets.all(
-            11,
-          ),
-
-          decoration:
-          BoxDecoration(
-
-            color:
-            colorScheme.surfaceContainerHighest,
-
-            borderRadius:
-            BorderRadius.circular(
-              12,
-            ),
-
-            boxShadow: [
-              BoxShadow(
-                color:
-                colorScheme.shadow.withValues(
-                  alpha:
-                  Theme.of(context).brightness ==
-                      Brightness.dark
-                      ? 0.18
-                      : 0.10,
-                ),
-
-                blurRadius:
-                3,
-
-                offset:
-                const Offset(
-                  0,
-                  1,
-                ),
-              ),
-            ],
-          ),
-
-          child:
-          Row(
-
-            mainAxisSize:
-            MainAxisSize.min,
-
-            children: [
-
-              Container(
-
-                width:
-                48,
-
-                height:
-                48,
-
-                decoration:
-                BoxDecoration(
-
-                  color:
-                  colorScheme.primaryContainer,
-
-                  borderRadius:
-                  BorderRadius.circular(
-                    10,
-                  ),
-                ),
-
-                alignment:
-                Alignment.center,
-
-                child:
-                extension !=
-                    null &&
-                    extension
-                        .isNotEmpty
-
-                    ? Text(
-
-                  extension,
-
-                  maxLines:
-                  1,
-
-                  style:
-                  TextStyle(
-                    fontSize:
-                    11,
-
-                    fontWeight:
-                    FontWeight.w700,
-
-                    color:
-                    colorScheme.primary,
-                  ),
-                )
-
-                    : Icon(
-
-                  Icons
-                      .insert_drive_file_outlined,
-
-                  color:
-                  colorScheme.primary,
-                ),
-              ),
-
-
-              const SizedBox(
-                width:
-                10,
-              ),
-
-
-              Flexible(
-
-                child:
-                Column(
-
-                  mainAxisSize:
-                  MainAxisSize.min,
-
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
-
-                  children: [
-
-                    Text(
-
-                      safeFileName,
-
-                      maxLines:
-                      2,
-
-                      overflow:
-                      TextOverflow.ellipsis,
-
-                      style:
-                      TextStyle(
-                        fontSize:
-                        14,
-
-                        fontWeight:
-                        FontWeight.w600,
-
-                        color:
-                        colorScheme.onSurface,
-                      ),
-                    ),
-
-
-                    if (
-                    fileSize
-                        .isNotEmpty
-                    ) ...[
-
-                      const SizedBox(
-                        height:
-                        4,
-                      ),
-
-
-                      Text(
-
-                        fileSize,
-
-                        style:
-                        TextStyle(
-                          fontSize:
-                          11,
-
-                          color:
-                          colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-
-
-              const SizedBox(
-                width:
-                6,
-              ),
-
-
-              Icon(
-                Icons.open_in_new_rounded,
-
-                size:
-                21,
-
-                color:
-                colorScheme.primary,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVoiceMessage(
-      Map<String, dynamic> message,
-      ) {
-
-    final colorScheme =
-        Theme.of(context)
-            .colorScheme;
-
-
-    final url =
-    message['mediaUrl']
-        ?.toString()
-        .trim();
-
-
-    if (
-    url == null ||
-        url.isEmpty
-    ) {
-
+    if (url == null || url.isEmpty) {
       return Text(
         '[Tin nhắn thoại]',
 
-        style:
-        TextStyle(
-          color:
-          colorScheme.onSurface,
-        ),
+        style: TextStyle(color: colorScheme.onSurface),
       );
     }
 
+    // ========================================
+    // VOICE NAY CO DANG DUOC CHON KHONG
+    // ========================================
 
-    final isPlaying =
-        playingVoiceUrl ==
-            url;
+    final isCurrentVoice = playingVoiceUrl == url;
 
+    // ========================================
+    // DURATION TU MESSAGE
+    // ========================================
 
-    final rawDuration =
-    message['mediaDuration'];
+    final rawDuration = message['mediaDuration'];
 
-
-    final messageDuration =
-    rawDuration is num
-        ? Duration(
-      milliseconds:
-      rawDuration.toInt(),
-    )
+    final messageDuration = rawDuration is num
+        ? Duration(milliseconds: rawDuration.toInt())
         : Duration.zero;
 
+    // ========================================
+    // WAVEFORM
+    // ========================================
 
-    final samples =
-    message['waveformSamples']
-    is List
-        ? message[
-    'waveformSamples'
-    ] as List
+    final samples = message['waveformSamples'] is List
+        ? message['waveformSamples'] as List
         : <dynamic>[];
 
+    // ========================================
+    // DURATION THUC TE
+    //
+    // Neu voice dang phat va AudioPlayer da biet
+    // duration -> dung duration cua player.
+    // ========================================
 
-    final totalDuration =
-    isPlaying &&
-        voiceDuration >
-            Duration.zero
+    final totalDuration = isCurrentVoice && voiceDuration > Duration.zero
         ? voiceDuration
         : messageDuration;
 
+    // ========================================
+    // PROGRESS
+    // ========================================
 
-    final progress =
-    isPlaying &&
-        totalDuration.inMilliseconds >
-            0
-        ? (
-        voicePosition.inMilliseconds /
-            totalDuration.inMilliseconds
-    )
-        .clamp(
-      0.0,
-      1.0,
-    )
-        .toDouble()
+    final progress = isCurrentVoice && totalDuration.inMilliseconds > 0
+        ? (voicePosition.inMilliseconds / totalDuration.inMilliseconds)
+              .clamp(0.0, 1.0)
+              .toDouble()
         : 0.0;
 
+    // ========================================
+    // PLAYER CO THUC SU DANG PLAY KHONG
+    // ========================================
 
-    return Container(
+    final isActuallyPlaying =
+        isCurrentVoice && voicePlayer.state == PlayerState.playing;
 
-      constraints:
-      const BoxConstraints(
-        minWidth:
-        230,
-        maxWidth:
-        300,
-      ),
+    // ========================================
+    // UI
+    // ========================================
 
-      padding:
-      const EdgeInsets.symmetric(
-        horizontal:
-        10,
-        vertical:
-        8,
-      ),
+    return VoiceMessageBubble(
+      samples: samples,
 
-      decoration:
-      BoxDecoration(
+      duration: totalDuration,
 
-        color:
-        colorScheme
-            .surfaceContainerHighest,
+      progress: progress,
 
-        borderRadius:
-        BorderRadius.circular(
-          18,
-        ),
-      ),
+      isPlaying: isActuallyPlaying,
 
-      child:
-      Row(
-
-        mainAxisSize:
-        MainAxisSize.min,
-
-        children: [
-
-          // ========================================
-          // PLAY / PAUSE
-          // ========================================
-
-          IconButton(
-
-            padding:
-            EdgeInsets.zero,
-
-            constraints:
-            const BoxConstraints(
-              minWidth:
-              42,
-              minHeight:
-              42,
-            ),
-
-            icon:
-            Icon(
-
-              isPlaying &&
-                  voicePlayer.state ==
-                      PlayerState.playing
-                  ? Icons.pause_rounded
-                  : Icons.play_arrow_rounded,
-
-              size:
-              30,
-
-              color:
-              colorScheme.primary,
-            ),
-
-            onPressed:
-                () {
-
-              _toggleVoice(
-                url,
-              );
-            },
-          ),
-
-
-          const SizedBox(
-            width:
-            7,
-          ),
-
-
-          // ========================================
-          // WAVEFORM
-          // ========================================
-
-          Expanded(
-
-            child:
-            Column(
-
-              mainAxisSize:
-              MainAxisSize.min,
-
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
-
-              children: [
-
-                SizedBox(
-
-                  height:
-                  32,
-
-                  width:
-                  double.infinity,
-
-                  child:
-                  samples.isEmpty
-
-                      ? LinearProgressIndicator(
-                    value:
-                    progress,
-                  )
-
-                      : CustomPaint(
-
-                    painter:
-                    _VoiceWaveformPainter(
-
-                      samples:
-                      samples,
-
-                      progress:
-                      progress,
-
-                      activeColor:
-                      colorScheme.primary,
-
-                      inactiveColor:
-                      colorScheme
-                          .onSurfaceVariant
-                          .withValues(
-                        alpha:
-                        0.35,
-                      ),
-                    ),
-                  ),
-                ),
-
-
-                const SizedBox(
-                  height:
-                  2,
-                ),
-
-
-                Text(
-
-                  _formatVoiceDuration(
-                    totalDuration,
-                  ),
-
-                  style:
-                  TextStyle(
-
-                    fontSize:
-                    11,
-
-                    color:
-                    colorScheme
-                        .onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAlbumPhotoTile(
-      Map<String, dynamic> message, {
-        required double width,
-        required double height,
-        int extraCount = 0,
-      }) {
-
-    final photoUrl =
-    _extractPhotoUrl(
-      message,
-    );
-
-
-    if (
-    photoUrl == null ||
-        photoUrl.isEmpty
-    ) {
-
-      return SizedBox(
-
-        width:
-        width,
-
-        height:
-        height,
-
-        child:
-        const Center(
-
-          child:
-          Icon(
-            Icons
-                .broken_image_outlined,
-          ),
-        ),
-      );
-    }
-
-
-    return GestureDetector(
-
-      behavior:
-      HitTestBehavior.opaque,
-
-
-      onTap:
-          () {
-
-        // ========================================
-        // KHONG MO RIENG ALBUM NUA.
-        //
-        // MO GLOBAL PHOTO VIEWER.
-        // ========================================
-
-        _openPhotoViewer(
-          message,
-        );
+      onToggle: () {
+        _toggleVoice(url);
       },
-
-
-      child:
-      Hero(
-
-        tag:
-        _photoHeroTag(
-          message,
-        ),
-
-
-        child:
-        ClipRRect(
-
-          borderRadius:
-          BorderRadius.circular(
-            8,
-          ),
-
-
-          child:
-          SizedBox(
-
-            width:
-            width,
-
-            height:
-            height,
-
-
-            child:
-            Stack(
-
-              fit:
-              StackFit.expand,
-
-
-              children: [
-
-                Image.network(
-
-                  photoUrl,
-
-                  fit:
-                  BoxFit.cover,
-
-
-                  errorBuilder:
-                      (
-                      context,
-                      error,
-                      stackTrace,
-                      ) {
-
-                    return const Center(
-
-                      child:
-                      Icon(
-                        Icons
-                            .broken_image_outlined,
-                      ),
-                    );
-                  },
-                ),
-
-
-                if (
-                extraCount >
-                    0
-                )
-                  Container(
-
-                    color:
-                    const Color(
-                      0x77000000,
-                    ),
-
-
-                    alignment:
-                    Alignment.center,
-
-
-                    child:
-                    Text(
-
-                      '+$extraCount',
-
-                      style:
-                      const TextStyle(
-
-                        color:
-                        Colors.white,
-
-                        fontSize:
-                        27,
-
-                        fontWeight:
-                        FontWeight.w700,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 
-  Widget _buildPhotoAlbum(
-      List<Map<String, dynamic>>
-      album,
-      ) {
+  Widget _buildPhotoMediaRow(Map<String, dynamic> message, int index) {
+    final isSelf = message['isSelf'] == true;
 
-    if (
-    album.isEmpty
-    ) {
-
-      return const SizedBox
-          .shrink();
-    }
-
+    final senderName = message['senderName']?.toString() ?? 'Thành viên';
 
     // ========================================
-    // 1 PHOTO
+    // ALBUM
     // ========================================
 
-    if (
-    album.length ==
-        1
-    ) {
+    final mediaGroupId = _mediaGroupId(message);
 
-      return _buildPhotoMessage(
-        album.first,
-      );
-    }
-
-
-    const width =
-    300.0;
-
-
-    const gap =
-    4.0;
-
+    final album = mediaGroupId != null ? _albumMessagesFor(message) : [message];
 
     // ========================================
-    // 2 PHOTOS
+    // PHOTO UI
     // ========================================
 
-    if (
-    album.length ==
-        2
-    ) {
+    final media = PhotoMessageBubble(
+      album: album,
 
-      final itemWidth =
-          (
-              width -
-                  gap
-          ) /
-              2;
+      resolvePhotoUrl: _extractPhotoUrl,
 
+      resolvePhotoParams: _photoParams,
 
-      return Row(
+      resolveHeroTag: _photoHeroTag,
 
-        mainAxisSize:
-        MainAxisSize.min,
-
-
-        children: [
-
-          _buildAlbumPhotoTile(
-
-            album[0],
-
-            width:
-            itemWidth,
-
-            height:
-            190,
-          ),
-
-
-          const SizedBox(
-            width:
-            gap,
-          ),
-
-
-          _buildAlbumPhotoTile(
-
-            album[1],
-
-            width:
-            itemWidth,
-
-            height:
-            190,
-          ),
-        ],
-      );
-    }
-
-
-    // ========================================
-    // 3 PHOTOS
-    //
-    // [      1      ][ 2 ]
-    // [      1      ][ 3 ]
-    // ========================================
-
-    if (
-    album.length ==
-        3
-    ) {
-
-      const bigWidth =
-      184.0;
-
-
-      const smallWidth =
-          width -
-              bigWidth -
-              gap;
-
-
-      return Row(
-
-        mainAxisSize:
-        MainAxisSize.min,
-
-
-        children: [
-
-          _buildAlbumPhotoTile(
-
-            album[0],
-
-            width:
-            bigWidth,
-
-            height:
-            224,
-          ),
-
-
-          const SizedBox(
-            width:
-            gap,
-          ),
-
-
-          Column(
-
-            children: [
-
-              _buildAlbumPhotoTile(
-
-                album[1],
-
-                width:
-                smallWidth,
-
-                height:
-                110,
-              ),
-
-
-              const SizedBox(
-                height:
-                gap,
-              ),
-
-
-              _buildAlbumPhotoTile(
-
-                album[2],
-
-                width:
-                smallWidth,
-
-                height:
-                110,
-              ),
-            ],
-          ),
-        ],
-      );
-    }
-
-
-    // ========================================
-    // 4+ PHOTOS
-    //
-    // [          PHOTO 1          ]
-    //
-    // [ PHOTO2 ][ PHOTO3 ][ PHOTO4 ]
-    // ========================================
-
-    final smallWidth =
-        (
-            width -
-                gap *
-                    2
-        ) /
-            3;
-
-
-    final extra =
-    album.length >
-        4
-        ? album.length -
-        4
-        : 0;
-
-
-    return Column(
-
-      mainAxisSize:
-      MainAxisSize.min,
-
-
-      children: [
-
-        _buildAlbumPhotoTile(
-
-          album[0],
-
-          width:
-          width,
-
-          height:
-          225,
-        ),
-
-
-        const SizedBox(
-          height:
-          gap,
-        ),
-
-
-        Row(
-
-          mainAxisSize:
-          MainAxisSize.min,
-
-
-          children: [
-
-            _buildAlbumPhotoTile(
-
-              album[1],
-
-              width:
-              smallWidth,
-
-              height:
-              105,
-            ),
-
-
-            const SizedBox(
-              width:
-              gap,
-            ),
-
-
-            _buildAlbumPhotoTile(
-
-              album[2],
-
-              width:
-              smallWidth,
-
-              height:
-              105,
-            ),
-
-
-            const SizedBox(
-              width:
-              gap,
-            ),
-
-
-            _buildAlbumPhotoTile(
-
-              album[3],
-
-              width:
-              smallWidth,
-
-              height:
-              105,
-
-              extraCount:
-              extra,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPhotoMediaRow(
-      Map<String, dynamic> message,
-      int index,
-      ) {
-
-    final colorScheme =
-        Theme.of(context).colorScheme;
-
-    final isSelf =
-        message['isSelf'] ==
-            true;
-
-
-    final senderName =
-        message['senderName']
-            ?.toString() ??
-            'Thành viên';
-
-
-    final mediaGroupId =
-    _mediaGroupId(
-      message,
+      onOpenPhoto: (selectedMessage) {
+        _openPhotoViewer(selectedMessage);
+      },
     );
 
-
-    final album =
-    mediaGroupId !=
-        null
-        ? _albumMessagesFor(
-      message,
-    )
-        : [
-      message,
-    ];
-
-
-    final media =
-    album.length >
-        1
-        ? _buildPhotoAlbum(
-      album,
-    )
-        : _buildPhotoMessage(
-      message,
-    );
-
+    // ========================================
+    // STABLE KEY
+    // ========================================
 
     final stableKey =
         mediaGroupId ??
-            message['id']
-                ?.toString() ??
-            message['msgId']
-                ?.toString() ??
-            message['cliMsgId']
-                ?.toString() ??
-            index.toString();
+        message['id']?.toString() ??
+        message['msgId']?.toString() ??
+        message['cliMsgId']?.toString() ??
+        index.toString();
 
+    // ========================================
+    // TARGET
+    // ========================================
 
-    final isTarget =
-        index ==
-            targetIndex;
+    final isTarget = index == targetIndex;
 
+    // ========================================
+    // ALBUM LAY TIME CUA ANH CUOI
+    // ========================================
 
-    final timestampMessage =
-    album.isNotEmpty
-        ? album.last
-        : message;
+    final timestampMessage = album.isNotEmpty ? album.last : message;
 
+    // ========================================
+    // PHOTO MEDIA ROW
+    // ========================================
 
-    final content =
-    Container(
+    return PhotoMediaRow(
+      rowKey: isTarget ? targetMessageKey : ValueKey('chat-media-$stableKey'),
 
-      key:
-      isTarget
-          ? targetMessageKey
-          : ValueKey(
-        'chat-media-$stableKey',
-      ),
+      isSelf: isSelf,
 
+      highlighted: isTarget && highlightTarget,
 
-      color:
-      isTarget &&
-          highlightTarget
-          ? colorScheme.primary
-          .withValues(
-        alpha: 0.20,
-      )
-          : Colors.transparent,
+      senderName: senderName,
 
+      senderAvatar: isSelf
+          ? null
+          : ChatSenderAvatar(
+              senderName: senderName,
 
-      padding:
-      const EdgeInsets.fromLTRB(
-        10,
-        4,
-        10,
-        4,
-      ),
-
-
-      child:
-      Row(
-
-        mainAxisAlignment:
-        isSelf
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-
-
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
-
-
-        children: [
-
-          // ========================================
-          // AVATAR NGUOI KHAC
-          // ========================================
-
-          if (
-          !isSelf
-          ) ...[
-            _buildSenderAvatar(message),
-
-            const SizedBox(
-              width: 8,
+              avatarUrl: message['senderAvatar']?.toString(),
             ),
-          ],
 
+      media: media,
 
-          Flexible(
+      timeText: formatTime(timestampMessage['timestamp']),
 
-            child:
-            Column(
-
-              crossAxisAlignment:
-              isSelf
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-
-
-              children: [
-
-                // ========================================
-                // TEN NGUOI GUI
-                // KHONG NAM TRONG BUBBLE
-                // ========================================
-
-                if (
-                !isSelf
-                ) ...[
-
-                  Padding(
-
-                    padding:
-                    const EdgeInsets.only(
-                      left:
-                      2,
-
-                      bottom:
-                      4,
-                    ),
-
-                    child:
-                    Text(
-
-                      senderName,
-
-                      style:
-                      TextStyle(
-                        fontSize:
-                        12,
-
-                        fontWeight:
-                        FontWeight.w600,
-
-                        color:
-                        colorScheme.primary,
-                      ),
-                    ),
-                  ),
-                ],
-
-
-                // ========================================
-                // PHOTO / ALBUM
-                // KHONG CON CONTAINER BUBBLE
-                // ========================================
-
-                media,
-
-
-                const SizedBox(
-                  height:
-                  3,
-                ),
-
-
-                Text(
-
-                  formatTime(
-                    timestampMessage[
-                    'timestamp'
-                    ],
-                  ),
-
-                  style:
-                  TextStyle(
-                    fontSize:
-                    10,
-
-                    color:
-                    colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-
-
-    return _SwipeReplyWrapper(
-
-      enabled:
-      true,
-
-
-      onReply:
-          () {
-
-        _startReply(
-          message,
-        );
+      onReply: () {
+        _startReply(message);
       },
 
-
-      onLongPress:
-          () {
-
-        _showMessageActions(
-          message,
-        );
+      onLongPress: () {
+        _showMessageActions(message);
       },
-
-
-      child:
-      content,
     );
   }
 
   Widget _buildSimpleMediaRow(
-      Map<String, dynamic> message,
-      int index,
-      Widget media,
-      ) {
+    Map<String, dynamic> message,
+    int index,
+    Widget media,
+  ) {
+    final isSelf = message['isSelf'] == true;
 
-    final colorScheme =
-        Theme.of(context).colorScheme;
+    final senderName = message['senderName']?.toString() ?? 'Thành viên';
 
-    final isSelf =
-        message['isSelf'] ==
-            true;
-
-
-    final senderName =
-        message['senderName']
-            ?.toString() ??
-            'Thành viên';
-
-
-    final isTarget =
-        index ==
-            targetIndex;
-
+    final isTarget = index == targetIndex;
 
     final stableKey =
-        message['id']
-            ?.toString() ??
-            message['msgId']
-                ?.toString() ??
-            message['cliMsgId']
-                ?.toString() ??
-            index.toString();
+        message['id']?.toString() ??
+        message['msgId']?.toString() ??
+        message['cliMsgId']?.toString() ??
+        index.toString();
 
+    return SimpleMediaRow(
+      rowKey: isTarget ? targetMessageKey : ValueKey('chat-media-$stableKey'),
 
-    final content =
-    Container(
+      isSelf: isSelf,
 
-      key:
-      isTarget
-          ? targetMessageKey
-          : ValueKey(
-        'chat-media-$stableKey',
-      ),
+      highlighted: isTarget && highlightTarget,
 
-      color:
-      isTarget &&
-          highlightTarget
-          ? colorScheme.primary
-          .withValues(
-        alpha: 0.20,
-      )
-          : Colors.transparent,
+      senderName: senderName,
 
-      padding:
-      const EdgeInsets.fromLTRB(
-        10,
-        4,
-        10,
-        4,
-      ),
+      senderAvatar: isSelf
+          ? null
+          : ChatSenderAvatar(
+              senderName: senderName,
 
-      child:
-      Row(
-
-        mainAxisAlignment:
-        isSelf
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
-
-        children: [
-
-          if (
-          !isSelf
-          ) ...[
-            _buildSenderAvatar(message),
-
-            const SizedBox(
-              width: 8,
+              avatarUrl: message['senderAvatar']?.toString(),
             ),
-          ],
 
+      media: media,
 
-          Flexible(
+      timeText: formatTime(message['timestamp']),
 
-            child:
-            Column(
-
-              crossAxisAlignment:
-              isSelf
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
-
-              children: [
-
-                if (
-                !isSelf
-                ) ...[
-
-                  Padding(
-
-                    padding:
-                    const EdgeInsets.only(
-                      left:
-                      2,
-
-                      bottom:
-                      4,
-                    ),
-
-                    child:
-                    Text(
-
-                      senderName,
-
-                      style:
-                       TextStyle(
-
-                        fontSize:
-                        12,
-
-                        fontWeight:
-                        FontWeight.w600,
-
-                        color:
-                        colorScheme.primary,
-                      ),
-                    ),
-                  ),
-                ],
-
-
-                media,
-
-
-                const SizedBox(
-                  height:
-                  3,
-                ),
-
-
-                Text(
-
-                  formatTime(
-                    message[
-                    'timestamp'
-                    ],
-                  ),
-
-                  style:
-                  TextStyle(
-
-                    fontSize:
-                    10,
-
-                    color:
-                    colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-
-
-    return _SwipeReplyWrapper(
-
-      enabled:
-      true,
-
-      onReply:
-          () {
-
-        _startReply(
-          message,
-        );
+      onReply: () {
+        _startReply(message);
       },
 
-      onLongPress:
-          () {
-
-        _showMessageActions(
-          message,
-        );
+      onLongPress: () {
+        _showMessageActions(message);
       },
-
-      child:
-      content,
-    );
-  }
-
-  Widget _buildSenderAvatar(
-      Map<String, dynamic> message,
-      ) {
-    final senderName =
-        message['senderName']
-            ?.toString() ??
-            'Thành viên';
-
-    final senderAvatar =
-    message['senderAvatar']
-        ?.toString()
-        .trim();
-
-    return CircleAvatar(
-      radius: 17,
-
-      backgroundImage:
-      senderAvatar != null &&
-          senderAvatar.isNotEmpty
-          ? NetworkImage(
-        senderAvatar,
-      )
-          : null,
-
-      child:
-      senderAvatar == null ||
-          senderAvatar.isEmpty
-          ? Text(
-        _messageInitials(
-          senderName,
-        ),
-      )
-          : null,
     );
   }
 
@@ -11378,274 +3552,123 @@ class _ChatPageState
   // MESSAGE BUBBLE
   // ========================================
 
-  Widget buildMessage(
-      Map<String, dynamic> message,
-      int index,
-      ) {
+  Widget buildMessage(Map<String, dynamic> message, int index) {
+    final isSelf = message['isSelf'] == true;
 
-    final isSelf =
-        message['isSelf'] ==
-            true;
+    final status = message['status']?.toString() ?? 'normal';
 
+    final msgType = message['msgType']?.toString().trim().toLowerCase() ?? '';
 
-    final status =
-        message['status']
-            ?.toString() ??
-            'normal';
-
-    final msgType =
-        message['msgType']
-            ?.toString()
-            .trim()
-            .toLowerCase() ??
-            '';
-
-
-    final isPhoto =
-        msgType ==
-            'chat.photo' ||
-            msgType ==
-                '32';
+    final isPhoto = msgType == 'chat.photo' || msgType == '32';
 
     // ========================================
     // MESSAGE DA XOA KHONG DUOC RENDER
     // ========================================
 
-    if (
-    status ==
-        'deleted_local'
-    ) {
-
-      return const SizedBox
-          .shrink();
+    if (status == 'deleted_local') {
+      return const SizedBox.shrink();
     }
 
     // ========================================
-// PHOTO / PHOTO ALBUM
-//
-// KHONG CHAY VAO TEXT BUBBLE.
-//
-// 1 PHOTO
-// -> PHOTO DOC LAP.
-//
-// PHOTO ALBUM
-// -> GRID DOC LAP.
-// ========================================
+    // PHOTO / PHOTO ALBUM
+    //
+    // KHONG CHAY VAO TEXT BUBBLE.
+    //
+    // 1 PHOTO
+    // -> PHOTO DOC LAP.
+    //
+    // PHOTO ALBUM
+    // -> GRID DOC LAP.
+    // ========================================
 
-    if (
-    status ==
-        'normal' &&
-        _isPhotoMessage(
-          message,
-        )
-    ) {
-
-      final mediaGroupId =
-      _mediaGroupId(
-        message,
-      );
-
+    if (status == 'normal' && _isPhotoMessage(message)) {
+      final mediaGroupId = _mediaGroupId(message);
 
       // ========================================
       // ALBUM:
       // CHI RENDER MOT LAN.
       // ========================================
 
-      if (
-      mediaGroupId !=
-          null
-      ) {
+      if (mediaGroupId != null) {
+        final renderIndex = _albumRenderIndex(mediaGroupId);
 
-        final renderIndex =
-        _albumRenderIndex(
-          mediaGroupId,
-        );
-
-
-        if (
-        renderIndex !=
-            index
-        ) {
-
-          return const SizedBox
-              .shrink();
+        if (renderIndex != index) {
+          return const SizedBox.shrink();
         }
       }
 
+      return _buildPhotoMediaRow(message, index);
+    }
 
-      return _buildPhotoMediaRow(
+    // ========================================
+    // STICKER
+    // ========================================
+
+    if (status == 'normal' && _isStickerMessage(message)) {
+      return _buildSimpleMediaRow(
         message,
+
         index,
+
+        _buildStickerMessage(message),
       );
     }
 
     // ========================================
-// STICKER
-// ========================================
+    // VIDEO
+    // ========================================
 
-    if (
-    status ==
-        'normal' &&
-        _isStickerMessage(
-          message,
-        )
-    ) {
-
-      return _buildSimpleMediaRow(
-
-        message,
-
-        index,
-
-        _buildStickerMessage(
-          message,
-        ),
-      );
-    }
-
-
-// ========================================
-// VIDEO
-// ========================================
-
-    if (
-    status ==
-        'normal' &&
-        _isVideoMessage(
-          message,
-        )
-    ) {
-
-      return _buildSimpleMediaRow(
-
-        message,
-
-        index,
-
-        _buildVideoMessage(
-          message,
-        ),
-      );
-    }
-
-
-// ========================================
-// FILE
-// ========================================
-
-    if (
-    status ==
-        'normal' &&
-        _isFileMessage(
-          message,
-        )
-    ) {
-
-      return _buildSimpleMediaRow(
-
-        message,
-
-        index,
-
-        _buildFileMessage(
-          message,
-        ),
-      );
+    if (status == 'normal' && _isVideoMessage(message)) {
+      return _buildSimpleMediaRow(message, index, _buildVideoMessage(message));
     }
 
     // ========================================
-// VOICE
-// ========================================
+    // FILE
+    // ========================================
 
-    if (
-    status ==
-        'normal' &&
-        (
-            message['mediaType']
-                ?.toString()
-                .trim()
-                .toLowerCase() ==
-                'voice' ||
-
-                msgType ==
-                    'chat.voice' ||
-
-                msgType ==
-                    'chat.voice.msg' ||
-
-                msgType ==
-                    'chat.audio' ||
-
-                msgType ==
-                    '31'
-        )
-    ) {
-
-      return _buildSimpleMediaRow(
-
-        message,
-
-        index,
-
-        _buildVoiceMessage(
-          message,
-        ),
-      );
+    if (status == 'normal' && _isFileMessage(message)) {
+      return _buildSimpleMediaRow(message, index, _buildFileMessage(message));
     }
 
-    final senderName =
-        message['senderName']
-            ?.toString() ??
-            'Thành viên';
+    // ========================================
+    // VOICE
+    // ========================================
 
+    if (status == 'normal' &&
+        (message['mediaType']?.toString().trim().toLowerCase() == 'voice' ||
+            msgType == 'chat.voice' ||
+            msgType == 'chat.voice.msg' ||
+            msgType == 'chat.audio' ||
+            msgType == '31')) {
+      return _buildSimpleMediaRow(message, index, _buildVoiceMessage(message));
+    }
+
+    final senderName = message['senderName']?.toString() ?? 'Thành viên';
 
     String content;
 
-
-    if (
-    status ==
-        'recalled'
-    ) {
-
-      content =
-      'Tin nhắn đã được thu hồi';
-
-    } else if (
-    isPhoto
-    ) {
-
-      content =
-      '[Hình ảnh]';
-
+    if (status == 'recalled') {
+      content = 'Tin nhắn đã được thu hồi';
+    } else if (isPhoto) {
+      content = '[Hình ảnh]';
     } else {
-
       content =
-          message['content']
-              ?.toString() ??
-              message['preview']
-                  ?.toString() ??
-              '[Tin nhắn]';
+          message['content']?.toString() ??
+          message['preview']?.toString() ??
+          '[Tin nhắn]';
     }
-
 
     // ========================================
     // TARGET
     // ========================================
 
-    final isTarget =
-        index ==
-            targetIndex;
-
+    final isTarget = index == targetIndex;
 
     final stableMessageId =
-        message['id']
-            ?.toString() ??
-            message['msgId']
-                ?.toString() ??
-            message['cliMsgId']
-                ?.toString() ??
-            index.toString();
-
+        message['id']?.toString() ??
+        message['msgId']?.toString() ??
+        message['cliMsgId']?.toString() ??
+        index.toString();
 
     // ========================================
     // QUOTE CUA ZALO
@@ -11655,1020 +3678,155 @@ class _ChatPageState
     // msg   = noi dung tin goc
     // ========================================
 
-    final quote =
-    _extractQuote(
-      message,
+    final quote = _extractQuote(message);
+
+    final quoteSender = quote?['fromD']?.toString().trim();
+
+    final quoteMessage = quote?['msg']?.toString().trim();
+
+    VoidCallback? onQuoteTap;
+
+    if (quote != null) {
+      final quoteTarget = quote;
+
+      onQuoteTap = () {
+        _jumpToQuotedMessage(quoteTarget);
+      };
+    }
+
+    final bubble = TextMessageBubble(
+      isSelf: isSelf,
+
+      isRecalled: status == 'recalled',
+
+      senderName: senderName,
+
+      content: content,
+
+      timeText: formatTime(message['timestamp']),
+
+      hasQuote: quote != null,
+
+      quoteSender: quoteSender,
+
+      quoteMessage: quoteMessage,
+
+      onQuoteTap: onQuoteTap,
     );
 
-
-    final quoteSender =
-        quote?['fromD']
-            ?.toString()
-            .trim() ??
-            '';
-
-
-    final quoteMessage =
-        quote?['msg']
-            ?.toString()
-            .trim() ??
-            '';
-
-
-    final safeQuoteSender =
-    quoteSender.isNotEmpty
-        ? quoteSender
-        : 'Tin nhắn được trả lời';
-
-
-    final safeQuoteMessage =
-    quoteMessage.isNotEmpty
-        ? quoteMessage
-        : '[Tin nhắn]';
-
-
-    final colorScheme =
-        Theme.of(context).colorScheme;
-
-
-// ========================================
-// CHAT COLORS THEME
-// ========================================
-
-    final incomingBubble =
-        colorScheme.surfaceContainerHighest;
-
-    final outgoingBubble =
-        colorScheme.primaryContainer;
-
-    final normalText =
-        colorScheme.onSurface;
-
-    final secondaryText =
-        colorScheme.onSurfaceVariant;
-
-    final nameColor =
-        colorScheme.primary;
-
-    final quoteLineColor =
-        colorScheme.primary;
-
-    final bubble =
-    Container(
-      constraints:
-      BoxConstraints(
-        maxWidth:
-        MediaQuery
-            .of(context)
-            .size
-            .width *
-            0.76,
-      ),
-
-      padding:
-      const EdgeInsets
-          .fromLTRB(
-        12,
-        9,
-        10,
-        7,
-      ),
-
-      decoration:
-      BoxDecoration(
-
-        color:
-        isSelf
-            ? outgoingBubble
-            : incomingBubble,
-
-
-        borderRadius:
-        BorderRadius.only(
-
-          topLeft:
-          Radius.circular(
-            isSelf
-                ? 14
-                : 5,
-          ),
-
-          topRight:
-          Radius.circular(
-            isSelf
-                ? 5
-                : 14,
-          ),
-
-          bottomLeft:
-          const Radius.circular(
-            14,
-          ),
-
-          bottomRight:
-          const Radius.circular(
-            14,
-          ),
-        ),
-
-
-        boxShadow: [
-          BoxShadow(
-            color:
-            colorScheme.shadow.withValues(
-              alpha:
-              Theme.of(context).brightness ==
-                  Brightness.dark
-                  ? 0.18
-                  : 0.10,
-            ),
-
-            blurRadius:
-            3,
-
-            offset:
-            const Offset(
-              0,
-              1,
-            ),
-          ),
-        ],
-      ),
-
-
-      child:
-      Column(
-        mainAxisSize:
-        MainAxisSize.min,
-
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
-
-        children: [
-
-          // ========================================
-          // TEN NGUOI GUI
-          // ========================================
-
-          if (
-          !isSelf &&
-              senderName.isNotEmpty
-          ) ...[
-
-            Text(
-              senderName,
-
-              maxLines:
-              1,
-
-              overflow:
-              TextOverflow.ellipsis,
-
-              style:
-              TextStyle(
-                fontSize:
-                13,
-
-                fontWeight:
-                FontWeight.w600,
-
-                color:
-                nameColor,
-              ),
-            ),
-
-
-            const SizedBox(
-              height:
-              4,
-            ),
-          ],
-
-
-          // ========================================
-          // QUOTE GIONG ZALO
-          // ========================================
-
-          if (
-          quote != null
-          ) ...[
-
-            Material(
-              color:
-              Colors.transparent,
-
-              child:
-              InkWell(
-                borderRadius:
-                BorderRadius.circular(
-                  6,
-                ),
-
-                onTap:
-                    () {
-
-                  _jumpToQuotedMessage(
-                    quote,
-                  );
-                },
-
-                child:
-                Container(
-                  width:
-                  double.infinity,
-
-                  margin:
-                  const EdgeInsets.only(
-                    bottom:
-                    7,
-                  ),
-
-                  padding:
-                  const EdgeInsets
-                      .fromLTRB(
-                    9,
-                    6,
-                    8,
-                    6,
-                  ),
-
-                  decoration:
-                  BoxDecoration(
-
-                    color:
-                    isSelf
-                        ? colorScheme
-                        .surface
-                        .withValues(
-                      alpha: 0.55,
-                    )
-                        : colorScheme
-                        .surfaceContainerLow,
-
-                    borderRadius:
-                    BorderRadius.circular(
-                      6,
-                    ),
-
-                    border:
-                    Border(
-                      left:
-                      BorderSide(
-                        color:
-                        quoteLineColor,
-
-                        width:
-                        3,
-                      ),
-                    ),
-                  ),
-
-                  child:
-                  Column(
-                    crossAxisAlignment:
-                    CrossAxisAlignment.start,
-
-                    children: [
-
-                      Text(
-                        safeQuoteSender,
-
-                        maxLines:
-                        1,
-
-                        overflow:
-                        TextOverflow.ellipsis,
-
-                        style:
-                        TextStyle(
-                          fontSize:
-                          12,
-
-                          fontWeight:
-                          FontWeight.w700,
-
-                          color:
-                          colorScheme.onSurface,
-                        ),
-                      ),
-
-
-                      const SizedBox(
-                        height:
-                        2,
-                      ),
-
-
-                      Text(
-                        safeQuoteMessage,
-
-                        maxLines:
-                        2,
-
-                        overflow:
-                        TextOverflow.ellipsis,
-
-                        style:
-                        TextStyle(
-                          fontSize:
-                          13,
-
-                          color:
-                          colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-
-
-          // ========================================
-          // NOI DUNG MESSAGE
-          // ========================================
-
-          if (
-          status ==
-              'recalled'
-          )
-            Text(
-              content,
-
-              style:
-              TextStyle(
-                fontSize:
-                15,
-
-                height:
-                1.25,
-
-                color:
-                normalText,
-
-                fontStyle:
-                FontStyle.italic,
-              ),
-            )
-
-          else if (
-          isPhoto
-          )
-            _buildPhotoMessage(
-              message,
-            )
-
-          else
-            Text(
-              content,
-
-              style:
-              TextStyle(
-                fontSize:
-                15,
-
-                height:
-                1.25,
-
-                color:
-                normalText,
-              ),
-            ),
-
-
-          const SizedBox(
-            height:
-            4,
-          ),
-
-
-          // ========================================
-          // TIME
-          // ========================================
-
-          Align(
-            alignment:
-            Alignment.centerRight,
-
-            child:
-            Text(
-              formatTime(
-                message[
-                'timestamp'
-                ],
-              ),
-
-              style:
-              TextStyle(
-                fontSize:
-                10,
-
-                color:
-                secondaryText,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-
-    // ========================================
-    // AVATAR + BUBBLE
-    // ========================================
-
-    final messageRow =
-    Container(
-
-      key:
-      isTarget
+    return TextMessageRow(
+      rowKey: isTarget
           ? targetMessageKey
-          : ValueKey(
-        'chat-message-$stableMessageId',
-      ),
+          : ValueKey('chat-message-$stableMessageId'),
 
+      isSelf: isSelf,
 
-      color:
-      isTarget &&
-          highlightTarget
-          ? colorScheme.primary
-          .withValues(
-        alpha: 0.20,
-      )
-          : Colors.transparent,
+      highlighted: isTarget && highlightTarget,
 
+      swipeEnabled: status == 'normal',
 
-      padding:
-      const EdgeInsets
-          .fromLTRB(
-        10,
-        4,
-        10,
-        4,
-      ),
+      senderAvatar: isSelf
+          ? null
+          : ChatSenderAvatar(
+              senderName: senderName,
 
-
-      child:
-      Row(
-
-        mainAxisAlignment:
-        isSelf
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-
-
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
-
-
-        children: [
-
-          // ========================================
-          // AVATAR CHO NGUOI KHAC
-          // ========================================
-
-          if (
-          !isSelf
-          ) ...[
-            _buildSenderAvatar(message),
-
-            const SizedBox(
-              width: 8,
+              avatarUrl: message['senderAvatar']?.toString(),
             ),
-          ],
-          Flexible(
-            child:
-            bubble,
-          ),
-        ],
-      ),
-    );
 
+      bubble: bubble,
 
-    // ========================================
-    // SWIPE LEFT = REPLY
-    //
-    // NHAN GIU VAN MO ACTION SHEET.
-    // ========================================
-
-    return _SwipeReplyWrapper(
-
-      enabled:
-      status ==
-          'normal',
-
-
-      onReply:
-          () {
-
-        _startReply(
-          message,
-        );
+      onReply: () {
+        _startReply(message);
       },
 
-
-      onLongPress:
-          () {
-
-        _showMessageActions(
-          message,
-        );
+      onLongPress: () {
+        _showMessageActions(message);
       },
-
-
-      child:
-      messageRow,
     );
   }
 
   Widget _buildMessageComposer() {
+    final disabled = loading || seekingTarget;
 
-    final colorScheme =
-        Theme.of(context)
-            .colorScheme;
+    final reply = replyingToMessage;
 
+    String replySender = 'Tin nhắn';
 
-    final disabled =
-        loading ||
-            seekingTarget;
+    String replyContent = '';
 
+    // ========================================
+    // REPLY DATA
+    // ========================================
 
-    final reply =
-        replyingToMessage;
+    if (reply != null) {
+      final isSelf = reply['isSelf'] == true;
 
-
-    String replySender =
-        'Tin nhắn';
-
-
-    String replyContent =
-        '';
-
-
-    if (
-    reply != null
-    ) {
-
-      final isSelf =
-          reply['isSelf'] ==
-              true;
-
-
-      replySender =
-      isSelf
+      replySender = isSelf
           ? 'Bạn'
-          : (
-          reply['senderName']
-              ?.toString() ??
-              'Thành viên'
-      );
-
+          : (reply['senderName']?.toString() ?? 'Thành viên');
 
       replyContent =
-          reply['content']
-              ?.toString() ??
-              reply['preview']
-                  ?.toString() ??
-              '[Tin nhắn]';
+          reply['content']?.toString() ??
+          reply['preview']?.toString() ??
+          '[Tin nhắn]';
     }
 
+    // ========================================
+    // COMPOSER UI
+    // ========================================
 
-    return SafeArea(
-      top:
-      false,
+    return ChatMessageComposer(
+      controller: messageController,
 
-      child:
-      Material(
-        color:
-        colorScheme.surface,
+      focusNode: messageFocusNode,
 
-        elevation:
-        6,
+      disabled: disabled,
 
-        child:
-        Padding(
-          padding:
-          const EdgeInsets
-              .fromLTRB(
-            10,
-            7,
-            8,
-            8,
-          ),
+      sendingMessage: sendingMessage,
 
-          child:
-          Column(
-            mainAxisSize:
-            MainAxisSize.min,
+      sendingPhoto: sendingPhoto,
 
-            children: [
+      canSendMessage: canSendMessage,
 
-              // ========================================
-              // REPLY PREVIEW
-              // ========================================
+      hasReply: reply != null,
 
-              if (
-              reply != null
-              ) ...[
+      replySender: replySender,
 
-                Container(
-                  width:
-                  double.infinity,
+      replyContent: replyContent,
 
-                  margin:
-                  const EdgeInsets.only(
-                    bottom:
-                    6,
-                  ),
+      onCancelReply: _cancelReply,
 
-                  padding:
-                  const EdgeInsets
-                      .fromLTRB(
-                    12,
-                    8,
-                    6,
-                    8,
-                  ),
+      onPickPhoto: _pickAndSendPhoto,
 
-                  decoration:
-                  BoxDecoration(
-                    color:
-                    colorScheme
-                        .surfaceContainerHighest,
-
-                    borderRadius:
-                    BorderRadius.circular(
-                      12,
-                    ),
-                  ),
-
-                  child:
-                  Row(
-                    children: [
-
-                      Container(
-                        width:
-                        3,
-
-                        height:
-                        38,
-
-                        decoration:
-                        BoxDecoration(
-                          color:
-                          colorScheme
-                              .primary,
-
-                          borderRadius:
-                          BorderRadius.circular(
-                            3,
-                          ),
-                        ),
-                      ),
-
-
-                      const SizedBox(
-                        width:
-                        10,
-                      ),
-
-
-                      Expanded(
-                        child:
-                        Column(
-                          crossAxisAlignment:
-                          CrossAxisAlignment.start,
-
-                          children: [
-
-                            Text(
-                              replySender,
-
-                              maxLines:
-                              1,
-
-                              overflow:
-                              TextOverflow.ellipsis,
-
-                              style:
-                              TextStyle(
-                                fontSize:
-                                12,
-
-                                fontWeight:
-                                FontWeight.w700,
-
-                                color:
-                                colorScheme.primary,
-                              ),
-                            ),
-
-
-                            const SizedBox(
-                              height:
-                              2,
-                            ),
-
-
-                            Text(
-                              replyContent,
-
-                              maxLines:
-                              1,
-
-                              overflow:
-                              TextOverflow.ellipsis,
-
-                              style:
-                              TextStyle(
-                                fontSize:
-                                13,
-
-                                color:
-                                colorScheme
-                                    .onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-
-                      IconButton(
-                        tooltip:
-                        'Hủy trả lời',
-
-                        visualDensity:
-                        VisualDensity.compact,
-
-                        onPressed:
-                        _cancelReply,
-
-                        icon:
-                        const Icon(
-                          Icons.close_rounded,
-
-                          size:
-                          20,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-
-              // ========================================
-              // TEXT FIELD + SEND
-              // ========================================
-
-              Row(
-                crossAxisAlignment:
-                CrossAxisAlignment.end,
-
-                children: [
-                  SizedBox(
-                    width:
-                    42,
-
-                    height:
-                    46,
-
-                    child:
-                    IconButton(
-
-                      tooltip:
-                      'Gửi ảnh',
-
-
-                      onPressed:
-                      disabled ||
-                          sendingMessage ||
-                          sendingPhoto
-                          ? null
-                          : _pickAndSendPhoto,
-
-
-                      icon:
-                      sendingPhoto
-                          ? const SizedBox(
-                        width:
-                        20,
-
-                        height:
-                        20,
-
-                        child:
-                        CircularProgressIndicator(
-                          strokeWidth:
-                          2,
-                        ),
-                      )
-
-                          : const Icon(
-                        Icons
-                            .photo_outlined,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(
-                    width:
-                    2,
-                  ),
-
-                  Expanded(
-                    child:
-                    TextField(
-                      controller:
-                      messageController,
-
-                      focusNode:
-                      messageFocusNode,
-
-                      enabled:
-                      !disabled,
-
-                      minLines:
-                      1,
-
-                      maxLines:
-                      5,
-
-                      keyboardType:
-                      TextInputType.multiline,
-
-                      textCapitalization:
-                      TextCapitalization.sentences,
-
-                      decoration:
-                      InputDecoration(
-                        hintText:
-                        disabled
-                            ? 'Đang tải hội thoại...'
-                            : (
-                            reply != null
-                                ? 'Trả lời tin nhắn'
-                                : 'Tin nhắn'
-                        ),
-
-                        filled:
-                        true,
-
-                        fillColor:
-                        colorScheme
-                            .surfaceContainerHighest,
-
-                        contentPadding:
-                        const EdgeInsets.symmetric(
-                          horizontal:
-                          16,
-
-                          vertical:
-                          11,
-                        ),
-
-                        border:
-                        OutlineInputBorder(
-                          borderRadius:
-                          BorderRadius.circular(
-                            24,
-                          ),
-
-                          borderSide:
-                          BorderSide.none,
-                        ),
-
-                        enabledBorder:
-                        OutlineInputBorder(
-                          borderRadius:
-                          BorderRadius.circular(
-                            24,
-                          ),
-
-                          borderSide:
-                          BorderSide.none,
-                        ),
-
-                        focusedBorder:
-                        OutlineInputBorder(
-                          borderRadius:
-                          BorderRadius.circular(
-                            24,
-                          ),
-
-                          borderSide:
-                          BorderSide(
-                            color:
-                            colorScheme.primary,
-
-                            width:
-                            1.2,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-
-                  const SizedBox(
-                    width:
-                    6,
-                  ),
-
-
-                  SizedBox(
-                    width:
-                    46,
-
-                    height:
-                    46,
-
-                    child:
-                    IconButton.filled(
-                      onPressed:
-                      disabled ||
-                          sendingMessage ||
-                          sendingPhoto ||
-                          !canSendMessage
-                          ? null
-                          : _sendChatMessage,
-
-                      icon:
-                      sendingMessage
-                          ? const SizedBox(
-                        width:
-                        20,
-
-                        height:
-                        20,
-
-                        child:
-                        CircularProgressIndicator(
-                          strokeWidth:
-                          2,
-                        ),
-                      )
-
-                          : const Icon(
-                        Icons.send_rounded,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+      onSend: _sendChatMessage,
     );
   }
 
   @override
   void dispose() {
+    ChatStateService.instance.closeGroup();
 
-    ChatStateService
-        .instance
-        .closeGroup();
+    WidgetsBinding.instance.removeObserver(this);
 
-    WidgetsBinding
-        .instance
-        .removeObserver(
-      this,
-    );
+    markReadTimer?.cancel();
 
+    realtimeSubscription?.cancel();
 
-    markReadTimer
-        ?.cancel();
+    realtimeReloadTimer?.cancel();
 
-    realtimeSubscription
-        ?.cancel();
+    targetHighlightTimer?.cancel();
 
-    realtimeReloadTimer
-        ?.cancel();
-
-    targetHighlightTimer
-        ?.cancel();
-
-    topNoticeTimer
-        ?.cancel();
+    topNoticeTimer?.cancel();
 
     backend.disconnect();
 
-    messageController
-        .removeListener(
-      _handleComposerChanged,
-    );
+    messageController.removeListener(_handleComposerChanged);
 
-    messageController
-        .dispose();
+    messageController.dispose();
 
-    messageFocusNode
-        .dispose();
+    messageFocusNode.dispose();
 
-    scrollController
-        .dispose();
+    scrollController.dispose();
 
     voicePlayer.dispose();
 
@@ -12676,465 +3834,46 @@ class _ChatPageState
   }
 
   @override
-  Widget build(
-      BuildContext context,
-      ) {
-
+  Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
 
-      backgroundColor:
-      Theme.of(context)
-          .scaffoldBackgroundColor,
+      appBar: ChatAppBar(
+        groupName: widget.groupName,
 
-      appBar:
-      AppBar(
-
-        title:
-        Row(
-
-          children: [
-
-            // ========================================
-            // AVATAR NHOM
-            // ========================================
-
-            CircleAvatar(
-
-              radius:
-              19,
-
-              backgroundImage:
-              widget.groupAvatar != null &&
-                  widget.groupAvatar!
-                      .trim()
-                      .isNotEmpty
-                  ? NetworkImage(
-                widget.groupAvatar!,
-              )
-                  : null,
-
-              child:
-              widget.groupAvatar == null ||
-                  widget.groupAvatar!
-                      .trim()
-                      .isEmpty
-                  ? const Icon(
-                Icons.group_rounded,
-                size:
-                21,
-              )
-                  : null,
-            ),
-
-
-            const SizedBox(
-              width:
-              10,
-            ),
-
-
-            // ========================================
-            // TEN NHOM
-            // ========================================
-
-            Expanded(
-
-              child:
-              Column(
-
-                crossAxisAlignment:
-                CrossAxisAlignment.start,
-
-                mainAxisSize:
-                MainAxisSize.min,
-
-                children: [
-
-                  Text(
-
-                    widget.groupName,
-
-                    maxLines:
-                    1,
-
-                    overflow:
-                    TextOverflow.ellipsis,
-
-                    style:
-                    const TextStyle(
-
-                      fontSize:
-                      16,
-
-                      fontWeight:
-                      FontWeight.w600,
-                    ),
-                  ),
-
-
-                  Text(
-
-                    'Nhóm Zalo',
-
-                    maxLines:
-                    1,
-
-                    overflow:
-                    TextOverflow.ellipsis,
-
-                    style:
-                    TextStyle(
-
-                      fontSize:
-                      12,
-
-                      fontWeight:
-                      FontWeight.normal,
-
-                      color:
-                      Theme.of(context)
-                          .colorScheme
-                          .onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+        groupAvatar: widget.groupAvatar,
       ),
 
-
-      body:
-      Column(
+      body: Column(
         children: [
-
           // ========================================
           // KHU VUC NOI DUNG CHAT
           // ========================================
 
           Expanded(
+            child: ChatBackground(
+              child: ChatMessageList(
+                loading: loading,
 
-            child:
-            _buildChatBackground(
+                messages: messages,
 
-              child:
+                scrollController: scrollController,
 
-              loading
+                messageBuilder: buildMessage,
 
-                  ? const Center(
-                child:
-                CircularProgressIndicator(),
-              )
-
-                  : messages.isEmpty
-
-                  ? ListView(
-
-                physics:
-                const AlwaysScrollableScrollPhysics(),
-
-                children:
-                const [
-
-                  SizedBox(
-                    height:
-                    250,
-                  ),
-
-                  Icon(
-                    Icons
-                        .chat_bubble_outline,
-
-                    size:
-                    64,
-                  ),
-
-                  SizedBox(
-                    height:
-                    14,
-                  ),
-
-                  Text(
-                    'Chưa có tin nhắn',
-
-                    textAlign:
-                    TextAlign.center,
-
-                    style:
-                    TextStyle(
-                      fontSize:
-                      19,
-
-                      fontWeight:
-                      FontWeight.w600,
-                    ),
-                  ),
-                ],
-              )
-
-                  : NotificationListener<
-                  ScrollNotification>(
-
-                onNotification:
-                _handleScrollNotification,
-
-                child:
-                ListView.separated(
-
-                  controller:
-                  scrollController,
-
-                  reverse:
-                  true,
-
-                  keyboardDismissBehavior:
-                  ScrollViewKeyboardDismissBehavior
-                      .onDrag,
-
-                  padding:
-                  const EdgeInsets.symmetric(
-                    vertical:
-                    12,
-                  ),
-
-                  physics:
-                  const AlwaysScrollableScrollPhysics(),
-
-                  itemCount:
-                  messages.length,
-
-                  itemBuilder:
-                      (
-                      context,
-                      displayIndex,
-                      ) {
-
-                    final messageIndex =
-                        messages.length -
-                            1 -
-                            displayIndex;
-
-
-                    return buildMessage(
-
-                      messages[
-                      messageIndex
-                      ],
-
-                      messageIndex,
-                    );
-                  },
-
-
-                  separatorBuilder:
-                      (
-                      context,
-                      displayIndex,
-                      ) {
-
-                    final messageIndex =
-                        messages.length -
-                            1 -
-                            displayIndex;
-
-
-                    // ========================================
-                    // NEU KHONG CO TIN NHAN CU HON
-                    // ========================================
-
-                    if (
-                    messageIndex <= 0
-                    ) {
-                      return const SizedBox(
-                        height: 0,
-                      );
-                    }
-
-
-                    final currentMessage =
-                    messages[
-                    messageIndex
-                    ];
-
-
-                    final olderMessage =
-                    messages[
-                    messageIndex - 1
-                    ];
-
-
-                    // ========================================
-                    // CUNG NGAY
-                    // ========================================
-
-                    if (
-                    _isSameCalendarDay(
-                      currentMessage,
-                      olderMessage,
-                    )
-                    ) {
-                      return const SizedBox(
-                        height: 0,
-                      );
-                    }
-
-
-                    // ========================================
-                    // KHAC NGAY
-                    // ========================================
-
-                    return _buildDateSeparator(
-                      _formatDateSeparator(
-                        currentMessage,
-                      ),
-                    );
-                  },
-                ),
+                onScrollNotification: _handleScrollNotification,
               ),
             ),
           ),
-
 
           // ========================================
           // O NHAP TIN NHAN
           //
           // LUON NAM CO DINH DUOI MAN HINH.F
           // ========================================
-
           _buildMessageComposer(),
         ],
       ),
     );
-  }
-}
-
-
-class _VoiceWaveformPainter
-    extends CustomPainter {
-
-  final List<dynamic> samples;
-
-  final double progress;
-
-  final Color activeColor;
-
-  final Color inactiveColor;
-
-
-  _VoiceWaveformPainter({
-    required this.samples,
-    required this.progress,
-    required this.activeColor,
-    required this.inactiveColor,
-  });
-
-
-  @override
-  void paint(
-      Canvas canvas,
-      Size size,
-      ) {
-
-    if (samples.isEmpty) {
-      return;
-    }
-
-
-    final paint =
-    Paint()
-      ..strokeWidth =
-      2.5
-      ..strokeCap =
-          StrokeCap.round;
-
-
-    final count =
-        samples.length;
-
-
-    final spacing =
-        size.width /
-            count;
-
-
-    for (
-    int i = 0;
-    i < count;
-    i++
-    ) {
-
-      final value =
-      samples[i] is num
-          ? (samples[i] as num)
-          .toDouble()
-          : 0.0;
-
-
-      final normalized =
-      (value / 5000)
-          .clamp(
-        0.12,
-        1.0,
-      );
-
-
-      final barHeight =
-          size.height *
-              normalized;
-
-
-      final x =
-          spacing *
-              i +
-              spacing /
-                  2;
-
-
-      final centerY =
-          size.height /
-              2;
-
-
-      paint.color =
-      (
-          i / count
-      ) <= progress
-          ? activeColor
-          : inactiveColor;
-
-
-      canvas.drawLine(
-        Offset(
-          x,
-          centerY -
-              barHeight /
-                  2,
-        ),
-        Offset(
-          x,
-          centerY +
-              barHeight /
-                  2,
-        ),
-        paint,
-      );
-    }
-  }
-
-
-  @override
-  bool shouldRepaint(
-      _VoiceWaveformPainter oldDelegate,
-      ) {
-
-    return oldDelegate.progress !=
-        progress ||
-        oldDelegate.samples !=
-            samples ||
-        oldDelegate.activeColor !=
-            activeColor ||
-        oldDelegate.inactiveColor !=
-            inactiveColor;
   }
 }

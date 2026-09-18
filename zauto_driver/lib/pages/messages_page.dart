@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../config/app_config.dart';
 import '../services/backend_service.dart';
-import 'chat_page.dart';
+import 'chat/chat_page.dart';
 import 'dart:async';
 
 class MessagesPage

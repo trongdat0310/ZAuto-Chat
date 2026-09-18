@@ -14,20 +14,14 @@ import '../pages/zalo_link_page.dart';
 
 import 'zalo_required_page.dart';
 
-class MainScreen
-    extends StatefulWidget {
+class MainScreen extends StatefulWidget {
+  final Map<String, dynamic> user;
 
-  final Map<String, dynamic>
-  user;
+  final Future<void> Function() onLogout;
 
-  final Future<void> Function()
-  onLogout;
+  final Future<void> Function() onAuthChanged;
 
-  final Future<void> Function()
-  onAuthChanged;
-
-  final Future<void> Function()
-  onAccountDeleted;
+  final Future<void> Function() onAccountDeleted;
 
   final SettingsController settingsController;
 
@@ -40,74 +34,43 @@ class MainScreen
     required this.settingsController,
   });
 
-
   @override
-  State<MainScreen> createState() =>
-      _MainScreenState();
+  State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState
-    extends State<MainScreen> {
-
+class _MainScreenState extends State<MainScreen> {
   int currentIndex = 0;
 
   int filterInitialTab = 0;
 
-  SettingsController get settingsController =>
-      widget.settingsController;
+  SettingsController get settingsController => widget.settingsController;
 
   Future<void> openZaloLink() async {
-
-    final linked =
-    await Navigator.push<bool>(
+    final linked = await Navigator.push<bool>(
       context,
 
       MaterialPageRoute(
         builder: (linkContext) {
-
           return ZaloLinkPage(
-            user:
-            widget.user,
-
+            user: widget.user,
 
             // ========================================
             // LOGOUT TU MAN HINH LINK
             // ========================================
-
-            onLogout:
-                () async {
-
-              if (
-              Navigator.of(
-                linkContext,
-              ).canPop()
-              ) {
-                Navigator.of(
-                  linkContext,
-                ).pop(false);
+            onLogout: () async {
+              if (Navigator.of(linkContext).canPop()) {
+                Navigator.of(linkContext).pop(false);
               }
 
-
-              await widget
-                  .onLogout();
+              await widget.onLogout();
             },
-
 
             // ========================================
             // LINK THANH CONG
             // ========================================
-
-            onLinked:
-                () async {
-
-              if (
-              Navigator.of(
-                linkContext,
-              ).canPop()
-              ) {
-                Navigator.of(
-                  linkContext,
-                ).pop(true);
+            onLinked: () async {
+              if (Navigator.of(linkContext).canPop()) {
+                Navigator.of(linkContext).pop(true);
               }
             },
           );
@@ -115,35 +78,22 @@ class _MainScreenState
       ),
     );
 
-
-    if (
-    linked != true ||
-        !mounted
-    ) {
+    if (linked != true || !mounted) {
       return;
     }
 
-
     // GET /api/me lai
     // de cap nhat zaloLinked = true
-    await widget
-        .onAuthChanged();
+    await widget.onAuthChanged();
   }
 
   Future<void> openGroupsFromHome() async {
-
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) =>
-        const GroupsPage(),
-      ),
-    );
-
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const GroupsPage()));
 
     if (!mounted) {
       return;
     }
-
 
     // Khi quay lại từ GroupsPage
     // rebuild HomePage để cập nhật số nhóm.
@@ -156,238 +106,141 @@ class _MainScreenState
   //
   // vì AccountPage cần callback từ widget.
   List<Widget> get pages {
-
-    final zaloLinked =
-        widget.user['zaloLinked'] ==
-            true;
-
+    final zaloLinked = widget.user['zaloLinked'] == true;
 
     return [
-
       // ========================================
       // 0. CANH ME
       // ========================================
 
       zaloLinked
           ? HomePage(
-        onOpenGroups: openGroupsFromHome,
-        onOpenNotificationFilter: openNotificationFilter,
-        onOpenAutoAcceptFilter: openAutoAcceptFilter,
-        settingsController: settingsController,
-      )
-          : ZaloRequiredPage(
-        onLinkZalo:
-        openZaloLink,
-      ),
-
+              onOpenGroups: openGroupsFromHome,
+              onOpenNotificationFilter: openNotificationFilter,
+              onOpenAutoAcceptFilter: openAutoAcceptFilter,
+              settingsController: settingsController,
+            )
+          : ZaloRequiredPage(onLinkZalo: openZaloLink),
 
       // ========================================
       // 1. TIN NHAN
       // ========================================
-
       zaloLinked
-          ? MessagesPage(
-        onOpenSettings:
-        openSettingsFromMessages,
-      )
+          ? MessagesPage(onOpenSettings: openSettingsFromMessages)
           : ZaloRequiredPage(
-        onLinkZalo:
-        openZaloLink,
+              onLinkZalo: openZaloLink,
 
-        title:
-        'Liên kết Zalo để xem tin nhắn',
+              title: 'Liên kết Zalo để xem tin nhắn',
 
-        description:
-        'Sau khi liên kết Zalo, các cuộc trò chuyện nhóm sẽ xuất hiện tại đây.',
-      ),
-
+              description: 'Sau khi liên kết Zalo, các cuộc trò chuyện nhóm sẽ xuất hiện tại đây.',
+            ),
 
       // ========================================
       // 2. CAI DAT
       // ========================================
-
-      SettingsPage(
-        settingsController: settingsController,
-      ),
-
+      SettingsPage(settingsController: settingsController),
 
       // ========================================
       // 3. BO LOC
       // ========================================
-
       FilterPage(
-        key:
-        ValueKey(
-          'filter-$filterInitialTab',
-        ),
+        key: ValueKey('filter-$filterInitialTab'),
 
-        initialTab:
-        filterInitialTab,
+        initialTab: filterInitialTab,
       ),
-
 
       // ========================================
       // 4. TAI KHOAN
       // ========================================
-
       AccountPage(
-        onLogout:
-        widget.onLogout,
+        onLogout: widget.onLogout,
 
-        onAuthChanged:
-        widget.onAuthChanged,
+        onAuthChanged: widget.onAuthChanged,
 
-        onAccountDeleted:
-        widget.onAccountDeleted,
+        onAccountDeleted: widget.onAccountDeleted,
       ),
     ];
   }
 
   @override
   void initState() {
-
     super.initState();
   }
 
   @override
-  Widget build(
-      BuildContext context,
-      ) {
-
+  Widget build(BuildContext context) {
     return Scaffold(
-
       // ========================================
       // GIU TAT CA TAB TON TAI
       // HOME PAGE KHONG BI DISPOSE KHI DOI TAB
       // ========================================
 
-      body:
-      IndexedStack(
-        index:
-        currentIndex,
+      body: IndexedStack(index: currentIndex, children: pages),
 
-        children:
-        pages,
-      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: currentIndex,
 
-
-      bottomNavigationBar:
-      NavigationBar(
-
-        selectedIndex:
-        currentIndex,
-
-
-        onDestinationSelected:
-            (index) {
-
+        onDestinationSelected: (index) {
           setState(() {
-            currentIndex =
-                index;
+            currentIndex = index;
           });
         },
 
-
-        destinations:
-        const [
-
+        destinations: const [
           // ========================================
           // 0. CANH ME
           // ========================================
 
           NavigationDestination(
-            icon:
-            Icon(
-              Icons.home_outlined,
-            ),
+            icon: Icon(Icons.home_outlined),
 
-            selectedIcon:
-            Icon(
-              Icons.home,
-            ),
+            selectedIcon: Icon(Icons.home),
 
-            label:
-            'Cuốc',
+            label: 'Cuốc',
           ),
-
 
           // ========================================
           // 1. TIN NHAN
           // ========================================
-
           NavigationDestination(
-            icon:
-            Icon(
-              Icons.chat_bubble_outline,
-            ),
+            icon: Icon(Icons.chat_bubble_outline),
 
-            selectedIcon:
-            Icon(
-              Icons.chat_bubble,
-            ),
+            selectedIcon: Icon(Icons.chat_bubble),
 
-            label:
-            'Tin nhắn',
+            label: 'Tin nhắn',
           ),
-
 
           // ========================================
           // 2. CAI DAT
           // ========================================
-
           NavigationDestination(
-            icon:
-            Icon(
-              Icons.settings_outlined,
-            ),
+            icon: Icon(Icons.settings_outlined),
 
-            selectedIcon:
-            Icon(
-              Icons.settings,
-            ),
+            selectedIcon: Icon(Icons.settings),
 
-            label:
-            'Cài đặt',
+            label: 'Cài đặt',
           ),
-
 
           // ========================================
           // 3. BO LOC
           // ========================================
-
           NavigationDestination(
-            icon:
-            Icon(
-              Icons.tune,
-            ),
+            icon: Icon(Icons.tune),
 
-            selectedIcon:
-            Icon(
-              Icons.tune,
-            ),
+            selectedIcon: Icon(Icons.tune),
 
-            label:
-            'Bộ lọc',
+            label: 'Bộ lọc',
           ),
-
 
           // ========================================
           // 4. TAI KHOAN
           // ========================================
-
           NavigationDestination(
-            icon:
-            Icon(
-              Icons.person_outline,
-            ),
+            icon: Icon(Icons.person_outline),
 
-            selectedIcon:
-            Icon(
-              Icons.person,
-            ),
+            selectedIcon: Icon(Icons.person),
 
-            label:
-            'Tài khoản',
+            label: 'Tài khoản',
           ),
         ],
       ),
@@ -395,39 +248,20 @@ class _MainScreenState
   }
 
   @override
-  void didUpdateWidget(
-      covariant MainScreen oldWidget,
-      ) {
+  void didUpdateWidget(covariant MainScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
 
-    super.didUpdateWidget(
-      oldWidget,
-    );
+    final oldLinked = oldWidget.user['zaloLinked'] == true;
 
+    final newLinked = widget.user['zaloLinked'] == true;
 
-    final oldLinked =
-        oldWidget.user['zaloLinked'] ==
-            true;
-
-
-    final newLinked =
-        widget.user['zaloLinked'] ==
-            true;
-
-
-    if (
-    oldLinked !=
-        newLinked
-    ) {
-
-      currentIndex =
-      0;
+    if (oldLinked != newLinked) {
+      currentIndex = 0;
     }
   }
 
   void openNotificationFilter() {
-
     setState(() {
-
       // Tab Lọc thông báo
       filterInitialTab = 0;
 
@@ -442,9 +276,7 @@ class _MainScreenState
   }
 
   void openAutoAcceptFilter() {
-
     setState(() {
-
       // Tab Tự động nhận
       filterInitialTab = 1;
 
@@ -453,7 +285,6 @@ class _MainScreenState
   }
 
   void openSettingsFromMessages() {
-
     setState(() {
       currentIndex = 2;
     });
