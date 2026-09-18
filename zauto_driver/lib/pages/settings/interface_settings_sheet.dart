@@ -3,10 +3,7 @@ import 'package:flutter/material.dart';
 import '../../controllers/settings_controller.dart';
 import '../../services/backend_service.dart';
 
-
-class InterfaceSettingsSheet
-    extends StatefulWidget {
-
+class InterfaceSettingsSheet extends StatefulWidget {
   final SettingsController settingsController;
 
   final BackendService backend;
@@ -19,24 +16,15 @@ class InterfaceSettingsSheet
 
   final String initialAcceptButtonPosition;
 
+  final Future<void> Function(String value) onThemeChanged;
 
-  final Future<void> Function(
-      String value,
-      ) onThemeChanged;
+  final Future<void> Function(double value) onFontSizeChanged;
 
+  final ValueChanged<int> onTripDisplaySecondsChanged;
 
-  final Future<void> Function(
-      double value,
-      ) onFontSizeChanged;
-
-  final ValueChanged<int>
-  onTripDisplaySecondsChanged;
-
-  final ValueChanged<String>
-  onAcceptButtonPositionChanged;
+  final ValueChanged<String> onAcceptButtonPositionChanged;
 
   const InterfaceSettingsSheet({
-
     super.key,
 
     required this.settingsController,
@@ -60,17 +48,11 @@ class InterfaceSettingsSheet
     required this.onAcceptButtonPositionChanged,
   });
 
-
   @override
-  State<InterfaceSettingsSheet>
-  createState() =>
-      _InterfaceSettingsSheetState();
+  State<InterfaceSettingsSheet> createState() => _InterfaceSettingsSheetState();
 }
 
-
-class _InterfaceSettingsSheetState
-    extends State<InterfaceSettingsSheet> {
-
+class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
   late String selectedTheme;
 
   late double notificationFontSize;
@@ -79,315 +61,160 @@ class _InterfaceSettingsSheetState
 
   late String currentAcceptButtonPosition;
 
-
   @override
   void initState() {
-
     super.initState();
 
+    selectedTheme = widget.initialTheme;
 
-    selectedTheme =
-        widget.initialTheme;
+    notificationFontSize = widget.initialFontSize;
 
+    currentTripDisplaySeconds = widget.initialTripDisplaySeconds;
 
-    notificationFontSize =
-        widget.initialFontSize;
-
-
-    currentTripDisplaySeconds =
-        widget.initialTripDisplaySeconds;
-
-
-    currentAcceptButtonPosition =
-        widget.initialAcceptButtonPosition;
+    currentAcceptButtonPosition = widget.initialAcceptButtonPosition;
   }
 
-
   @override
-  Widget build(
-      BuildContext context,
-      ) {
-
-    final colorScheme =
-        Theme.of(context)
-            .colorScheme;
-
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
 
     return SingleChildScrollView(
-
-      padding:
-      EdgeInsets.fromLTRB(
+      padding: EdgeInsets.fromLTRB(
         20,
         6,
         20,
-        24 +
-            MediaQuery.of(
-              context,
-            ).viewInsets.bottom,
+        24 + MediaQuery.of(context).viewInsets.bottom,
       ),
 
-      child:
-      Column(
-
-        crossAxisAlignment:
-        CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
 
         children: [
-
           const Text(
-
             'Giao diện và Tương tác',
 
-            style:
-            TextStyle(
-              fontSize:
-              25,
-
-              fontWeight:
-              FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold),
           ),
 
-
-          const SizedBox(
-            height:
-            22,
-          ),
-
+          const SizedBox(height: 22),
 
           // ========================================
           // GIAO DIEN + FONT
           // ========================================
-
           Card(
+            clipBehavior: Clip.antiAlias,
 
-            clipBehavior:
-            Clip.antiAlias,
-
-            child:
-            Column(
-
+            child: Column(
               children: [
-
                 // ========================================
                 // THEME
                 // ========================================
 
                 Padding(
+                  padding: const EdgeInsets.all(18),
 
-                  padding:
-                  const EdgeInsets.all(
-                    18,
-                  ),
-
-                  child:
-                  Row(
-
+                  child: Row(
                     children: [
-
-                      const Text(
-
-                        'Giao diện',
-
-                        style:
-                        TextStyle(
-                          fontSize:
-                          16,
-                        ),
-                      ),
-
+                      const Text('Giao diện', style: TextStyle(fontSize: 16)),
 
                       const Spacer(),
 
-
                       SegmentedButton<String>(
-
-                        segments:
-                        const [
-
+                        segments: const [
                           ButtonSegment<String>(
-                            value:
-                            'light',
+                            value: 'light',
 
-                            label:
-                            Text(
-                              'Sáng',
-                            ),
+                            label: Text('Sáng'),
                           ),
 
-
                           ButtonSegment<String>(
-                            value:
-                            'dark',
+                            value: 'dark',
 
-                            label:
-                            Text(
-                              'Tối',
-                            ),
+                            label: Text('Tối'),
                           ),
 
-
                           ButtonSegment<String>(
-                            value:
-                            'system',
+                            value: 'system',
 
-                            label:
-                            Text(
-                              'Hệ thống',
-                            ),
+                            label: Text('Hệ thống'),
                           ),
                         ],
 
+                        selected: {selectedTheme},
 
-                        selected:
-                        {
-                          selectedTheme,
-                        },
+                        showSelectedIcon: false,
 
-
-                        showSelectedIcon:
-                        false,
-
-
-                        onSelectionChanged:
-                            (
-                            value,
-                            ) async {
-
-                          if (
-                          value.isEmpty
-                          ) {
+                        onSelectionChanged: (value) async {
+                          if (value.isEmpty) {
                             return;
                           }
 
-
-                          final selected =
-                              value.first;
-
+                          final selected = value.first;
 
                           setState(() {
-
-                            selectedTheme =
-                                selected;
+                            selectedTheme = selected;
                           });
 
-
-                          await widget
-                              .onThemeChanged(
-                            selected,
-                          );
+                          await widget.onThemeChanged(selected);
                         },
                       ),
                     ],
                   ),
                 ),
 
-
-                const Divider(
-                  height:
-                  1,
-                ),
-
+                const Divider(height: 1),
 
                 // ========================================
                 // FONT SIZE
                 // ========================================
-
                 Padding(
+                  padding: const EdgeInsets.all(18),
 
-                  padding:
-                  const EdgeInsets.all(
-                    18,
-                  ),
-
-                  child:
-                  Column(
-
-                    crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
 
                     children: [
-
                       Row(
-
                         children: [
-
                           const Text(
-
                             'Cỡ chữ thông báo',
 
-                            style:
-                            TextStyle(
-                              fontSize:
-                              16,
-                            ),
+                            style: TextStyle(fontSize: 16),
                           ),
-
 
                           const Spacer(),
 
-
                           Text(
+                            notificationFontSize.round().toString(),
 
-                            notificationFontSize
-                                .round()
-                                .toString(),
+                            style: TextStyle(
+                              fontSize: 16,
 
-                            style:
-                            TextStyle(
+                              fontWeight: FontWeight.bold,
 
-                              fontSize:
-                              16,
-
-                              fontWeight:
-                              FontWeight.bold,
-
-                              color:
-                              colorScheme
-                                  .primary,
+                              color: colorScheme.primary,
                             ),
                           ),
                         ],
                       ),
 
-
                       Slider(
+                        min: 10,
 
-                        min:
-                        10,
+                        max: 30,
 
-                        max:
-                        30,
+                        divisions: 20,
 
-                        divisions:
-                        20,
+                        value: notificationFontSize,
 
-                        value:
-                        notificationFontSize,
-
-
-                        onChanged:
-                            (
-                            value,
-                            ) {
-
+                        onChanged: (value) {
                           setState(() {
-
-                            notificationFontSize =
-                                value;
+                            notificationFontSize = value;
                           });
                         },
 
-
-                        onChangeEnd:
-                            (
-                            value,
-                            ) async {
-
-                          await widget
-                              .onFontSizeChanged(
-                            value,
-                          );
+                        onChangeEnd: (value) async {
+                          await widget.onFontSizeChanged(value);
                         },
                       ),
                     ],
@@ -397,228 +224,120 @@ class _InterfaceSettingsSheetState
             ),
           ),
 
-
-          const SizedBox(
-            height:
-            28,
-          ),
-
+          const SizedBox(height: 28),
 
           Center(
-
-            child:
-            Text(
-
+            child: Text(
               'TƯƠNG TÁC VỚI THẺ CUỐC',
 
-              style:
-              TextStyle(
+              style: TextStyle(
+                fontSize: 13,
 
-                fontSize:
-                13,
-
-                color:
-                colorScheme
-                    .onSurfaceVariant,
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
           ),
 
-
-          const SizedBox(
-            height:
-            12,
-          ),
-
+          const SizedBox(height: 12),
 
           Card(
+            clipBehavior: Clip.antiAlias,
 
-            clipBehavior:
-            Clip.antiAlias,
-
-            child:
-            Column(
-
+            child: Column(
               children: [
-
                 // ========================================
                 // TRIP DISPLAY TIME
                 // ========================================
 
                 ListTile(
+                  title: const Text('Thời gian hiện thông báo'),
 
-                  title:
-                  const Text(
-                    'Thời gian hiện thông báo',
-                  ),
-
-
-                  trailing:
-                  Row(
-
-                    mainAxisSize:
-                    MainAxisSize.min,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
 
                     children: [
-
                       Text(
-
                         '${currentTripDisplaySeconds}s',
 
-                        style:
-                        TextStyle(
+                        style: TextStyle(
+                          color: colorScheme.primary,
 
-                          color:
-                          colorScheme
-                              .primary,
-
-                          fontSize:
-                          16,
+                          fontSize: 16,
                         ),
                       ),
 
+                      const SizedBox(width: 6),
 
-                      const SizedBox(
-                        width:
-                        6,
-                      ),
-
-
-                      const Icon(
-                        Icons.chevron_right,
-                      ),
+                      const Icon(Icons.chevron_right),
                     ],
                   ),
 
-
-                  onTap:
-                    openTripDurationPicker,
+                  onTap: openTripDurationPicker,
                 ),
 
-
-                const Divider(
-                  height:
-                  1,
-                ),
-
+                const Divider(height: 1),
 
                 // ========================================
                 // QUICK ACCEPT
                 // GIU NGUYEN DISABLED
                 // ========================================
-
                 const SwitchListTile(
+                  value: false,
 
-                  value:
-                  false,
+                  onChanged: null,
 
-                  onChanged:
-                  null,
+                  title: Text('Chạm vào tin nhắn để nhận nhanh'),
 
-                  title:
-                  Text(
-                    'Chạm vào tin nhắn để nhận nhanh',
-                  ),
-
-                  secondary:
-                  Icon(
-                    Icons.lock_outline,
-                  ),
+                  secondary: Icon(Icons.lock_outline),
                 ),
 
-
-                const Divider(
-                  height:
-                  1,
-                ),
-
+                const Divider(height: 1),
 
                 // ========================================
                 // SWIPE REPLY
                 // GIU NGUYEN DISABLED
                 // ========================================
-
                 const SwitchListTile(
+                  value: false,
 
-                  value:
-                  false,
+                  onChanged: null,
 
-                  onChanged:
-                  null,
+                  title: Text('Vuốt để trả lời thông báo'),
 
-                  title:
-                  Text(
-                    'Vuốt để trả lời thông báo',
-                  ),
-
-                  secondary:
-                  Icon(
-                    Icons.lock_outline,
-                  ),
+                  secondary: Icon(Icons.lock_outline),
                 ),
 
-
-                const Divider(
-                  height:
-                  1,
-                ),
-
+                const Divider(height: 1),
 
                 // ========================================
                 // ACCEPT BUTTON POSITION
                 // ========================================
-
                 ListTile(
+                  title: const Text('Vị trí nút nhận'),
 
-                  title:
-                  const Text(
-                    'Vị trí nút nhận',
-                  ),
-
-
-                  trailing:
-                  Row(
-
-                    mainAxisSize:
-                    MainAxisSize.min,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
 
                     children: [
-
                       Text(
-
-                        currentAcceptButtonPosition ==
-                            'left'
+                        currentAcceptButtonPosition == 'left'
                             ? 'Bên trái'
                             : 'Bên phải',
 
-                        style:
-                        TextStyle(
+                        style: TextStyle(
+                          color: colorScheme.primary,
 
-                          color:
-                          colorScheme
-                              .primary,
-
-                          fontSize:
-                          16,
+                          fontSize: 16,
                         ),
                       ),
 
+                      const SizedBox(width: 6),
 
-                      const SizedBox(
-                        width:
-                        6,
-                      ),
-
-
-                      const Icon(
-                        Icons.chevron_right,
-                      ),
+                      const Icon(Icons.chevron_right),
                     ],
                   ),
 
-
-                  onTap:
-                  openAcceptButtonPositionPicker,
+                  onTap: openAcceptButtonPositionPicker,
                 ),
               ],
             ),
@@ -633,114 +352,68 @@ class _InterfaceSettingsSheetState
   // ========================================
 
   Future<void> openTripDurationPicker() async {
-
     await showModalBottomSheet<void>(
-      context:
-      context,
+      context: context,
 
-      showDragHandle:
-      true,
+      showDragHandle: true,
 
-      builder:
-          (
-          pickerContext,
-          ) {
-
+      builder: (pickerContext) {
         return SafeArea(
-          child:
-          Padding(
-            padding:
-            const EdgeInsets.fromLTRB(
-              16,
-              4,
-              16,
-              20,
-            ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
 
-            child:
-            Column(
-              mainAxisSize:
-              MainAxisSize.min,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
 
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
 
               children: [
-
                 const Padding(
-                  padding:
-                  EdgeInsets.all(
-                    12,
-                  ),
+                  padding: EdgeInsets.all(12),
 
-                  child:
-                  Text(
+                  child: Text(
                     'Thời gian hiện thông báo',
 
-                    style:
-                    TextStyle(
-                      fontSize: 22,
-
-                      fontWeight:
-                      FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                 ),
                 RadioGroup<int>(
                   groupValue: currentTripDisplaySeconds,
 
-                  onChanged:
-                      (
-                      value,
-                      ) async {
-
-                    if (
-                    value ==
-                        null
-                    ) {
+                  onChanged: (value) async {
+                    if (value == null) {
                       return;
                     }
 
-
-                    final oldValue =
-                        currentTripDisplaySeconds;
-
+                    final oldValue = currentTripDisplaySeconds;
 
                     // ========================================
                     // 1. UPDATE UI NGAY
                     // ========================================
 
                     setState(() {
-                      currentTripDisplaySeconds =
-                          value;
+                      currentTripDisplaySeconds = value;
                     });
 
-                    widget
-                        .onTripDisplaySecondsChanged(
+                    widget.onTripDisplaySecondsChanged(
                       currentTripDisplaySeconds,
                     );
-
 
                     // ========================================
                     // 2. UPDATE HOME PAGE
                     // ========================================
 
-                    await widget
-                        .settingsController
-                        .updateTripDisplaySeconds(
+                    await widget.settingsController.updateTripDisplaySeconds(
                       value,
                     );
 
                     try {
-
                       // ========================================
                       // LUU THOI GIAN LEN BACKEND
                       // ========================================
 
-                      await widget.backend
-                          .updateMessageSettings(
-                        dedupeWindowSeconds:
-                        value,
+                      await widget.backend.updateMessageSettings(
+                        dedupeWindowSeconds: value,
                       );
 
                       // ========================================
@@ -751,7 +424,6 @@ class _InterfaceSettingsSheetState
                         return;
                       }
 
-
                       // ========================================
                       // KIEM TRA CONTEXT CUA PICKER
                       // SAU ASYNC GAP
@@ -761,39 +433,27 @@ class _InterfaceSettingsSheetState
                         return;
                       }
 
-
                       // ========================================
                       // DONG PICKER 5 / 10 / 15 GIAY
                       // ========================================
 
-                      Navigator.of(
-                        pickerContext,
-                      ).pop();
-
+                      Navigator.of(pickerContext).pop();
                     } catch (error) {
-
                       if (!mounted) {
                         return;
                       }
-
 
                       // ========================================
                       // ROLLBACK NEU BACKEND LOI
                       // ========================================
 
                       setState(() {
-                        currentTripDisplaySeconds =
-                            oldValue;
+                        currentTripDisplaySeconds = oldValue;
                       });
 
-                      widget
-                          .onTripDisplaySecondsChanged(
-                        oldValue,
-                      );
+                      widget.onTripDisplaySecondsChanged(oldValue);
 
-                      await widget
-                          .settingsController
-                          .updateTripDisplaySeconds(
+                      await widget.settingsController.updateTripDisplaySeconds(
                         oldValue,
                       );
 
@@ -801,12 +461,9 @@ class _InterfaceSettingsSheetState
                         return;
                       }
 
-                      ScaffoldMessenger
-                          .of(context)
-                          .showSnackBar(
+                      ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content:
-                          Text(
+                          content: Text(
                             'Không thể lưu thời gian thông báo: $error',
                           ),
                         ),
@@ -814,29 +471,15 @@ class _InterfaceSettingsSheetState
                     }
                   },
 
-                  child:
-                  Column(
-                    mainAxisSize:
-                    MainAxisSize.min,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
 
                     children: [
-
-                      for (
-                      final seconds
-                      in [
-                        5,
-                        10,
-                        15,
-                      ]
-                      )
+                      for (final seconds in [5, 10, 15])
                         RadioListTile<int>(
-                          value:
-                          seconds,
+                          value: seconds,
 
-                          title:
-                          Text(
-                            '$seconds giây',
-                          ),
+                          title: Text('$seconds giây'),
                         ),
                     ],
                   ),
@@ -850,93 +493,49 @@ class _InterfaceSettingsSheetState
   }
 
   Future<void> openAcceptButtonPositionPicker() async {
-
     await showModalBottomSheet<void>(
-      context:
-      context,
+      context: context,
 
-      showDragHandle:
-      true,
+      showDragHandle: true,
 
-      builder:
-          (
-          pickerContext,
-          ) {
-
+      builder: (pickerContext) {
         return SafeArea(
-          child:
-          Padding(
-            padding:
-            const EdgeInsets.fromLTRB(
-              16,
-              4,
-              16,
-              20,
-            ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
 
-            child:
-            Column(
-              mainAxisSize:
-              MainAxisSize.min,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
 
-              crossAxisAlignment:
-              CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
 
               children: [
-
                 const Padding(
-                  padding:
-                  EdgeInsets.all(
-                    12,
-                  ),
+                  padding: EdgeInsets.all(12),
 
-                  child:
-                  Text(
+                  child: Text(
                     'Vị trí nút nhận',
 
-                    style:
-                    TextStyle(
-                      fontSize:
-                      22,
-
-                      fontWeight:
-                      FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                 ),
 
-
                 RadioGroup<String>(
-                  groupValue:
-                  currentAcceptButtonPosition,
+                  groupValue: currentAcceptButtonPosition,
 
-                  onChanged:
-                      (
-                      value,
-                      ) async {
-
-                    if (
-                    value ==
-                        null
-                    ) {
+                  onChanged: (value) async {
+                    if (value == null) {
                       return;
                     }
 
-
                     setState(() {
-                      currentAcceptButtonPosition =
-                          value;
+                      currentAcceptButtonPosition = value;
                     });
 
-                    widget
-                        .onAcceptButtonPositionChanged(
+                    widget.onAcceptButtonPositionChanged(
                       currentAcceptButtonPosition,
                     );
 
-
-                    await widget
-                        .settingsController
-                        .updateAcceptButtonPosition(
+                    await widget.settingsController.updateAcceptButtonPosition(
                       value,
                     );
 
@@ -944,47 +543,27 @@ class _InterfaceSettingsSheetState
                       return;
                     }
 
-                    Navigator.of(
-                      pickerContext,
-                    ).pop();
+                    Navigator.of(pickerContext).pop();
                   },
 
-                  child:
-                  const Column(
-                    mainAxisSize:
-                    MainAxisSize.min,
+                  child: const Column(
+                    mainAxisSize: MainAxisSize.min,
 
                     children: [
-
                       RadioListTile<String>(
-                        value:
-                        'left',
+                        value: 'left',
 
-                        title:
-                        Text(
-                          'Bên trái',
-                        ),
+                        title: Text('Bên trái'),
 
-                        secondary:
-                        Icon(
-                          Icons.arrow_back,
-                        ),
+                        secondary: Icon(Icons.arrow_back),
                       ),
 
-
                       RadioListTile<String>(
-                        value:
-                        'right',
+                        value: 'right',
 
-                        title:
-                        Text(
-                          'Bên phải',
-                        ),
+                        title: Text('Bên phải'),
 
-                        secondary:
-                        Icon(
-                          Icons.arrow_forward,
-                        ),
+                        secondary: Icon(Icons.arrow_forward),
                       ),
                     ],
                   ),
