@@ -1,11 +1,9 @@
-import 'dart:convert';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:audioplayers/audioplayers.dart';
 
 import '../../config/app_config.dart';
 
@@ -18,16 +16,28 @@ import 'chat_message_composer.dart';
 import 'chat_app_bar.dart';
 import 'chat_message_list.dart';
 import 'chat_background.dart';
+import 'chat_message_actions_sheet.dart';
+
+import 'chat_realtime_controller.dart';
+import 'chat_voice_controller.dart';
+import 'chat_mark_read_controller.dart';
+import 'chat_target_controller.dart';
+import 'chat_messages_controller.dart';
+import 'chat_actions_controller.dart';
+import 'chat_media_controller.dart';
+import 'chat_reply_controller.dart';
+
 import 'voice_message_bubble.dart';
 import 'file_message_bubble.dart';
 import 'sticker_message_bubble.dart';
+import 'video_message_bubble.dart';
+import 'photo_message_bubble.dart';
+import 'text_message_bubble.dart';
+
 import 'simple_media_row.dart';
 import 'video_viewer_page.dart';
-import 'video_message_bubble.dart';
 import 'photo_viewer_page.dart';
-import 'photo_message_bubble.dart';
 import 'photo_media_row.dart';
-import 'text_message_bubble.dart';
 import 'text_message_row.dart';
 
 class ChatPage extends StatefulWidget {
@@ -54,18 +64,26 @@ class ChatPage extends StatefulWidget {
   State<ChatPage> createState() => _ChatPageState();
 }
 
-class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
+class _ChatPageState extends State<ChatPage> {
   // ========================================
-  // VOICE PLAYER
+  // VOICE CONTROLLER
   // ========================================
 
-  final AudioPlayer voicePlayer = AudioPlayer();
+  late final ChatRealtimeController realtimeController;
 
-  String? playingVoiceUrl;
+  late final ChatVoiceController voiceController;
 
-  Duration voicePosition = Duration.zero;
+  late final ChatMarkReadController markReadController;
 
-  Duration voiceDuration = Duration.zero;
+  late final ChatTargetController targetController;
+
+  late final ChatMessagesController messagesController;
+
+  late final ChatActionsController actionsController;
+
+  late final ChatMediaController mediaController;
+
+  late final ChatReplyController replyController;
 
   final ScrollController scrollController = ScrollController();
 
@@ -73,87 +91,20 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
   final ImagePicker imagePicker = ImagePicker();
 
-  bool sendingPhoto = false;
-
   final FocusNode messageFocusNode = FocusNode();
-
-  bool sendingMessage = false;
-
-  String? undoingMessageKey;
-
-  String? deletingMessageKey;
 
   bool canSendMessage = false;
 
-  // ========================================
-  // MESSAGE DANG DUOC REPLY
-  // ========================================
-
-  Map<String, dynamic>? replyingToMessage;
-
-  StreamSubscription<Map<String, dynamic>>? realtimeSubscription;
-
-  // ========================================
-  // MARK READ
-  // ========================================
-
-  Timer? markReadTimer;
-
-  bool markReadInFlight = false;
-
-  bool markReadPending = false;
-
-  // Chỉ đánh dấu đã đọc khi app
-  // thực sự đang foreground.
-  bool appIsActive = true;
-
-  Timer? realtimeReloadTimer;
-
-  Timer? targetHighlightTimer;
-
   Timer? topNoticeTimer;
-
-  int? targetIndex;
-
-  String? targetErrorReason;
-
-  bool highlightTarget = false;
-
-  bool targetNoticeShown = false;
-
-  bool isSameMessage(Map<String, dynamic> a, Map<String, dynamic> b) {
-    const keys = ['msgId', 'cliMsgId', 'id'];
-
-    for (final key in keys) {
-      final aValue = a[key]?.toString();
-
-      final bValue = b[key]?.toString();
-
-      if (aValue != null &&
-          aValue.isNotEmpty &&
-          bValue != null &&
-          bValue.isNotEmpty &&
-          aValue == bValue) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  String _messageActionKey(Map<String, dynamic> message) {
-    return message['id']?.toString() ??
-        message['msgId']?.toString() ??
-        message['cliMsgId']?.toString() ??
-        '';
-  }
 
   void _removeMessageFromUi(Map<String, dynamic> message) {
     if (!mounted) {
       return;
     }
 
-    final removeIndex = messages.indexWhere(
-      (item) => isSameMessage(item, message),
+    final removeIndex = messagesController.indexOfSame(
+      messagesController.messages,
+      message,
     );
 
     if (removeIndex < 0) {
@@ -165,31 +116,20 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       // XOA HAN MESSAGE KHOI DANH SACH
       // ========================================
 
-      messages.removeAt(removeIndex);
+      messagesController.removeAt(removeIndex);
 
-      // ========================================
-      // SUA TARGET INDEX NEU MESSAGE BI XOA
-      // NAM TRUOC / DUNG TARGET
-      // ========================================
-
-      if (targetIndex != null) {
-        if (targetIndex == removeIndex) {
-          targetIndex = null;
-
-          highlightTarget = false;
-        } else if (removeIndex < targetIndex!) {
-          targetIndex = targetIndex! - 1;
-        }
-      }
+      targetController.adjustAfterMessageRemoval(removeIndex);
 
       // ========================================
       // NEU DANG REPLY MESSAGE VUA XOA
       // THI HUY REPLY
       // ========================================
 
-      if (replyingToMessage != null &&
-          isSameMessage(replyingToMessage!, message)) {
-        replyingToMessage = null;
+      final replyingMessage = replyController.replyingToMessage;
+
+      if (replyingMessage != null &&
+          messagesController.isSameMessage(replyingMessage, message)) {
+        replyController.clearReply();
       }
     });
   }
@@ -214,59 +154,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     return ageMs >= const Duration(hours: 1).inMilliseconds;
   }
 
-  int _findMessageIndexByIds({String? msgId, String? cliMsgId}) {
-    final safeMsgId = msgId?.trim() ?? '';
-
-    final safeCliMsgId = cliMsgId?.trim() ?? '';
-
-    return messages.indexWhere((message) {
-      final messageMsgId = message['msgId']?.toString().trim() ?? '';
-
-      final messageCliMsgId = message['cliMsgId']?.toString().trim() ?? '';
-
-      final sameMsgId =
-          safeMsgId.isNotEmpty &&
-          messageMsgId.isNotEmpty &&
-          safeMsgId == messageMsgId;
-
-      final sameCliMsgId =
-          safeCliMsgId.isNotEmpty &&
-          messageCliMsgId.isNotEmpty &&
-          safeCliMsgId == messageCliMsgId;
-
-      return sameMsgId || sameCliMsgId;
-    });
-  }
-
   final GlobalKey targetMessageKey = GlobalKey();
 
   final BackendService backend = BackendService(baseUrl: AppConfig.backendUrl);
-
-  List<Map<String, dynamic>> messages = [];
-
-  bool loading = true;
-
-  static const int pageSize = 50;
-
-  bool loadingOlder = false;
-
-  bool hasMoreOlder = false;
-
-  bool hasMoreNewer = false;
-
-  // Khong cho pagination chay
-  // truoc khi scroll target / scroll bottom
-  // lan dau hoan tat.
-  bool paginationReady = false;
-
-  // ========================================
-  // DANG TU DONG TIM TARGET TU TIN MOI NHAT
-  // ========================================
-
-  bool seekingTarget = false;
-
-  // Moi lan tim target load 30 tin cu.
-  static const int targetSeekPageSize = 30;
 
   @override
   void initState() {
@@ -274,18 +164,67 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
     ChatStateService.instance.openGroup(widget.groupId);
 
-    _setupVoicePlayer();
+    messagesController = ChatMessagesController(
+      backend: backend,
+      groupId: widget.groupId,
+    );
 
-    WidgetsBinding.instance.addObserver(this);
+    actionsController = ChatActionsController(
+      backend: backend,
+      groupId: widget.groupId,
+    );
 
-    final lifecycleState = WidgetsBinding.instance.lifecycleState;
+    mediaController = ChatMediaController();
 
-    appIsActive =
-        lifecycleState == null || lifecycleState == AppLifecycleState.resumed;
+    replyController = ChatReplyController();
+
+    targetController = ChatTargetController(
+      targetMsgId: widget.targetMsgId,
+
+      targetCliMsgId: widget.targetCliMsgId,
+    );
+
+    markReadController = ChatMarkReadController(
+      backend: backend,
+
+      groupId: widget.groupId,
+    );
+
+    markReadController.start();
+
+    realtimeController = ChatRealtimeController(
+      backend: backend,
+
+      groupId: widget.groupId,
+
+      onReloadRequested: (force) {
+        _requestLatestReload(force: force);
+      },
+
+      onMarkReadRequested: () {
+        markReadController.schedule();
+      },
+
+      onMessage: (incoming) {
+        upsertRealtimeMessage(incoming);
+      },
+    );
+
+    voiceController = ChatVoiceController();
+
+    voiceController.addListener(_handleVoiceControllerChanged);
 
     messageController.addListener(_handleComposerChanged);
 
     initializeChat();
+  }
+
+  void _handleVoiceControllerChanged() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {});
   }
 
   void _handleComposerChanged() {
@@ -305,132 +244,28 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   }
 
   void _startReply(Map<String, dynamic> message) {
-    final status = message['status']?.toString() ?? 'normal';
+    final error = replyController.startReply(message);
 
-    // ========================================
-    // KHONG REPLY TIN DA THU HOI / XOA
-    // ========================================
-
-    if (status != 'normal') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tin nhắn này không còn có thể trả lời.')),
-      );
+    if (error != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error)));
 
       return;
     }
 
-    final msgId = message['msgId']?.toString();
-
-    final cliMsgId = message['cliMsgId']?.toString();
-
-    if ((msgId == null || msgId.isEmpty) &&
-        (cliMsgId == null || cliMsgId.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tin nhắn này chưa có ID Zalo để trả lời.'),
-        ),
-      );
-
-      return;
-    }
-
-    setState(() {
-      replyingToMessage = Map<String, dynamic>.from(message);
-    });
+    setState(() {});
 
     messageFocusNode.requestFocus();
   }
 
   void _cancelReply() {
-    if (replyingToMessage == null) {
+    if (!replyController.hasReply) {
       return;
     }
 
     setState(() {
-      replyingToMessage = null;
+      replyController.cancelReply();
     });
-  }
-
-  void _setupVoicePlayer() {
-    voicePlayer.onPositionChanged.listen((position) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        voicePosition = position;
-      });
-    });
-
-    voicePlayer.onDurationChanged.listen((duration) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        voiceDuration = duration;
-      });
-    });
-
-    voicePlayer.onPlayerComplete.listen((_) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        playingVoiceUrl = null;
-
-        voicePosition = Duration.zero;
-      });
-    });
-  }
-
-  Future<void> _toggleVoice(String url) async {
-    final trimmedUrl = url.trim();
-
-    if (trimmedUrl.isEmpty) {
-      return;
-    }
-
-    // ========================================
-    // DANG PHAT CHINH VOICE NAY
-    // ========================================
-
-    if (playingVoiceUrl == trimmedUrl) {
-      if (voicePlayer.state == PlayerState.playing) {
-        await voicePlayer.pause();
-      } else {
-        await voicePlayer.resume();
-      }
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {});
-
-      return;
-    }
-
-    // ========================================
-    // CHUYEN SANG VOICE KHAC
-    // ========================================
-
-    await voicePlayer.stop();
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      playingVoiceUrl = trimmedUrl;
-
-      voicePosition = Duration.zero;
-
-      voiceDuration = Duration.zero;
-    });
-
-    await voicePlayer.play(UrlSource(trimmedUrl));
   }
 
   Future<void> _confirmUndoMessage(Map<String, dynamic> message) async {
@@ -529,9 +364,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   }
 
   Future<void> _deleteMessage(Map<String, dynamic> message) async {
-    final actionKey = _messageActionKey(message);
+    final actionKey = actionsController.messageActionKey(message);
 
-    if (actionKey.isEmpty || deletingMessageKey != null) {
+    if (actionKey.isEmpty || actionsController.deletingMessageKey != null) {
       return;
     }
 
@@ -546,18 +381,22 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       return;
     }
 
-    setState(() {
-      deletingMessageKey = actionKey;
-    });
+    final deleteFuture = actionsController.deleteMessage(
+      actionKey: actionKey,
+
+      msgId: msgId,
+
+      cliMsgId: cliMsgId,
+    );
+
+    setState(() {});
 
     try {
-      await backend.deleteConversationMessage(
-        groupId: widget.groupId,
+      final deleted = await deleteFuture;
 
-        msgId: msgId,
-
-        cliMsgId: cliMsgId,
-      );
+      if (!deleted) {
+        return;
+      }
 
       if (!mounted) {
         return;
@@ -582,9 +421,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       debugPrint('DELETE MESSAGE ERROR: $error');
     } finally {
       if (mounted) {
-        setState(() {
-          deletingMessageKey = null;
-        });
+        setState(() {});
       }
     }
   }
@@ -598,9 +435,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       return;
     }
 
-    final actionKey = _messageActionKey(message);
+    final actionKey = actionsController.messageActionKey(message);
 
-    if (actionKey.isEmpty || undoingMessageKey != null) {
+    if (actionKey.isEmpty || actionsController.undoingMessageKey != null) {
       return;
     }
 
@@ -622,18 +459,22 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       return;
     }
 
-    setState(() {
-      undoingMessageKey = actionKey;
-    });
+    final undoFuture = actionsController.undoMessage(
+      actionKey: actionKey,
+
+      msgId: msgId,
+
+      cliMsgId: cliMsgId,
+    );
+
+    setState(() {});
 
     try {
-      await backend.undoConversationMessage(
-        groupId: widget.groupId,
+      final undone = await undoFuture;
 
-        msgId: msgId,
-
-        cliMsgId: cliMsgId,
-      );
+      if (!undone) {
+        return;
+      }
 
       if (!mounted) {
         return;
@@ -669,20 +510,13 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       debugPrint('UNDO MESSAGE ERROR: $error');
     } finally {
       if (mounted) {
-        setState(() {
-          undoingMessageKey = null;
-        });
+        setState(() {});
       }
     }
   }
 
   void _showMessageActions(Map<String, dynamic> message) {
     final status = message['status']?.toString() ?? 'normal';
-
-    // ========================================
-    // MESSAGE DA XOA LOCAL
-    // KHONG CON ACTION NAO NUA
-    // ========================================
 
     if (status == 'deleted_local') {
       return;
@@ -695,10 +529,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     final cliMsgId = message['cliMsgId']?.toString().trim() ?? '';
 
     final messageContent = message['content']?.toString() ?? '';
-
-    // ========================================
-    // QUYEN CUA TUNG ACTION
-    // ========================================
 
     final canReply = status == 'normal';
 
@@ -713,117 +543,34 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       showDragHandle: true,
 
       builder: (sheetContext) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+        return ChatMessageActionsSheet(
+          canReply: canReply,
 
-            children: [
-              // ========================================
-              // TRA LOI
-              // ========================================
+          canCopy: canCopy,
 
-              if (canReply)
-                ListTile(
-                  leading: const Icon(Icons.reply_rounded),
+          canUndo: canUndo,
 
-                  title: const Text('Trả lời'),
+          onReply: () {
+            _startReply(message);
+          },
 
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
+          onCopy: () async {
+            await Clipboard.setData(ClipboardData(text: messageContent));
 
-                    _startReply(message);
-                  },
-                ),
+            if (!mounted) {
+              return;
+            }
 
-              // ========================================
-              // SAO CHEP
-              // ========================================
-              if (canCopy)
-                ListTile(
-                  leading: const Icon(Icons.copy_rounded),
+            _showTopNotice('Đã sao chép tin nhắn');
+          },
 
-                  title: const Text('Sao chép'),
+          onUndo: () {
+            _confirmUndoMessage(message);
+          },
 
-                  onTap: () async {
-                    Navigator.of(sheetContext).pop();
-
-                    await Clipboard.setData(
-                      ClipboardData(text: messageContent),
-                    );
-
-                    if (!mounted) {
-                      return;
-                    }
-
-                    _showTopNotice('Đã sao chép tin nhắn');
-                  },
-                ),
-
-              // ========================================
-              // THU HOI
-              //
-              // CHI TIN CUA CHINH MINH.
-              //
-              // KHONG KIEM TRA 1 GIO O DAY
-              // VI TA VAN MUON HIEN NUT THU HOI.
-              //
-              // _confirmUndoMessage SE THONG BAO
-              // NEU DA QUA 1 GIO.
-              // ========================================
-              if (canUndo)
-                ListTile(
-                  leading: Icon(
-                    Icons.undo_rounded,
-
-                    color: Theme.of(context).colorScheme.error,
-                  ),
-
-                  title: Text(
-                    'Thu hồi',
-
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-
-                    _confirmUndoMessage(message);
-                  },
-                ),
-
-              // ========================================
-              // XOA LOCAL
-              //
-              // CO CHO CA TIN CUA MINH
-              // VA TIN CUA NGUOI KHAC.
-              //
-              // TIN RECALLED CUNG CO THE XOA.
-              // ========================================
-              ListTile(
-                leading: Icon(
-                  Icons.delete_outline_rounded,
-
-                  color: Theme.of(context).colorScheme.error,
-                ),
-
-                title: Text(
-                  'Xóa',
-
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-
-                  _confirmDeleteMessage(message);
-                },
-              ),
-
-              const SizedBox(height: 8),
-            ],
-          ),
+          onDelete: () {
+            _confirmDeleteMessage(message);
+          },
         );
       },
     );
@@ -895,11 +642,14 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   }
 
   Future<void> _pickAndSendPhoto() async {
-    if (sendingPhoto || sendingMessage || loading || seekingTarget) {
+    if (actionsController.sendingPhoto ||
+        actionsController.sendingMessage ||
+        messagesController.loading ||
+        targetController.seekingTarget) {
       return;
     }
 
-    if (replyingToMessage != null) {
+    if (replyController.hasReply) {
       _showTopNotice('Trả lời bằng ảnh sẽ được hỗ trợ sau.');
 
       return;
@@ -935,16 +685,18 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       return;
     }
 
-    setState(() {
-      sendingPhoto = true;
-    });
+    final sendFuture = actionsController.sendPhotos(
+      filePaths: pickedPhotos.map((photo) => photo.path).toList(),
+    );
+
+    setState(() {});
 
     try {
-      await backend.sendConversationPhotos(
-        groupId: widget.groupId,
+      final sent = await sendFuture;
 
-        filePaths: pickedPhotos.map((photo) => photo.path).toList(),
-      );
+      if (!sent) {
+        return;
+      }
 
       if (!mounted) {
         return;
@@ -969,14 +721,14 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       // 2. reload lai sau 1 giay lam fallback
       // ========================================
 
-      scheduleRealtimeReload(force: true);
+      _requestLatestReload(force: true);
 
       Future.delayed(const Duration(milliseconds: 1000), () {
         if (!mounted) {
           return;
         }
 
-        scheduleRealtimeReload(force: true);
+        _requestLatestReload(force: true);
       });
     } catch (error) {
       if (!mounted) {
@@ -990,15 +742,13 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       debugPrint('SEND PHOTOS ERROR: $error');
     } finally {
       if (mounted) {
-        setState(() {
-          sendingPhoto = false;
-        });
+        setState(() {});
       }
     }
   }
 
   Future<void> _sendChatMessage() async {
-    if (sendingMessage) {
+    if (actionsController.sendingMessage) {
       return;
     }
 
@@ -1012,30 +762,26 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // REPLY TARGET
     // ========================================
 
-    final replyMessage = replyingToMessage;
+    final replyMsgId = replyController.replyMsgId;
 
-    final replyMsgId = replyMessage?['msgId']?.toString();
+    final replyCliMsgId = replyController.replyCliMsgId;
 
-    final replyCliMsgId = replyMessage?['cliMsgId']?.toString();
+    final sendFuture = actionsController.sendText(
+      text: text,
 
-    // ========================================
-    // KHOA NUT SEND
-    // ========================================
+      replyToMsgId: replyMsgId,
 
-    setState(() {
-      sendingMessage = true;
-    });
+      replyToCliMsgId: replyCliMsgId,
+    );
+
+    setState(() {});
 
     try {
-      await backend.sendConversationMessage(
-        groupId: widget.groupId,
+      final sent = await sendFuture;
 
-        text: text,
-
-        replyToMsgId: replyMsgId,
-
-        replyToCliMsgId: replyCliMsgId,
-      );
+      if (!sent) {
+        return;
+      }
 
       if (!mounted) {
         return;
@@ -1044,11 +790,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       messageController.clear();
 
       setState(() {
-        replyingToMessage = null;
+        replyController.clearReply();
 
-        targetIndex = null;
-
-        highlightTarget = false;
+        targetController.clearCurrentTarget();
       });
 
       messageFocusNode.requestFocus();
@@ -1066,92 +810,13 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       debugPrint('SEND MESSAGE ERROR: $error');
     } finally {
       if (mounted) {
-        setState(() {
-          sendingMessage = false;
-        });
-      }
-    }
-  }
-
-  // ========================================
-  // SCHEDULE MARK READ
-  //
-  // Debounce de album 4 anh hoac nhieu
-  // message lien tuc khong tao 4-10 request.
-  // ========================================
-
-  void _scheduleMarkConversationRead({bool immediate = false}) {
-    if (!mounted || !appIsActive) {
-      return;
-    }
-
-    markReadTimer?.cancel();
-
-    if (immediate) {
-      unawaited(_markConversationReadNow());
-
-      return;
-    }
-
-    markReadTimer = Timer(const Duration(milliseconds: 250), () {
-      if (!mounted || !appIsActive) {
-        return;
-      }
-
-      unawaited(_markConversationReadNow());
-    });
-  }
-
-  // ========================================
-  // MARK READ NOW
-  // ========================================
-
-  Future<void> _markConversationReadNow() async {
-    if (!mounted || !appIsActive) {
-      return;
-    }
-
-    // ========================================
-    // Neu request truoc van dang chay,
-    // ghi nho rang can chay them 1 lan.
-    // ========================================
-
-    if (markReadInFlight) {
-      markReadPending = true;
-
-      return;
-    }
-
-    markReadInFlight = true;
-
-    try {
-      await backend.markConversationRead(groupId: widget.groupId);
-
-      debugPrint('CHAT MARK READ: ${widget.groupId}');
-    } catch (error) {
-      // Mark read loi KHONG DUOC
-      // lam hong ChatPage.
-      debugPrint('CHAT MARK READ ERROR: $error');
-    } finally {
-      markReadInFlight = false;
-
-      // ========================================
-      // Trong luc request dang chay
-      // co message moi den.
-      //
-      // Chay them mot lan nua.
-      // ========================================
-
-      if (markReadPending) {
-        markReadPending = false;
-
-        _scheduleMarkConversationRead();
+        setState(() {});
       }
     }
   }
 
   Future<void> _openVideo(Map<String, dynamic> message) async {
-    final url = _messageMediaUrl(message);
+    final url = mediaController.messageMediaUrl(message);
 
     debugPrint(
       'OPEN VIDEO CALLED: '
@@ -1203,7 +868,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   }
 
   Future<void> _openFileMessage(Map<String, dynamic> message) async {
-    final rawUrl = _messageMediaUrl(message);
+    final rawUrl = mediaController.messageMediaUrl(message);
 
     if (rawUrl == null || rawUrl.isEmpty) {
       _showTopNotice('Tệp không có đường dẫn');
@@ -1236,40 +901,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     }
   }
 
-  // ========================================
-  // APP LIFECYCLE
-  // ========================================
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    final wasActive = appIsActive;
-
-    appIsActive = state == AppLifecycleState.resumed;
-
-    // ========================================
-    // APP RA BACKGROUND
-    //
-    // Khong duoc tu coi message la da doc.
-    // ========================================
-
-    if (!appIsActive) {
-      markReadTimer?.cancel();
-
-      return;
-    }
-
-    // ========================================
-    // USER QUAY LAI APP
-    //
-    // Neu ChatPage nay van dang mo,
-    // coi conversation hien tai la da doc.
-    // ========================================
-
-    if (!wasActive && mounted) {
-      _scheduleMarkConversationRead(immediate: true);
-    }
-  }
-
   Future<void> initializeChat() async {
     // ========================================
     // 1. LOAD CHAT
@@ -1285,115 +916,48 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // 2. BAT REALTIME
     // ========================================
 
-    startRealtime();
+    realtimeController.start();
 
     // ========================================
     // 3. USER DA MO CONVERSATION
     // -> DANH DA DOC.
     // ========================================
 
-    _scheduleMarkConversationRead(immediate: true);
-  }
-
-  bool get hasTarget {
-    return (widget.targetMsgId != null && widget.targetMsgId!.isNotEmpty) ||
-        (widget.targetCliMsgId != null && widget.targetCliMsgId!.isNotEmpty);
-  }
-
-  int _findTargetIndex() {
-    final safeTargetMsgId = widget.targetMsgId?.trim() ?? '';
-
-    final safeTargetCliMsgId = widget.targetCliMsgId?.trim() ?? '';
-
-    // ========================================
-    // QUAN TRONG:
-    //
-    // Neu co targetMsgId,
-    // CHI tim bang msgId.
-    //
-    // KHONG duoc de cliMsgId cua message khac
-    // ghi de ket qua.
-    // ========================================
-
-    if (safeTargetMsgId.isNotEmpty) {
-      return messages.indexWhere((message) {
-        final messageMsgId = message['msgId']?.toString().trim() ?? '';
-
-        return messageMsgId.isNotEmpty && messageMsgId == safeTargetMsgId;
-      });
-    }
-
-    // ========================================
-    // CHI KHI KHONG CO msgId
-    // MOI FALLBACK SANG cliMsgId.
-    // ========================================
-
-    if (safeTargetCliMsgId.isNotEmpty) {
-      return messages.indexWhere((message) {
-        final messageCliMsgId = message['cliMsgId']?.toString().trim() ?? '';
-
-        return messageCliMsgId.isNotEmpty &&
-            messageCliMsgId == safeTargetCliMsgId;
-      });
-    }
-
-    return -1;
+    markReadController.schedule(immediate: true);
   }
 
   Future<void> loadMessages() async {
-    paginationReady = false;
+    targetController.resetForLoad();
 
-    seekingTarget = false;
-
-    if (mounted) {
-      setState(() {
-        loading = true;
-
-        targetIndex = null;
-
-        highlightTarget = false;
-      });
+    if (!mounted) {
+      return;
     }
 
+    // ========================================
+    // loadInitial() CHAY DONG BO DEN
+    // await DAU TIEN.
+    //
+    // Vi vay loading=true DA DUOC SET
+    // TRUOC setState() BEN DUOI.
+    // ========================================
+
+    final loadFuture = messagesController.loadInitial();
+
+    setState(() {});
+
     try {
-      // ========================================
-      // LUON BAT DAU TU TIN MOI NHAT
-      //
-      // CA CHAT BINH THUONG
-      // VA MO TU LICH SU NHAN
-      // DEU GIONG NHAU.
-      // ========================================
-
-      final page = await backend.getConversationMessagesPage(
-        groupId: widget.groupId,
-
-        limit: pageSize,
-      );
+      await loadFuture;
 
       if (!mounted) {
         return;
       }
 
-      final loadedMessages = _extractMessages(page['messages']);
+      // ========================================
+      // MESSAGE DATA DA THAY DOI TRONG
+      // CONTROLLER -> REBUILD UI.
+      // ========================================
 
-      setState(() {
-        messages = loadedMessages;
-
-        hasMoreOlder = page['hasBefore'] == true;
-
-        // ========================================
-        // TA BAT DAU TU LATEST.
-        //
-        // VI VAY KHONG BAO GIO CAN
-        // PAGINATION NEWER.
-        // ========================================
-
-        hasMoreNewer = false;
-
-        targetErrorReason = null;
-
-        loading = false;
-      });
+      setState(() {});
 
       // ========================================
       // DOI LISTVIEW BUILD
@@ -1419,7 +983,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       // MO TU LICH SU NHAN
       // ========================================
 
-      if (hasTarget) {
+      if (targetController.hasTarget) {
         await _seekTargetFromLatest();
 
         return;
@@ -1429,7 +993,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       // CHAT BINH THUONG
       // ========================================
 
-      paginationReady = true;
+      messagesController.setPaginationReady(true);
 
       Future.microtask(() => _ensureHistoryScrollable());
     } catch (error) {
@@ -1438,12 +1002,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       }
 
       setState(() {
-        loading = false;
-
-        seekingTarget = false;
+        targetController.finishSeeking();
       });
-
-      paginationReady = true;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Không thể tải hội thoại: $error')),
@@ -1451,14 +1011,54 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     }
   }
 
+  Future<bool> _activateTargetAtIndex(int index) async {
+    if (!mounted) {
+      return false;
+    }
+
+    // ========================================
+    // SET TARGET
+    // ========================================
+
+    setState(() {
+      targetController.setFound(index);
+    });
+
+    // ========================================
+    // CENTER TARGET
+    // ========================================
+
+    final centered = await _centerTargetMessage();
+
+    if (!mounted) {
+      return false;
+    }
+
+    if (!centered) {
+      return false;
+    }
+
+    // ========================================
+    // HIGHLIGHT
+    // ========================================
+
+    setState(() {
+      targetController.showHighlight();
+    });
+
+    _removeTargetHighlightLater();
+
+    return true;
+  }
+
   Future<void> _seekTargetFromLatest() async {
-    if (seekingTarget || !hasTarget) {
+    if (targetController.seekingTarget || !targetController.hasTarget) {
       return;
     }
 
-    seekingTarget = true;
+    targetController.beginSeeking();
 
-    paginationReady = false;
+    messagesController.setPaginationReady(false);
 
     try {
       while (mounted) {
@@ -1467,35 +1067,23 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         // DA LOAD CHUA?
         // ========================================
 
-        final foundIndex = _findTargetIndex();
+        final foundIndex = targetController.findTargetIndex(
+          messagesController.messages,
+        );
 
         if (foundIndex >= 0) {
-          setState(() {
-            targetIndex = foundIndex;
-
-            targetErrorReason = null;
-          });
-
-          final centered = await _centerTargetMessage();
+          final activated = await _activateTargetAtIndex(foundIndex);
 
           if (!mounted) {
             return;
           }
 
-          if (!centered) {
+          if (!activated) {
             debugPrint(
               'TARGET FOUND BUT CENTER FAILED: '
               'index=$foundIndex',
             );
-
-            return;
           }
-
-          setState(() {
-            highlightTarget = true;
-          });
-
-          _removeTargetHighlightLater();
 
           return;
         }
@@ -1504,8 +1092,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         // KHONG CON TIN CU DE TIM
         // ========================================
 
-        if (!hasMoreOlder) {
-          targetErrorReason = 'not_found';
+        if (!messagesController.hasMoreOlder) {
+          targetController.setError('not_found');
 
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _showTargetNotFound();
@@ -1514,10 +1102,10 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
           return;
         }
 
-        final beforeId = messages.first['id']?.toString();
+        final beforeId = messagesController.messages.first['id']?.toString();
 
         if (beforeId == null || beforeId.isEmpty) {
-          targetErrorReason = 'not_found';
+          targetController.setError('not_found');
 
           _showTargetNotFound();
 
@@ -1528,34 +1116,35 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         // LOAD THEM MOT PAGE TIN CU
         // ========================================
 
-        final page = await backend.getConversationMessagesPage(
-          groupId: widget.groupId,
-
-          limit: targetSeekPageSize,
-
+        final page = await messagesController.fetchOlderPage(
           beforeId: beforeId,
+          limit: ChatTargetController.seekPageSize,
         );
 
         if (!mounted) {
           return;
         }
 
-        final older = _extractMessages(page['messages']);
+        final older = page.messages;
 
-        final uniqueOlder = older.where((incoming) {
-          return !messages.any((existing) => isSameMessage(existing, incoming));
-        }).toList();
+        final uniqueOlder = messagesController.uniqueAgainst(
+          messagesController.messages,
+
+          older,
+        );
 
         if (uniqueOlder.isEmpty) {
-          hasMoreOlder = false;
+          messagesController.markNoMoreOlder();
 
           continue;
         }
 
         setState(() {
-          messages = [...uniqueOlder, ...messages];
+          messagesController.prependOlderPage(
+            uniqueOlder,
 
-          hasMoreOlder = page['hasBefore'] == true;
+            hasBefore: page.hasBefore,
+          );
         });
 
         // ========================================
@@ -1580,36 +1169,24 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         // KHONG CHAY QUA TARGET DEN CUOI PAGE.
         // ========================================
 
-        final foundAfterLoad = _findTargetIndex();
+        final foundAfterLoad = targetController.findTargetIndex(
+          messagesController.messages,
+        );
 
         if (foundAfterLoad >= 0) {
-          setState(() {
-            targetIndex = foundAfterLoad;
-
-            targetErrorReason = null;
-          });
-
-          final centered = await _centerTargetMessage();
+          final activated = await _activateTargetAtIndex(foundAfterLoad);
 
           if (!mounted) {
             return;
           }
 
-          if (!centered) {
+          if (!activated) {
             debugPrint(
               'TARGET FOUND AFTER LOAD '
               'BUT CENTER FAILED: '
               'index=$foundAfterLoad',
             );
-
-            return;
           }
-
-          setState(() {
-            highlightTarget = true;
-          });
-
-          _removeTargetHighlightLater();
 
           return;
         }
@@ -1642,16 +1219,16 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         );
       }
     } finally {
-      seekingTarget = false;
+      targetController.finishSeeking();
 
       if (mounted) {
-        paginationReady = true;
+        messagesController.setPaginationReady(true);
       }
     }
   }
 
   Future<void> _jumpToQuotedMessage(Map<String, dynamic> quote) async {
-    if (seekingTarget) {
+    if (targetController.seekingTarget) {
       return;
     }
 
@@ -1683,17 +1260,13 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // BAT DAU CHE DO TIM TARGET
     // ========================================
 
-    targetHighlightTimer?.cancel();
+    targetController.cancelHighlightTimer();
 
     setState(() {
-      seekingTarget = true;
-
-      targetIndex = null;
-
-      highlightTarget = false;
+      targetController.beginSeeking(clearCurrentTarget: true);
     });
 
-    paginationReady = false;
+    messagesController.setPaginationReady(false);
 
     try {
       while (mounted) {
@@ -1701,28 +1274,22 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         // 1. TARGET DA DUOC LOAD CHUA?
         // ========================================
 
-        final foundIndex = _findMessageIndexByIds(
+        final foundIndex = targetController.findMessageIndexByIds(
+          messagesController.messages,
+
           msgId: quoteMsgId,
 
           cliMsgId: quoteCliMsgId,
         );
 
         if (foundIndex >= 0) {
-          setState(() {
-            targetIndex = foundIndex;
-          });
-
-          // ========================================
-          // DUA TIN GOC VAO GIUA MAN HINH
-          // ========================================
-
-          final centered = await _centerTargetMessage();
+          final activated = await _activateTargetAtIndex(foundIndex);
 
           if (!mounted) {
             return;
           }
 
-          if (!centered) {
+          if (!activated) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text(
@@ -1733,16 +1300,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
             return;
           }
-
-          // ========================================
-          // HIGHLIGHT SAU KHI DA CENTER
-          // ========================================
-
-          setState(() {
-            highlightTarget = true;
-          });
-
-          _removeTargetHighlightLater();
 
           debugPrint(
             'QUOTE TARGET FOUND: '
@@ -1759,7 +1316,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         // NHUNG KHONG CON HISTORY CU HON
         // ========================================
 
-        if (!hasMoreOlder || messages.isEmpty) {
+        if (!messagesController.hasMoreOlder ||
+            messagesController.messages.isEmpty) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -1775,44 +1333,45 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         // 3. LOAD THEM MESSAGE CU HON
         // ========================================
 
-        final beforeId = messages.first['id']?.toString();
+        final beforeId = messagesController.messages.first['id']?.toString();
 
         if (beforeId == null || beforeId.isEmpty) {
           return;
         }
 
-        final page = await backend.getConversationMessagesPage(
-          groupId: widget.groupId,
-
-          limit: targetSeekPageSize,
-
+        final page = await messagesController.fetchOlderPage(
           beforeId: beforeId,
+          limit: ChatTargetController.seekPageSize,
         );
 
         if (!mounted) {
           return;
         }
 
-        final older = _extractMessages(page['messages']);
+        final older = page.messages;
 
-        final uniqueOlder = older.where((incoming) {
-          return !messages.any((existing) => isSameMessage(existing, incoming));
-        }).toList();
+        final uniqueOlder = messagesController.uniqueAgainst(
+          messagesController.messages,
+
+          older,
+        );
 
         // ========================================
         // BACKEND KHONG TRA THEM DU LIEU
         // ========================================
 
         if (uniqueOlder.isEmpty) {
-          hasMoreOlder = false;
+          messagesController.markNoMoreOlder();
 
           continue;
         }
 
         setState(() {
-          messages = [...uniqueOlder, ...messages];
+          messagesController.prependOlderPage(
+            uniqueOlder,
 
-          hasMoreOlder = page['hasBefore'] == true;
+            hasBefore: page.hasBefore,
+          );
         });
 
         // ========================================
@@ -1833,16 +1392,16 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         );
       }
     } finally {
-      seekingTarget = false;
+      targetController.finishSeeking();
 
       if (mounted) {
-        paginationReady = true;
+        messagesController.setPaginationReady(true);
       }
     }
   }
 
   Future<bool> _centerTargetMessage() async {
-    if (targetIndex == null) {
+    if (targetController.targetIndex == null) {
       return false;
     }
 
@@ -1953,8 +1512,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
     debugPrint(
       'TARGET CENTER FAILED: '
-      'index=$targetIndex '
-      'messages=${messages.length} '
+      'index=${targetController.targetIndex} '
+      'messages=${messagesController.messages.length} '
       'pixels=${scrollController.position.pixels} '
       'max=${scrollController.position.maxScrollExtent}',
     );
@@ -1963,99 +1522,51 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   }
 
   Future<void> loadOlderMessages() async {
-    if (!paginationReady || loadingOlder || !hasMoreOlder || messages.isEmpty) {
+    if (!messagesController.canLoadOlder) {
       return;
     }
 
-    final beforeId = messages.first['id']?.toString();
+    // ========================================
+    // loadOlder() SE SET:
+    //
+    // loadingOlder = true
+    // paginationReady = false
+    //
+    // TRUOC await DAU TIEN.
+    // ========================================
 
-    if (beforeId == null || beforeId.isEmpty) {
-      return;
+    final loadFuture = messagesController.loadOlder();
+
+    if (mounted) {
+      setState(() {});
     }
-
-    loadingOlder = true;
-
-    // ========================================
-    // KHOA PAGINATION TRONG LUC LOAD
-    // ========================================
-
-    paginationReady = false;
 
     try {
-      final page = await backend.getConversationMessagesPage(
-        groupId: widget.groupId,
-
-        limit: pageSize,
-
-        beforeId: beforeId,
-      );
+      final addedCount = await loadFuture;
 
       if (!mounted) {
         return;
       }
 
-      final older = _extractMessages(page['messages']);
+      setState(() {
+        // ========================================
+        // NEU MESSAGE CU DUOC PREPEND
+        // THI TARGET INDEX HIEN TAI
+        // PHAI DICH THEO.
+        // ========================================
 
+        if (addedCount > 0) {
+          targetController.adjustAfterPrepend(addedCount);
+        }
+      });
+    } catch (error) {
       debugPrint(
-        'TARGET SEEK PAGE: '
-        'older=${older.length} '
-        'hasBefore=${page['hasBefore']} '
-        'currentTotal=${messages.length} '
-        'targetMsgId=${widget.targetMsgId} '
-        'targetCliMsgId=${widget.targetCliMsgId}',
+        'LOAD OLDER MESSAGES ERROR: '
+        '$error',
       );
 
-      // ========================================
-      // CHONG TRUNG MESSAGE
-      // ========================================
-
-      final uniqueOlder = older.where((incoming) {
-        return !messages.any((existing) => isSameMessage(existing, incoming));
-      }).toList();
-
-      setState(() {
-        if (uniqueOlder.isNotEmpty) {
-          // ========================================
-          // VAN GIU MESSAGES THEO THU TU:
-          //
-          // CU NHAT
-          // ...
-          // MOI NHAT
-          // ========================================
-
-          messages = [...uniqueOlder, ...messages];
-
-          // ========================================
-          // TARGET INDEX TRONG MANG BI DICH
-          // ========================================
-
-          if (targetIndex != null) {
-            targetIndex = targetIndex! + uniqueOlder.length;
-          }
-        }
-
-        hasMoreOlder = page['hasBefore'] == true;
-      });
-
-      // ========================================
-      // QUAN TRONG:
-      //
-      // KHONG CON:
-      // oldOffset
-      // oldMaxExtent
-      // newMaxExtent
-      // addedExtent
-      // jumpTo(...)
-      //
-      // reverse ListView SE TU GIU VI TRI
-      // ========================================
-    } catch (error) {
-      debugPrint('LOAD OLDER MESSAGES ERROR: $error');
-    } finally {
-      loadingOlder = false;
-
       if (mounted) {
-        paginationReady = true;
+        setState(() {});
       }
     }
   }
@@ -2075,32 +1586,31 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   }
 
   void _removeTargetHighlightLater() {
-    // Neu user bam mot quote khac
-    // trong luc target cu dang highlight,
-    // huy timer cu.
-    targetHighlightTimer?.cancel();
+    targetController.scheduleHighlightRemoval(
+      onExpired: () {
+        if (!mounted) {
+          return;
+        }
 
-    targetHighlightTimer = Timer(const Duration(seconds: 2), () {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        highlightTarget = false;
-      });
-    });
+        setState(() {});
+      },
+    );
   }
 
   void _showTargetNotFound() {
-    if (!mounted || targetNoticeShown) {
+    if (!mounted) {
       return;
     }
 
-    targetNoticeShown = true;
+    final canShow = targetController.markNoticeShown();
+
+    if (!canShow) {
+      return;
+    }
 
     String description;
 
-    switch (targetErrorReason) {
+    switch (targetController.targetErrorReason) {
       case 'recalled':
         description = 'Tin nhắn này đã được thu hồi.';
 
@@ -2151,159 +1661,13 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     );
   }
 
-  void startRealtime() {
-    realtimeSubscription?.cancel();
-
-    realtimeSubscription = backend.connectRealtime().listen(
-      (event) {
-        if (!mounted) {
-          return;
-        }
-
-        final type = event['type']?.toString();
-
-        // ========================================
-        // BACKEND VUA YEU CAU AUTH
-        // ========================================
-
-        if (type == 'auth_required') {
-          return;
-        }
-
-        // ========================================
-        // WEBSOCKET VUA KET NOI / KET NOI LAI
-        //
-        // CUC KY QUAN TRONG:
-        //
-        // Co the backend da sync old_messages
-        // TRUOC KHI Flutter WebSocket ket noi lai.
-        //
-        // Vi vay moi lan authenticated,
-        // ChatPage phai hoi backend lay latest.
-        //
-        // Nhu vay khong phu thuoc vao viec
-        // co nhan duoc conversation_history_synced
-        // hay khong.
-        // ========================================
-
-        if (type == 'authenticated') {
-          debugPrint(
-            'CHAT REALTIME AUTHENTICATED '
-            '-> reload latest messages',
-          );
-
-          scheduleRealtimeReload(force: true);
-
-          _scheduleMarkConversationRead();
-
-          return;
-        }
-
-        // ========================================
-        // BACKEND VUA DONG BO TIN NHAN BI LO
-        // ========================================
-
-        if (type == 'conversation_history_synced') {
-          final rawSyncData = event['data'];
-
-          if (rawSyncData is Map) {
-            final syncData = Map<String, dynamic>.from(rawSyncData);
-
-            final syncGroupId = syncData['groupId']?.toString();
-
-            // Chi reload neu history vua sync
-            // thuoc group dang mo.
-            if (syncGroupId == widget.groupId) {
-              debugPrint(
-                'CHAT HISTORY SYNCED: '
-                'group=$syncGroupId '
-                'count=${syncData['count']}',
-              );
-
-              scheduleRealtimeReload(force: true);
-            }
-          }
-
-          _scheduleMarkConversationRead();
-
-          return;
-        }
-
-        // ========================================
-        // AUTH LOI
-        // ========================================
-
-        if (type == 'auth_error') {
-          debugPrint('CHAT REALTIME AUTH ERROR');
-
-          return;
-        }
-
-        // ========================================
-        // MESSAGE REALTIME BINH THUONG
-        // ========================================
-
-        if (type != 'conversation_message' &&
-            type != 'conversation_message_updated') {
-          return;
-        }
-
-        final rawData = event['data'];
-
-        if (rawData is! Map) {
-          return;
-        }
-
-        final data = Map<String, dynamic>.from(rawData);
-
-        final eventGroupId = data['groupId']?.toString();
-
-        // ========================================
-        // CHI NHAN MESSAGE CUA GROUP DANG MO
-        // ========================================
-
-        if (eventGroupId != widget.groupId) {
-          return;
-        }
-
-        final rawMessage = data['message'];
-
-        if (rawMessage is! Map) {
-          scheduleRealtimeReload();
-
-          return;
-        }
-
-        final incoming = Map<String, dynamic>.from(rawMessage);
-
-        upsertRealtimeMessage(incoming);
-
-        // ========================================
-        // DANG MO DUNG GROUP NAY
-        // + APP DANG FOREGROUND
-        // + TIN CUA NGUOI KHAC
-        //
-        // -> COI LA DA DOC.
-        // ========================================
-
-        if (type == 'conversation_message' && incoming['isSelf'] != true) {
-          _scheduleMarkConversationRead();
-        }
-      },
-
-      onError: (error) {
-        debugPrint('CHAT REALTIME ERROR: $error');
-      },
-    );
-  }
-
   Future<void> _ensureHistoryScrollable({int attempt = 0}) async {
     if (!mounted ||
-        !paginationReady ||
-        loading ||
-        loadingOlder ||
-        !hasMoreOlder ||
-        messages.isEmpty) {
+        !messagesController.paginationReady ||
+        messagesController.loading ||
+        messagesController.loadingOlder ||
+        !messagesController.hasMoreOlder ||
+        messagesController.messages.isEmpty) {
       return;
     }
 
@@ -2313,7 +1677,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
     await WidgetsBinding.instance.endOfFrame;
 
-    if (!mounted) {
+    if (!mounted || !messagesController.hasMoreOlder || attempt >= 10) {
       return;
     }
 
@@ -2350,13 +1714,13 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
     debugPrint(
       'CHAT AUTO FILL OLDER: '
-      'messages=${messages.length} '
-      'hasMoreOlder=$hasMoreOlder',
+      'messages=${messagesController.messages.length} '
+      'hasMoreOlder=${messagesController.hasMoreOlder}',
     );
 
     await loadOlderMessages();
 
-    if (!mounted || !hasMoreOlder || attempt >= 10) {
+    if (!mounted || !messagesController.hasMoreOlder || attempt >= 10) {
       return;
     }
 
@@ -2368,134 +1732,66 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     await _ensureHistoryScrollable(attempt: attempt + 1);
   }
 
-  void scheduleRealtimeReload({bool force = false}) {
-    realtimeReloadTimer?.cancel();
+  void _requestLatestReload({bool force = false}) {
+    messagesController.scheduleLatestReload(
+      force: force,
 
-    realtimeReloadTimer = Timer(const Duration(milliseconds: 250), () async {
-      if (!mounted) {
-        return;
-      }
+      onApplied: _handleLatestReloadApplied,
 
-      // ========================================
-      // DANG XEM HISTORY CU
-      //
-      // REALTIME BINH THUONG:
-      // KHONG DUOC NHAY VE HIEN TAI.
-      //
-      // NHUNG NEU:
-      // - websocket vua reconnect
-      // - backend vua sync message bi lo
-      //
-      // force = true
-      // THI PHAI LAY LATEST.
-      // ========================================
+      onError: _handleLatestReloadError,
+    );
+  }
 
-      if (hasMoreNewer && !force) {
-        return;
-      }
+  void _handleLatestReloadApplied(ChatMessagesReloadResult result) {
+    if (!mounted) {
+      return;
+    }
 
-      try {
-        final page = await backend.getConversationMessagesPage(
-          groupId: widget.groupId,
+    // ========================================
+    // CONTROLLER DA MERGE DATA
+    //
+    // NHUNG UI CHUA REBUILD.
+    //
+    // VI VAY DAY VAN LA SCROLL POSITION CU,
+    // DUNG DE KIEM TRA USER CO GAN BOTTOM.
+    // ========================================
 
-          limit: pageSize,
-        );
+    final wasNearBottom =
+        !scrollController.hasClients ||
+        (scrollController.position.pixels -
+                scrollController.position.minScrollExtent) <
+            140;
 
+    setState(() {});
+
+    // ========================================
+    // NEU USER DANG O GAN CUOI CHAT
+    // THI GIU HO O CUOI SAU REBUILD.
+    // ========================================
+
+    if (wasNearBottom) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
         }
 
-        final latest = _extractMessages(page['messages']);
+        _scrollToBottom();
+      });
+    }
 
-        // ========================================
-        // USER CO DANG O GAN CUOI CHAT KHONG?
-        //
-        // reverse:true
-        // minScrollExtent = tin moi nhat.
-        // ========================================
+    debugPrint(
+      'CHAT REALTIME RELOAD DONE: '
+      'latest=${result.latestCount} '
+      'total=${result.totalCount} '
+      'force=${result.force}',
+    );
+  }
 
-        final wasNearBottom =
-            !scrollController.hasClients ||
-            (scrollController.position.pixels -
-                    scrollController.position.minScrollExtent) <
-                140;
-
-        setState(() {
-          for (final incoming in latest) {
-            final existingIndex = messages.indexWhere(
-              (existing) => isSameMessage(existing, incoming),
-            );
-
-            if (existingIndex >= 0) {
-              // ========================================
-              // MESSAGE DA CO
-              //
-              // UPDATE:
-              // - recall
-              // - thay doi server
-              // ========================================
-
-              messages[existingIndex] = incoming;
-            } else {
-              // ========================================
-              // MESSAGE MOI / MESSAGE VUA CATCH UP
-              // ========================================
-
-              messages.add(incoming);
-            }
-          }
-
-          // ========================================
-          // SAP XEP:
-          // CU NHAT -> MOI NHAT
-          // ========================================
-
-          messages.sort((a, b) {
-            final aTime = int.tryParse(a['timestamp']?.toString() ?? '') ?? 0;
-
-            final bTime = int.tryParse(b['timestamp']?.toString() ?? '') ?? 0;
-
-            return aTime.compareTo(bTime);
-          });
-
-          // Sau khi force lay latest,
-          // ta dang co dau moi nhat.
-          if (force) {
-            hasMoreNewer = false;
-          }
-        });
-
-        // ========================================
-        // NEU USER DANG O CUOI CHAT
-        // THI GIU MAN HINH O CUOI.
-        //
-        // NEU USER DANG DOC TIN CU
-        // THI KHONG KEo MAN HINH.
-        // ========================================
-
-        if (wasNearBottom) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) {
-              return;
-            }
-
-            _scrollToBottom();
-          });
-        }
-
-        debugPrint(
-          'CHAT REALTIME RELOAD DONE: '
-          'latest=${latest.length} '
-          'total=${messages.length} '
-          'force=$force',
-        );
-      } catch (error) {
-        debugPrint(
-          'CHAT REALTIME RELOAD ERROR: '
-          '$error',
-        );
-      }
-    });
+  void _handleLatestReloadError(Object error, StackTrace stackTrace) {
+    debugPrint(
+      'CHAT REALTIME RELOAD ERROR: '
+      '$error',
+    );
   }
 
   void upsertRealtimeMessage(Map<String, dynamic> incoming) {
@@ -2522,7 +1818,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // BUBBLE [Tin nhắn]
     // ========================================
 
-    if (!_shouldDisplayMessage(incoming)) {
+    if (!messagesController.shouldDisplayMessage(incoming)) {
       debugPrint(
         'CHAT SKIP NON-DISPLAY MESSAGE: '
         'msgId=${incoming['msgId']} '
@@ -2543,34 +1839,10 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                 scrollController.position.minScrollExtent) <
             140;
 
-    final index = messages.indexWhere((item) => isSameMessage(item, incoming));
-
-    // ========================================
-    // DANG XEM MOT DOAN HISTORY CU
-    //
-    // NEU PHIA SAU VAN CON MESSAGE CHUA LOAD,
-    // KHONG APPEND MOT MESSAGE REALTIME MOI VAO
-    // GIUA HISTORY.
-    // ========================================
-
-    if (index < 0 && hasMoreNewer) {
-      return;
-    }
+    late final ChatMessageUpsertResult upsertResult;
 
     setState(() {
-      if (index >= 0) {
-        // ========================================
-        // UPDATE MESSAGE DA CO
-        // ========================================
-
-        messages[index] = incoming;
-      } else {
-        // ========================================
-        // MESSAGE MOI
-        // ========================================
-
-        messages.add(incoming);
-      }
+      upsertResult = messagesController.upsertRealtime(incoming);
     });
 
     // ========================================
@@ -2578,7 +1850,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // -> TU DONG CUON THEO
     // ========================================
 
-    if (index < 0 && wasNearBottom && targetIndex == null) {
+    if (upsertResult == ChatMessageUpsertResult.inserted &&
+        wasNearBottom &&
+        targetController.targetIndex == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
@@ -2591,12 +1865,12 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
   bool _handleScrollNotification(ScrollNotification notification) {
     if (!mounted ||
-        !paginationReady ||
-        seekingTarget ||
-        loading ||
-        loadingOlder ||
-        messages.isEmpty ||
-        !hasMoreOlder) {
+        !messagesController.paginationReady ||
+        targetController.seekingTarget ||
+        messagesController.loading ||
+        messagesController.loadingOlder ||
+        messagesController.messages.isEmpty ||
+        !messagesController.hasMoreOlder) {
       return false;
     }
 
@@ -2643,67 +1917,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     }
 
     return false;
-  }
-
-  bool _shouldDisplayMessage(Map<String, dynamic> message) {
-    final status = message['status']?.toString() ?? 'normal';
-
-    if (status == 'deleted_local') {
-      return false;
-    }
-
-    if (status == 'recalled') {
-      return true;
-    }
-
-    final content = message['content']?.toString().trim() ?? '';
-
-    if (content.isNotEmpty) {
-      return true;
-    }
-
-    final msgType = message['msgType']?.toString().trim().toLowerCase() ?? '';
-
-    const stringAttachmentTypes = <String>{
-      'chat.photo',
-
-      'chat.sticker',
-
-      'chat.video',
-      'chat.video.msg',
-
-      'share.file',
-      'chat.file',
-      'chat.file.msg',
-
-      'chat.gif',
-
-      'chat.voice',
-      'chat.voice.msg',
-      'chat.audio',
-    };
-
-    if (stringAttachmentTypes.contains(msgType)) {
-      return true;
-    }
-
-    final numericType = int.tryParse(msgType);
-
-    const numericAttachmentTypes = <int>{31, 32, 44, 46, 49};
-
-    return numericType != null && numericAttachmentTypes.contains(numericType);
-  }
-
-  List<Map<String, dynamic>> _extractMessages(dynamic raw) {
-    if (raw is! List) {
-      return [];
-    }
-
-    return raw
-        .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
-        .where(_shouldDisplayMessage)
-        .toList();
   }
 
   Future<void> _jumpToBottomInitial({int attempt = 0}) async {
@@ -2756,184 +1969,23 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     return '$hour:$minute';
   }
 
-  Map<String, dynamic>? _extractQuote(Map<String, dynamic> message) {
-    // ========================================
-    // 1. rawData LA message.data TU zca-js
-    // ========================================
-
-    final raw = message['rawData'];
-
-    if (raw is Map) {
-      final rawMap = Map<String, dynamic>.from(raw);
-
-      final quote = rawMap['quote'];
-
-      if (quote is Map) {
-        return Map<String, dynamic>.from(quote);
-      }
-    }
-
-    // ========================================
-    // 2. FALLBACK NEU SAU NAY BACKEND
-    // DUA quote LEN CAP MESSAGE
-    // ========================================
-
-    final directQuote = message['quote'];
-
-    if (directQuote is Map) {
-      return Map<String, dynamic>.from(directQuote);
-    }
-
-    return null;
-  }
-
-  Map<String, dynamic>? _extractPhotoContent(Map<String, dynamic> message) {
-    final raw = message['rawData'];
-
-    if (raw is! Map) {
-      return null;
-    }
-
-    final rawMap = Map<String, dynamic>.from(raw);
-
-    final content = rawMap['content'];
-
-    if (content is! Map) {
-      return null;
-    }
-
-    return Map<String, dynamic>.from(content);
-  }
-
-  String? _extractPhotoUrl(Map<String, dynamic> message) {
-    final content = _extractPhotoContent(message);
-
-    if (content == null) {
-      return null;
-    }
-
-    // ========================================
-    // 1. HREF
-    //
-    // Payload that cua Zalo:
-    // content.href = URL anh.
-    // ========================================
-
-    final href = content['href']?.toString().trim();
-
-    if (href != null && href.isNotEmpty) {
-      return href;
-    }
-
-    // ========================================
-    // 2. FALLBACK THUMB
-    // ========================================
-
-    final thumb = content['thumb']?.toString().trim();
-
-    if (thumb != null && thumb.isNotEmpty) {
-      return thumb;
-    }
-
-    return null;
-  }
-
-  String _photoHeroTag(Map<String, dynamic> message) {
-    final id = message['id']?.toString().trim();
-
-    if (id != null && id.isNotEmpty) {
-      return 'chat-photo-$id';
-    }
-
-    final msgId = message['msgId']?.toString().trim();
-
-    if (msgId != null && msgId.isNotEmpty) {
-      return 'chat-photo-$msgId';
-    }
-
-    final cliMsgId = message['cliMsgId']?.toString().trim();
-
-    if (cliMsgId != null && cliMsgId.isNotEmpty) {
-      return 'chat-photo-$cliMsgId';
-    }
-
-    // ========================================
-    // FALLBACK ON DINH TRONG PHIEN APP
-    // ========================================
-
-    return 'chat-photo-${identityHashCode(message)}';
-  }
-
-  List<Map<String, dynamic>> _allLoadedPhotoMessages() {
-    final photos = messages.where((item) {
-      // ========================================
-      // CHI LAY PHOTO DANG TON TAI
-      // ========================================
-
-      final status = item['status']?.toString() ?? 'normal';
-
-      if (status != 'normal') {
-        return false;
-      }
-
-      if (!_isPhotoMessage(item)) {
-        return false;
-      }
-
-      final url = _extractPhotoUrl(item);
-
-      return url != null && url.isNotEmpty;
-    }).toList();
-
-    // ========================================
-    // SAP XEP THEO THOI GIAN CHAT
-    //
-    // CU -> MOI
-    //
-    // KHONG QUAN TAM:
-    // - album nao
-    // - mediaGroupId nao
-    // ========================================
-
-    photos.sort((a, b) {
-      final aTime = int.tryParse(a['timestamp']?.toString() ?? '') ?? 0;
-
-      final bTime = int.tryParse(b['timestamp']?.toString() ?? '') ?? 0;
-
-      // ========================================
-      // NEU CUNG TIMESTAMP
-      // THI DUNG THU TU TRONG ALBUM
-      // DE ANH KHONG BI DAO LON.
-      // ========================================
-
-      if (aTime == bTime) {
-        final aGroupIndex = _mediaGroupIndex(a) ?? 0;
-
-        final bGroupIndex = _mediaGroupIndex(b) ?? 0;
-
-        return aGroupIndex.compareTo(bGroupIndex);
-      }
-
-      return aTime.compareTo(bTime);
-    });
-
-    return photos;
-  }
-
   List<PhotoViewerItem> _buildPhotoViewerItems(
     List<Map<String, dynamic>> sourceMessages,
   ) {
     final result = <PhotoViewerItem>[];
 
     for (final message in sourceMessages) {
-      final photoUrl = _extractPhotoUrl(message);
+      final photoUrl = mediaController.extractPhotoUrl(message);
 
       if (photoUrl == null || photoUrl.isEmpty) {
         continue;
       }
 
       result.add(
-        PhotoViewerItem(url: photoUrl, heroTag: _photoHeroTag(message)),
+        PhotoViewerItem(
+          url: photoUrl,
+          heroTag: mediaController.photoHeroTag(message),
+        ),
       );
     }
 
@@ -2945,7 +1997,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // SO ANH TRUOC KHI LOAD THEM HISTORY
     // ========================================
 
-    final beforePhotos = _allLoadedPhotoMessages();
+    final beforePhotos = mediaController.allLoadedPhotoMessages(
+      messagesController.messages,
+    );
 
     final beforeCount = beforePhotos.length;
 
@@ -2960,7 +2014,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // KHONG LOAD TOAN BO HISTORY MOT LUC.
     // ========================================
 
-    while (mounted && hasMoreOlder && attempts < 6) {
+    while (mounted && messagesController.hasMoreOlder && attempts < 6) {
       attempts += 1;
 
       await loadOlderMessages();
@@ -2969,7 +2023,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         break;
       }
 
-      final currentPhotos = _allLoadedPhotoMessages();
+      final currentPhotos = mediaController.allLoadedPhotoMessages(
+        messagesController.messages,
+      );
 
       // ========================================
       // DA TIM THAY IT NHAT MOT ANH CU HON
@@ -2979,7 +2035,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         return PhotoViewerLoadResult(
           items: _buildPhotoViewerItems(currentPhotos),
 
-          hasMoreOlder: hasMoreOlder,
+          hasMoreOlder: messagesController.hasMoreOlder,
         );
       }
 
@@ -2987,17 +2043,19 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       // HET HISTORY
       // ========================================
 
-      if (!hasMoreOlder) {
+      if (!messagesController.hasMoreOlder) {
         break;
       }
     }
 
-    final photos = _allLoadedPhotoMessages();
+    final photos = mediaController.allLoadedPhotoMessages(
+      messagesController.messages,
+    );
 
     return PhotoViewerLoadResult(
       items: _buildPhotoViewerItems(photos),
 
-      hasMoreOlder: hasMoreOlder,
+      hasMoreOlder: messagesController.hasMoreOlder,
     );
   }
 
@@ -3008,7 +2066,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // KHONG PHAN BIET ALBUM.
     // ========================================
 
-    final sourceMessages = _allLoadedPhotoMessages();
+    final sourceMessages = mediaController.allLoadedPhotoMessages(
+      messagesController.messages,
+    );
 
     final viewerItems = _buildPhotoViewerItems(sourceMessages);
 
@@ -3022,7 +2082,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // TIM DUNG ANH USER VUA BAM
     // ========================================
 
-    final clickedHeroTag = _photoHeroTag(message);
+    final clickedHeroTag = mediaController.photoHeroTag(message);
 
     var initialIndex = viewerItems.indexWhere(
       (item) => item.heroTag == clickedHeroTag,
@@ -3049,7 +2109,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
             // ========================================
             // PAGINATION
             // ========================================
-            initialHasMoreOlder: hasMoreOlder,
+            initialHasMoreOlder: messagesController.hasMoreOlder,
 
             onLoadOlder: _loadOlderPhotoViewerItems,
           );
@@ -3062,229 +2122,14 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     );
   }
 
-  bool _isPhotoMessage(Map<String, dynamic> message) {
-    final msgType = message['msgType']?.toString().trim().toLowerCase() ?? '';
-
-    return msgType == 'chat.photo' || msgType == '32';
-  }
-
-  bool _isStickerMessage(Map<String, dynamic> message) {
-    final mediaType =
-        message['mediaType']?.toString().trim().toLowerCase() ?? '';
-
-    final msgType = message['msgType']?.toString().trim().toLowerCase() ?? '';
-
-    return mediaType == 'sticker' || msgType == 'chat.sticker';
-  }
-
-  bool _isVideoMessage(Map<String, dynamic> message) {
-    final mediaType =
-        message['mediaType']?.toString().trim().toLowerCase() ?? '';
-
-    final msgType = message['msgType']?.toString().trim().toLowerCase() ?? '';
-
-    return mediaType == 'video' ||
-        msgType == 'chat.video' ||
-        msgType == 'chat.video.msg' ||
-        msgType == '44';
-  }
-
-  bool _isFileMessage(Map<String, dynamic> message) {
-    final mediaType =
-        message['mediaType']?.toString().trim().toLowerCase() ?? '';
-
-    final msgType = message['msgType']?.toString().trim().toLowerCase() ?? '';
-
-    return mediaType == 'file' ||
-        msgType == 'share.file' ||
-        msgType == 'chat.file' ||
-        msgType == 'chat.file.msg' ||
-        msgType == '46';
-  }
-
-  String? _messageMediaUrl(Map<String, dynamic> message) {
-    final value = message['mediaUrl']?.toString().trim();
-
-    if (value == null || value.isEmpty) {
-      return null;
-    }
-
-    return value;
-  }
-
-  String? _messageMediaThumbUrl(Map<String, dynamic> message) {
-    final value = message['mediaThumbUrl']?.toString().trim();
-
-    if (value == null || value.isEmpty) {
-      return null;
-    }
-
-    return value;
-  }
-
-  Map<String, dynamic> _photoParams(Map<String, dynamic> message) {
-    final raw = message['rawData'];
-
-    if (raw is! Map) {
-      return {};
-    }
-
-    final rawMap = Map<String, dynamic>.from(raw);
-
-    final content = rawMap['content'];
-
-    if (content is! Map) {
-      return {};
-    }
-
-    final contentMap = Map<String, dynamic>.from(content);
-
-    final params = contentMap['params'];
-
-    if (params is Map) {
-      return Map<String, dynamic>.from(params);
-    }
-
-    if (params is String && params.trim().isNotEmpty) {
-      try {
-        final decoded = jsonDecode(params);
-
-        if (decoded is Map) {
-          return Map<String, dynamic>.from(decoded);
-        }
-      } catch (_) {
-        // Ignore malformed params.
-      }
-    }
-
-    return {};
-  }
-
-  String? _mediaGroupId(Map<String, dynamic> message) {
-    final direct = message['mediaGroupId']?.toString().trim();
-
-    if (direct != null && direct.isNotEmpty) {
-      return direct;
-    }
-
-    final params = _photoParams(message);
-
-    final grouped =
-        int.tryParse(
-          (params['is_group_layout'] ?? params['isGroupLayout'] ?? 0)
-              .toString(),
-        ) ==
-        1;
-
-    if (!grouped) {
-      return null;
-    }
-
-    final id = (params['group_layout_id'] ?? params['groupLayoutId'])
-        ?.toString()
-        .trim();
-
-    if (id == null || id.isEmpty) {
-      return null;
-    }
-
-    return id;
-  }
-
-  int? _mediaGroupIndex(Map<String, dynamic> message) {
-    final direct = int.tryParse(message['mediaGroupIndex']?.toString() ?? '');
-
-    if (direct != null) {
-      return direct;
-    }
-
-    final params = _photoParams(message);
-
-    return int.tryParse(
-      (params['id_in_group'] ?? params['idInGroup'] ?? '').toString(),
-    );
-  }
-
-  List<Map<String, dynamic>> _albumMessagesFor(Map<String, dynamic> message) {
-    final groupId = _mediaGroupId(message);
-
-    if (groupId == null) {
-      return [message];
-    }
-
-    final result = messages.where((item) {
-      if (item['status']?.toString() != 'normal') {
-        return false;
-      }
-
-      return _isPhotoMessage(item) && _mediaGroupId(item) == groupId;
-    }).toList();
-
-    result.sort((a, b) {
-      final aIndex = _mediaGroupIndex(a) ?? 999999;
-
-      final bIndex = _mediaGroupIndex(b) ?? 999999;
-
-      if (aIndex != bIndex) {
-        return aIndex.compareTo(bIndex);
-      }
-
-      return (int.tryParse(a['timestamp']?.toString() ?? '') ?? 0).compareTo(
-        int.tryParse(b['timestamp']?.toString() ?? '') ?? 0,
-      );
-    });
-
-    return result;
-  }
-
-  int _albumRenderIndex(String groupId) {
-    // ========================================
-    // NEU DANG TARGET MOT PHOTO TRONG ALBUM
-    // THI RENDER ALBUM TAI CHINH TARGET DO.
-    // ========================================
-
-    final target = targetIndex;
-
-    if (target != null &&
-        target >= 0 &&
-        target < messages.length &&
-        _mediaGroupId(messages[target]) == groupId) {
-      return target;
-    }
-
-    int bestIndex = -1;
-
-    int bestOrder = 999999;
-
-    for (var index = 0; index < messages.length; index += 1) {
-      final item = messages[index];
-
-      if (item['status']?.toString() != 'normal' ||
-          !_isPhotoMessage(item) ||
-          _mediaGroupId(item) != groupId) {
-        continue;
-      }
-
-      final order = _mediaGroupIndex(item) ?? 999998;
-
-      if (bestIndex < 0 || order < bestOrder) {
-        bestIndex = index;
-
-        bestOrder = order;
-      }
-    }
-
-    return bestIndex;
-  }
-
   Widget _buildStickerMessage(Map<String, dynamic> message) {
-    final stickerUrl = _messageMediaUrl(message);
+    final stickerUrl = mediaController.messageMediaUrl(message);
 
     return StickerMessageBubble(stickerUrl: stickerUrl);
   }
 
   Widget _buildVideoMessage(Map<String, dynamic> message) {
-    final thumbUrl = _messageMediaThumbUrl(message);
+    final thumbUrl = mediaController.messageMediaThumbUrl(message);
 
     final width = double.tryParse(message['mediaWidth']?.toString() ?? '');
 
@@ -3344,7 +2189,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // VOICE NAY CO DANG DUOC CHON KHONG
     // ========================================
 
-    final isCurrentVoice = playingVoiceUrl == url;
+    final isCurrentVoice = voiceController.isCurrent(url);
 
     // ========================================
     // DURATION TU MESSAGE
@@ -3366,13 +2211,11 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
     // ========================================
     // DURATION THUC TE
-    //
-    // Neu voice dang phat va AudioPlayer da biet
-    // duration -> dung duration cua player.
     // ========================================
 
-    final totalDuration = isCurrentVoice && voiceDuration > Duration.zero
-        ? voiceDuration
+    final totalDuration =
+        isCurrentVoice && voiceController.duration > Duration.zero
+        ? voiceController.duration
         : messageDuration;
 
     // ========================================
@@ -3380,21 +2223,17 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // ========================================
 
     final progress = isCurrentVoice && totalDuration.inMilliseconds > 0
-        ? (voicePosition.inMilliseconds / totalDuration.inMilliseconds)
+        ? (voiceController.position.inMilliseconds /
+                  totalDuration.inMilliseconds)
               .clamp(0.0, 1.0)
               .toDouble()
         : 0.0;
 
     // ========================================
-    // PLAYER CO THUC SU DANG PLAY KHONG
+    // PLAYER CO DANG PLAY VOICE NAY KHONG
     // ========================================
 
-    final isActuallyPlaying =
-        isCurrentVoice && voicePlayer.state == PlayerState.playing;
-
-    // ========================================
-    // UI
-    // ========================================
+    final isActuallyPlaying = voiceController.isVoicePlaying(url);
 
     return VoiceMessageBubble(
       samples: samples,
@@ -3406,7 +2245,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       isPlaying: isActuallyPlaying,
 
       onToggle: () {
-        _toggleVoice(url);
+        voiceController.toggle(url);
       },
     );
   }
@@ -3420,9 +2259,11 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // ALBUM
     // ========================================
 
-    final mediaGroupId = _mediaGroupId(message);
+    final mediaGroupId = mediaController.mediaGroupId(message);
 
-    final album = mediaGroupId != null ? _albumMessagesFor(message) : [message];
+    final album = mediaGroupId != null
+        ? mediaController.albumMessagesFor(messagesController.messages, message)
+        : [message];
 
     // ========================================
     // PHOTO UI
@@ -3431,11 +2272,11 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     final media = PhotoMessageBubble(
       album: album,
 
-      resolvePhotoUrl: _extractPhotoUrl,
+      resolvePhotoUrl: mediaController.extractPhotoUrl,
 
-      resolvePhotoParams: _photoParams,
+      resolvePhotoParams: mediaController.photoParams,
 
-      resolveHeroTag: _photoHeroTag,
+      resolveHeroTag: mediaController.photoHeroTag,
 
       onOpenPhoto: (selectedMessage) {
         _openPhotoViewer(selectedMessage);
@@ -3457,7 +2298,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // TARGET
     // ========================================
 
-    final isTarget = index == targetIndex;
+    final isTarget = index == targetController.targetIndex;
 
     // ========================================
     // ALBUM LAY TIME CUA ANH CUOI
@@ -3474,7 +2315,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
       isSelf: isSelf,
 
-      highlighted: isTarget && highlightTarget,
+      highlighted: isTarget && targetController.highlightTarget,
 
       senderName: senderName,
 
@@ -3509,7 +2350,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
     final senderName = message['senderName']?.toString() ?? 'Thành viên';
 
-    final isTarget = index == targetIndex;
+    final isTarget = index == targetController.targetIndex;
 
     final stableKey =
         message['id']?.toString() ??
@@ -3522,7 +2363,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
       isSelf: isSelf,
 
-      highlighted: isTarget && highlightTarget,
+      highlighted: isTarget && targetController.highlightTarget,
 
       senderName: senderName,
 
@@ -3557,9 +2398,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
     final status = message['status']?.toString() ?? 'normal';
 
-    final msgType = message['msgType']?.toString().trim().toLowerCase() ?? '';
-
-    final isPhoto = msgType == 'chat.photo' || msgType == '32';
+    final isPhoto = mediaController.isPhotoMessage(message);
 
     // ========================================
     // MESSAGE DA XOA KHONG DUOC RENDER
@@ -3581,8 +2420,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // -> GRID DOC LAP.
     // ========================================
 
-    if (status == 'normal' && _isPhotoMessage(message)) {
-      final mediaGroupId = _mediaGroupId(message);
+    if (status == 'normal' && mediaController.isPhotoMessage(message)) {
+      final mediaGroupId = mediaController.mediaGroupId(message);
 
       // ========================================
       // ALBUM:
@@ -3590,7 +2429,11 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       // ========================================
 
       if (mediaGroupId != null) {
-        final renderIndex = _albumRenderIndex(mediaGroupId);
+        final renderIndex = mediaController.albumRenderIndex(
+          messagesController.messages,
+          mediaGroupId,
+          targetIndex: targetController.targetIndex,
+        );
 
         if (renderIndex != index) {
           return const SizedBox.shrink();
@@ -3604,7 +2447,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // STICKER
     // ========================================
 
-    if (status == 'normal' && _isStickerMessage(message)) {
+    if (status == 'normal' && mediaController.isStickerMessage(message)) {
       return _buildSimpleMediaRow(
         message,
 
@@ -3618,7 +2461,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // VIDEO
     // ========================================
 
-    if (status == 'normal' && _isVideoMessage(message)) {
+    if (status == 'normal' && mediaController.isVideoMessage(message)) {
       return _buildSimpleMediaRow(message, index, _buildVideoMessage(message));
     }
 
@@ -3626,7 +2469,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // FILE
     // ========================================
 
-    if (status == 'normal' && _isFileMessage(message)) {
+    if (status == 'normal' && mediaController.isFileMessage(message)) {
       return _buildSimpleMediaRow(message, index, _buildFileMessage(message));
     }
 
@@ -3634,12 +2477,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // VOICE
     // ========================================
 
-    if (status == 'normal' &&
-        (message['mediaType']?.toString().trim().toLowerCase() == 'voice' ||
-            msgType == 'chat.voice' ||
-            msgType == 'chat.voice.msg' ||
-            msgType == 'chat.audio' ||
-            msgType == '31')) {
+    if (status == 'normal' && mediaController.isVoiceMessage(message)) {
       return _buildSimpleMediaRow(message, index, _buildVoiceMessage(message));
     }
 
@@ -3662,7 +2500,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // TARGET
     // ========================================
 
-    final isTarget = index == targetIndex;
+    final isTarget = index == targetController.targetIndex;
 
     final stableMessageId =
         message['id']?.toString() ??
@@ -3678,7 +2516,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     // msg   = noi dung tin goc
     // ========================================
 
-    final quote = _extractQuote(message);
+    final quote = replyController.extractQuote(message);
 
     final quoteSender = quote?['fromD']?.toString().trim();
 
@@ -3721,7 +2559,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
       isSelf: isSelf,
 
-      highlighted: isTarget && highlightTarget,
+      highlighted: isTarget && targetController.highlightTarget,
 
       swipeEnabled: status == 'normal',
 
@@ -3746,30 +2584,8 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   }
 
   Widget _buildMessageComposer() {
-    final disabled = loading || seekingTarget;
-
-    final reply = replyingToMessage;
-
-    String replySender = 'Tin nhắn';
-
-    String replyContent = '';
-
-    // ========================================
-    // REPLY DATA
-    // ========================================
-
-    if (reply != null) {
-      final isSelf = reply['isSelf'] == true;
-
-      replySender = isSelf
-          ? 'Bạn'
-          : (reply['senderName']?.toString() ?? 'Thành viên');
-
-      replyContent =
-          reply['content']?.toString() ??
-          reply['preview']?.toString() ??
-          '[Tin nhắn]';
-    }
+    final disabled =
+        messagesController.loading || targetController.seekingTarget;
 
     // ========================================
     // COMPOSER UI
@@ -3782,17 +2598,17 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
       disabled: disabled,
 
-      sendingMessage: sendingMessage,
+      sendingMessage: actionsController.sendingMessage,
 
-      sendingPhoto: sendingPhoto,
+      sendingPhoto: actionsController.sendingPhoto,
 
       canSendMessage: canSendMessage,
 
-      hasReply: reply != null,
+      hasReply: replyController.hasReply,
 
-      replySender: replySender,
+      replySender: replyController.composerSender,
 
-      replyContent: replyContent,
+      replyContent: replyController.composerContent,
 
       onCancelReply: _cancelReply,
 
@@ -3806,17 +2622,15 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   void dispose() {
     ChatStateService.instance.closeGroup();
 
-    WidgetsBinding.instance.removeObserver(this);
+    markReadController.dispose();
 
-    markReadTimer?.cancel();
+    messagesController.dispose();
 
-    realtimeSubscription?.cancel();
-
-    realtimeReloadTimer?.cancel();
-
-    targetHighlightTimer?.cancel();
+    targetController.dispose();
 
     topNoticeTimer?.cancel();
+
+    realtimeController.dispose();
 
     backend.disconnect();
 
@@ -3824,11 +2638,13 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
     messageController.dispose();
 
+    voiceController.removeListener(_handleVoiceControllerChanged);
+
+    voiceController.dispose();
+
     messageFocusNode.dispose();
 
     scrollController.dispose();
-
-    voicePlayer.dispose();
 
     super.dispose();
   }
@@ -3853,9 +2669,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
           Expanded(
             child: ChatBackground(
               child: ChatMessageList(
-                loading: loading,
+                loading: messagesController.loading,
 
-                messages: messages,
+                messages: messagesController.messages,
 
                 scrollController: scrollController,
 
