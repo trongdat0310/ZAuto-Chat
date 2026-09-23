@@ -12,7 +12,10 @@ class GroupApi extends BackendApiBase {
       return [];
     }
 
-    return rawGroups.map((item) => Map<String, dynamic>.from(item)).toList();
+    return rawGroups
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
   }
 
   Future<bool> toggleGroup(String groupId, bool enabled) async {
