@@ -76,6 +76,14 @@ class BackendApiBase {
   }
 
   dynamic _handleResponse(http.Response response) {
+    if (response.body.isEmpty) {
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {};
+      }
+
+      throw Exception('Request thất bại');
+    }
+
     dynamic decoded;
 
     try {

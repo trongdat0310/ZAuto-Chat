@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -15,6 +16,8 @@ class RealtimeApi {
   int _realtimeGeneration = 0;
 
   bool _manualRealtimeDisconnect = false;
+
+  Timer? _reconnectTimer;
 
   RealtimeApi({required this.auth, required this.webSocketUrl});
 
@@ -39,13 +42,7 @@ class RealtimeApi {
 
     int reconnectAttempt = 0;
 
-
-    while (
-    !_manualRealtimeDisconnect &&
-        generation ==
-            _realtimeGeneration
-    ) {
-
+    while (!_manualRealtimeDisconnect && generation == _realtimeGeneration) {
       WebSocketChannel? channel;
 
       try {
@@ -77,15 +74,10 @@ class RealtimeApi {
         // ========================================
 
         await channel.ready.timeout(
-          const Duration(
-            seconds: 5,
-          ),
+          const Duration(seconds: 5),
 
           onTimeout: () {
-
-            throw Exception(
-              'WebSocket handshake timeout',
-            );
+            throw Exception('WebSocket handshake timeout');
           },
         );
 
@@ -146,19 +138,14 @@ class RealtimeApi {
 
         debugPrint('REALTIME DISCONNECTED');
       } catch (error) {
-
-        reconnectAttempt += 1;
-
-
         debugPrint(
           'REALTIME CONNECTION ERROR: '
-              '$error',
+          '$error',
         );
-
 
         debugPrint(
           'REALTIME WILL RETRY '
-              '#$reconnectAttempt',
+          '#$reconnectAttempt',
         );
       } finally {
         if (identical(_channel, channel)) {
@@ -198,24 +185,21 @@ class RealtimeApi {
 
       debugPrint(
         'REALTIME RECONNECT IN 2s... '
-            'attempt=${reconnectAttempt + 1}',
+        'nextAttempt=${reconnectAttempt + 1}',
       );
 
-
-      await Future.delayed(const Duration(seconds: 2));
+      await _waitBeforeReconnect();
     }
   }
 
   void disconnect() {
-    // ========================================
-    // DAY LA USER / PAGE CHU DONG DONG SOCKET
-    //
-    // KHONG DUOC AUTO RECONNECT SAU DAY.
-    // ========================================
-
     _manualRealtimeDisconnect = true;
 
     _realtimeGeneration += 1;
+
+    _reconnectTimer?.cancel();
+
+    _reconnectTimer = null;
 
     final channel = _channel;
 
@@ -226,5 +210,17 @@ class RealtimeApi {
     } catch (_) {
       // Ignore.
     }
+  }
+
+  Future<void> _waitBeforeReconnect() async {
+    final completer = Completer<void>();
+
+    _reconnectTimer = Timer(const Duration(seconds: 2), () {
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    });
+
+    await completer.future;
   }
 }
