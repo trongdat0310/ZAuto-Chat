@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../../services/backend_service.dart';
+import '../../services/app_realtime_service.dart';
 
 class ChatRealtimeController {
-  final BackendService backend;
+  final AppRealtimeService realtimeService;
 
   final String groupId;
 
@@ -26,7 +26,7 @@ class ChatRealtimeController {
   bool _started = false;
 
   ChatRealtimeController({
-    required this.backend,
+    required this.realtimeService,
     required this.groupId,
     required this.onReloadRequested,
     required this.onMarkReadRequested,
@@ -44,7 +44,7 @@ class ChatRealtimeController {
 
     _started = true;
 
-    _subscription = backend.connectRealtime().listen(
+    _subscription = realtimeService.events.listen(
       _handleEvent,
 
       onError: (Object error) {

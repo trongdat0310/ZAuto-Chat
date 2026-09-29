@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import '../../services/backend_service.dart';
+import '../../services/app_realtime_service.dart';
 
 class HomeRealtimeHandler {
-  final BackendService backend;
+  final AppRealtimeService realtimeService;
 
   final void Function() onAuthenticated;
 
@@ -21,17 +21,14 @@ class HomeRealtimeHandler {
 
   bool _disposed = false;
 
+  bool _authFailed = false;
+
   HomeRealtimeHandler({
-    required this.backend,
-
+    required this.realtimeService,
     required this.onAuthenticated,
-
     required this.onAuthError,
-
     required this.onNewTrip,
-
     required this.onConnectionError,
-
     required this.onConnectionDone,
   });
 
@@ -42,7 +39,7 @@ class HomeRealtimeHandler {
 
     _started = true;
 
-    _subscription = backend.connectRealtime().listen(
+    _subscription = realtimeService.events.listen(
       (event) {
         if (_disposed) {
           return;
@@ -63,6 +60,8 @@ class HomeRealtimeHandler {
         // ========================================
 
         if (type == 'authenticated') {
+          _authFailed = false;
+
           onAuthenticated();
 
           return;
@@ -73,6 +72,8 @@ class HomeRealtimeHandler {
         // ========================================
 
         if (type == 'auth_error') {
+          _authFailed = true;
+
           onAuthError();
 
           return;
@@ -113,6 +114,19 @@ class HomeRealtimeHandler {
         _subscription = null;
         _started = false;
 
+        // ========================================
+        // AUTH ERROR DA DUOC BAO RIENG.
+        //
+        // KHONG GHI DE:
+        // "Xac thuc realtime that bai"
+        // BANG:
+        // "Backend da ngat ket noi".
+        // ========================================
+
+        if (_authFailed) {
+          return;
+        }
+
         onConnectionDone();
       },
     );
@@ -133,7 +147,5 @@ class HomeRealtimeHandler {
     if (subscription != null) {
       unawaited(subscription.cancel());
     }
-
-    backend.disconnect();
   }
 }

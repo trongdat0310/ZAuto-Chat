@@ -88,7 +88,12 @@ class RealtimeApi {
         }
 
         if (token == null || token.isEmpty) {
-          throw Exception('Chưa đăng nhập');
+          yield <String, dynamic>{
+            'type': 'auth_error',
+            'data': <String, dynamic>{'message': 'Chưa đăng nhập'},
+          };
+
+          return;
         }
 
         debugPrint('REALTIME CONNECTING...');
@@ -141,8 +146,39 @@ class RealtimeApi {
           try {
             final decoded = jsonDecode(rawEvent.toString());
 
-            if (decoded is Map) {
-              yield Map<String, dynamic>.from(decoded);
+            if (decoded is! Map) {
+              continue;
+            }
+
+            final event = Map<String, dynamic>.from(decoded);
+
+            final type = event['type']?.toString().trim();
+
+            // ========================================
+            // GUI EVENT VE UI TRUOC.
+            // ========================================
+
+            yield event;
+
+            // ========================================
+            // AUTH ERROR LA LOI TERMINAL.
+            //
+            // Backend da xac nhan JWT:
+            // - sai
+            // - het han
+            // - revoked
+            // - user khong con ton tai
+            //
+            // KHONG reconnect bang cung token.
+            // ========================================
+
+            if (type == 'auth_error') {
+              debugPrint(
+                'REALTIME AUTH FAILED '
+                '-> stop reconnect',
+              );
+
+              return;
             }
           } catch (error) {
             debugPrint(
