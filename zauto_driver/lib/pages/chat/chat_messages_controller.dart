@@ -35,6 +35,8 @@ class ChatMessagesController {
 
   Timer? _latestReloadTimer;
 
+  bool _reloadInFlight = false;
+
   bool _disposed = false;
 
   ChatMessagesController({required this.backend, required this.groupId});
@@ -67,6 +69,8 @@ class ChatMessagesController {
   // ========================================
 
   void reset() {
+    _latestReloadTimer?.cancel();
+
     messages = [];
 
     loading = true;
@@ -115,6 +119,10 @@ class ChatMessagesController {
         return;
       }
 
+      if (_reloadInFlight) {
+        return;
+      }
+
       // ========================================
       // DANG XEM HISTORY CU
       //
@@ -129,6 +137,8 @@ class ChatMessagesController {
       }
 
       try {
+        _reloadInFlight = true;
+
         final page = await fetchLatestPage();
 
         if (_disposed) {
@@ -158,6 +168,8 @@ class ChatMessagesController {
         }
 
         onError?.call(error, stackTrace);
+      } finally {
+        _reloadInFlight = false;
       }
     });
   }
@@ -187,6 +199,10 @@ class ChatMessagesController {
         loadedMessages: page.messages,
         hasBefore: page.hasBefore,
       );
+
+      if (_disposed) {
+        return;
+      }
     } catch (_) {
       failInitialLoad();
 
@@ -215,6 +231,10 @@ class ChatMessagesController {
 
     try {
       final page = await fetchOlderPage(beforeId: beforeId);
+
+      if (_disposed) {
+        return 0;
+      }
 
       final addedCount = prependOlderPage(
         page.messages,

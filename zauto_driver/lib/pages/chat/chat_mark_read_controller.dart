@@ -57,11 +57,12 @@ class ChatMarkReadController with WidgetsBindingObserver {
   // ========================================
 
   void schedule({bool immediate = false}) {
-    if (_disposed || !_appIsActive) {
+    if (_disposed || !_started || !_appIsActive) {
       return;
     }
 
     _markReadTimer?.cancel();
+    _markReadTimer = null;
 
     if (immediate) {
       unawaited(_markNow());
@@ -70,7 +71,9 @@ class ChatMarkReadController with WidgetsBindingObserver {
     }
 
     _markReadTimer = Timer(const Duration(milliseconds: 250), () {
-      if (_disposed || !_appIsActive) {
+      _markReadTimer = null;
+
+      if (_disposed || !_started || !_appIsActive) {
         return;
       }
 
@@ -83,15 +86,9 @@ class ChatMarkReadController with WidgetsBindingObserver {
   // ========================================
 
   Future<void> _markNow() async {
-    if (_disposed || !_appIsActive) {
+    if (_disposed || !_started || !_appIsActive) {
       return;
     }
-
-    // ========================================
-    // REQUEST CU DANG CHAY
-    //
-    // GHI NHO DE CHAY THEM MOT LAN.
-    // ========================================
 
     if (_markReadInFlight) {
       _markReadPending = true;
@@ -114,21 +111,9 @@ class ChatMarkReadController with WidgetsBindingObserver {
         return;
       }
 
-      // ========================================
-      // MARK READ LOI KHONG DUOC
-      // LAM HONG CHAT.
-      // ========================================
-
       debugPrint('CHAT MARK READ ERROR: $error');
     } finally {
       _markReadInFlight = false;
-
-      // ========================================
-      // TRONG LUC REQUEST DANG CHAY
-      // CO YEU CAU MARK READ KHAC.
-      //
-      // KHONG DUNG return TRONG finally.
-      // ========================================
 
       if (!_disposed && _markReadPending) {
         _markReadPending = false;
@@ -160,6 +145,7 @@ class ChatMarkReadController with WidgetsBindingObserver {
 
     if (!_appIsActive) {
       _markReadTimer?.cancel();
+      _markReadTimer = null;
 
       return;
     }
@@ -186,9 +172,9 @@ class ChatMarkReadController with WidgetsBindingObserver {
     }
 
     _disposed = true;
+    _appIsActive = false;
 
     _markReadTimer?.cancel();
-
     _markReadTimer = null;
 
     _markReadPending = false;

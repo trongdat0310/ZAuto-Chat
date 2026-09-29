@@ -2626,6 +2626,8 @@ class _ChatPageState extends State<ChatPage> {
 
     messagesController.dispose();
 
+    actionsController.dispose();
+
     targetController.dispose();
 
     topNoticeTimer?.cancel();
