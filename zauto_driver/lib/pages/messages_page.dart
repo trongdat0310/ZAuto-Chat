@@ -3,13 +3,21 @@ import 'package:flutter/material.dart';
 import '../config/app_config.dart';
 import '../services/backend_service.dart';
 import 'chat/chat_page.dart';
+import '../services/app_realtime_service.dart';
 
 import 'dart:async';
 
 class MessagesPage extends StatefulWidget {
   final VoidCallback onOpenSettings;
+  final AppRealtimeService realtimeService;
 
-  const MessagesPage({super.key, required this.onOpenSettings});
+  const MessagesPage({
+    super.key,
+
+    required this.realtimeService,
+
+    required this.onOpenSettings,
+  });
 
   @override
   State<MessagesPage> createState() => _MessagesPageState();
@@ -74,7 +82,7 @@ class _MessagesPageState extends State<MessagesPage>
 
     realtimeStarted = true;
 
-    realtimeSubscription = backend.connectRealtime().listen(
+    realtimeSubscription = widget.realtimeService.events.listen(
       (event) {
         if (realtimeDisposed) {
           return;
@@ -485,6 +493,8 @@ class _MessagesPageState extends State<MessagesPage>
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ChatPage(
+          realtimeService: widget.realtimeService,
+
           groupId: groupId,
 
           groupName: groupName,
@@ -621,6 +631,8 @@ class _MessagesPageState extends State<MessagesPage>
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ChatPage(
+          realtimeService: widget.realtimeService,
+
           groupId: groupId,
 
           groupName: groupName,
@@ -1406,8 +1418,6 @@ class _MessagesPageState extends State<MessagesPage>
 
     realtimeRefreshTimer?.cancel();
     realtimeRefreshTimer = null;
-
-    backend.disconnect();
 
     tabController.dispose();
     searchController.dispose();

@@ -4,13 +4,15 @@ import '../controllers/settings_controller.dart';
 
 import '../pages/home/home_page.dart';
 import '../pages/filter/filter_page.dart';
-
 import '../pages/account_page.dart';
 import '../pages/groups_page.dart';
 import '../pages/messages_page.dart';
 import '../pages/settings/settings_page.dart';
-
 import '../pages/zalo_link_page.dart';
+
+import '../config/app_config.dart';
+
+import '../services/app_realtime_service.dart';
 
 import 'zalo_required_page.dart';
 
@@ -42,6 +44,8 @@ class _MainScreenState extends State<MainScreen> {
   int currentIndex = 0;
 
   int filterInitialTab = 0;
+
+  late final AppRealtimeService realtimeService;
 
   SettingsController get settingsController => widget.settingsController;
 
@@ -115,9 +119,14 @@ class _MainScreenState extends State<MainScreen> {
 
       zaloLinked
           ? HomePage(
+              realtimeService: realtimeService,
+
               onOpenGroups: openGroupsFromHome,
+
               onOpenNotificationFilter: openNotificationFilter,
+
               onOpenAutoAcceptFilter: openAutoAcceptFilter,
+
               settingsController: settingsController,
             )
           : ZaloRequiredPage(onLinkZalo: openZaloLink),
@@ -126,7 +135,11 @@ class _MainScreenState extends State<MainScreen> {
       // 1. TIN NHAN
       // ========================================
       zaloLinked
-          ? MessagesPage(onOpenSettings: openSettingsFromMessages)
+          ? MessagesPage(
+              realtimeService: realtimeService,
+
+              onOpenSettings: openSettingsFromMessages,
+            )
           : ZaloRequiredPage(
               onLinkZalo: openZaloLink,
 
@@ -165,6 +178,23 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+
+    realtimeService = AppRealtimeService(baseUrl: AppConfig.backendUrl);
+
+    // ========================================
+    // DOI HOME + MESSAGES SUBSCRIBE XONG
+    // ROI MO SOCKET.
+    // ========================================
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      if (widget.user['zaloLinked'] == true) {
+        realtimeService.start();
+      }
+    });
   }
 
   @override
@@ -257,6 +287,18 @@ class _MainScreenState extends State<MainScreen> {
 
     if (oldLinked != newLinked) {
       currentIndex = 0;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+
+        if (newLinked) {
+          realtimeService.start();
+        } else {
+          realtimeService.stop();
+        }
+      });
     }
   }
 
@@ -288,5 +330,12 @@ class _MainScreenState extends State<MainScreen> {
     setState(() {
       currentIndex = 2;
     });
+  }
+
+  @override
+  void dispose() {
+    realtimeService.dispose();
+
+    super.dispose();
   }
 }

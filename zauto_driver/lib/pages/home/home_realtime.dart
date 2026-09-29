@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import '../../services/backend_service.dart';
+import '../../services/app_realtime_service.dart';
 
 class HomeRealtimeHandler {
-  final BackendService backend;
+  final AppRealtimeService realtimeService;
 
   final void Function() onAuthenticated;
 
@@ -24,16 +24,11 @@ class HomeRealtimeHandler {
   bool _authFailed = false;
 
   HomeRealtimeHandler({
-    required this.backend,
-
+    required this.realtimeService,
     required this.onAuthenticated,
-
     required this.onAuthError,
-
     required this.onNewTrip,
-
     required this.onConnectionError,
-
     required this.onConnectionDone,
   });
 
@@ -44,7 +39,7 @@ class HomeRealtimeHandler {
 
     _started = true;
 
-    _subscription = backend.connectRealtime().listen(
+    _subscription = realtimeService.events.listen(
       (event) {
         if (_disposed) {
           return;
@@ -152,7 +147,5 @@ class HomeRealtimeHandler {
     if (subscription != null) {
       unawaited(subscription.cancel());
     }
-
-    backend.disconnect();
   }
 }

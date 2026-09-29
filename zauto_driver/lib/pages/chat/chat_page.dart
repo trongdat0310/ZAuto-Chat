@@ -9,6 +9,7 @@ import '../../config/app_config.dart';
 
 import '../../services/backend_service.dart';
 import '../../services/chat_state_service.dart';
+import '../../services/app_realtime_service.dart';
 
 import 'chat_date_separator.dart';
 import 'chat_sender_avatar.dart';
@@ -49,8 +50,12 @@ class ChatPage extends StatefulWidget {
   final String? targetMsgId;
   final String? targetCliMsgId;
 
+  final AppRealtimeService realtimeService;
+
   const ChatPage({
     super.key,
+
+    required this.realtimeService,
 
     required this.groupId,
     required this.groupName,
@@ -193,7 +198,7 @@ class _ChatPageState extends State<ChatPage> {
     markReadController.start();
 
     realtimeController = ChatRealtimeController(
-      backend: backend,
+      realtimeService: widget.realtimeService,
 
       groupId: widget.groupId,
 
@@ -2633,8 +2638,6 @@ class _ChatPageState extends State<ChatPage> {
     topNoticeTimer?.cancel();
 
     realtimeController.dispose();
-
-    backend.disconnect();
 
     messageController.removeListener(_handleComposerChanged);
 

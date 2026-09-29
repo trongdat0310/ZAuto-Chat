@@ -9,60 +9,52 @@ import '../../controllers/settings_controller.dart';
 import '../../services/backend_service.dart';
 import '../../services/speech_service.dart';
 import '../../services/audio_service.dart';
+import '../../services/app_realtime_service.dart';
 
 import 'trip_card.dart';
 import 'home_notification.dart';
 import 'home_realtime.dart';
 
-class HomePage
-    extends StatefulWidget {
-
+class HomePage extends StatefulWidget {
   final SettingsController settingsController;
 
-  final Future<void> Function()onOpenGroups;
+  final Future<void> Function() onOpenGroups;
 
   final VoidCallback onOpenNotificationFilter;
 
   final VoidCallback onOpenAutoAcceptFilter;
 
+  final AppRealtimeService realtimeService;
 
   const HomePage({
     super.key,
 
+    required this.realtimeService,
     required this.onOpenGroups,
     required this.onOpenNotificationFilter,
     required this.onOpenAutoAcceptFilter,
     required this.settingsController,
   });
 
-
   @override
-  State<HomePage> createState() =>
-      _HomePageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
   // THAY IP NAY BANG IP MAY TINH CUA BAN
-  final BackendService backend =
-  BackendService(
-    baseUrl: AppConfig.backendUrl,
-  );
+  final BackendService backend = BackendService(baseUrl: AppConfig.backendUrl);
 
   late final HomeNotificationHandler notificationHandler;
 
   late final HomeRealtimeHandler realtimeHandler;
 
-  final SpeechService speechService =
-      SpeechService.instance;
+  final SpeechService speechService = SpeechService.instance;
 
-  final AudioService audioService =
-      AudioService.instance;
+  final AudioService audioService = AudioService.instance;
 
-  final List<Map<String, dynamic>>
-  activeTrips = [];
+  final List<Map<String, dynamic>> activeTrips = [];
 
-  final Map<String, Timer>
-  tripTimers = {};
+  final Map<String, Timer> tripTimers = {};
 
   int enabledGroupCount = 0;
   int totalGroupCount = 0;
@@ -70,8 +62,7 @@ class _HomePageState extends State<HomePage> {
   bool filterActive = false;
   int notificationFilterCount = 0;
 
-  String connectionStatus =
-      'Đang kết nối backend...';
+  String connectionStatus = 'Đang kết nối backend...';
 
   String? messageId;
 
@@ -96,432 +87,241 @@ class _HomePageState extends State<HomePage> {
 
     loadHomeSummary();
 
-    notificationHandler =
-        HomeNotificationHandler(
+    notificationHandler = HomeNotificationHandler(
+      settingsController: widget.settingsController,
 
-          settingsController:
-          widget.settingsController,
+      backend: backend,
 
-          backend:
-          backend,
+      audioService: audioService,
 
-          audioService:
-          audioService,
+      speechService: speechService,
+    );
 
-          speechService:
-          speechService,
-        );
+    realtimeHandler = HomeRealtimeHandler(
+      realtimeService: widget.realtimeService,
 
-    realtimeHandler =
-        HomeRealtimeHandler(
+      onAuthenticated: () {
+        if (!mounted) {
+          return;
+        }
 
-          backend:
-          backend,
+        setState(() {
+          connectionStatus = 'Đã kết nối realtime';
+        });
+      },
 
+      onAuthError: () {
+        if (!mounted) {
+          return;
+        }
 
-          onAuthenticated:
-              () {
+        setState(() {
+          connectionStatus = 'Xác thực realtime thất bại';
+        });
+      },
 
-            if (!mounted) {
-              return;
-            }
+      onNewTrip: (data) {
+        if (!mounted) {
+          return;
+        }
 
+        addTrip(data);
 
-            setState(() {
+        notificationHandler.handleTripNotificationSpeech(data);
+      },
 
-              connectionStatus =
-              'Đã kết nối realtime';
-            });
-          },
+      onConnectionError: () {
+        if (!mounted) {
+          return;
+        }
 
+        setState(() {
+          connectionStatus = 'Mất kết nối backend';
+        });
+      },
 
-          onAuthError:
-              () {
+      onConnectionDone: () {
+        if (!mounted) {
+          return;
+        }
 
-            if (!mounted) {
-              return;
-            }
-
-
-            setState(() {
-
-              connectionStatus =
-              'Xác thực realtime thất bại';
-            });
-          },
-
-
-          onNewTrip:
-              (
-              data,
-              ) {
-
-            if (!mounted) {
-              return;
-            }
-
-
-            addTrip(
-              data,
-            );
-
-            notificationHandler
-                .handleTripNotificationSpeech(
-              data,
-            );
-
-              },
-
-
-          onConnectionError:
-              () {
-
-            if (!mounted) {
-              return;
-            }
-
-
-            setState(() {
-
-              connectionStatus =
-              'Mất kết nối backend';
-            });
-          },
-
-
-          onConnectionDone:
-              () {
-
-            if (!mounted) {
-              return;
-            }
-
-
-            setState(() {
-
-              connectionStatus =
-              'Backend đã ngắt kết nối';
-            });
-          },
-        );
-
+        setState(() {
+          connectionStatus = 'Backend đã ngắt kết nối';
+        });
+      },
+    );
 
     realtimeHandler.start();
   }
 
   @override
   void didChangeDependencies() {
-
     super.didChangeDependencies();
 
-
-    if (
-    notificationInitialized
-    ) {
+    if (notificationInitialized) {
       return;
     }
-
 
     notificationInitialized = true;
 
-
-    notificationHandler.initialize(
-      context,
-    );
+    notificationHandler.initialize(context);
   }
 
-  Future<void> acceptTrip(
-      Map<String, dynamic> trip,
-      ) async {
+  Future<void> acceptTrip(Map<String, dynamic> trip) async {
+    final tripId = trip['id']?.toString();
 
-    final tripId =
-    trip['id']
-        ?.toString();
-
-
-    if (
-    tripId == null ||
-        tripId.isEmpty
-    ) {
+    if (tripId == null || tripId.isEmpty) {
       return;
     }
 
+    final currentStatus = trip['_uiStatus']?.toString();
 
-    final currentStatus =
-    trip['_uiStatus']
-        ?.toString();
-
-
-    if (
-    currentStatus ==
-        'accepting' ||
-        currentStatus ==
-            'ignoring' ||
-        currentStatus ==
-            'accepted'
-    ) {
+    if (currentStatus == 'accepting' ||
+        currentStatus == 'ignoring' ||
+        currentStatus == 'accepted') {
       return;
     }
 
-    tripTimers[
-    tripId
-    ]?.cancel();
+    tripTimers[tripId]?.cancel();
 
-    tripTimers.remove(
-      tripId,
-    );
+    tripTimers.remove(tripId);
 
     setState(() {
-      trip['_uiStatus'] =
-      'accepting';
+      trip['_uiStatus'] = 'accepting';
     });
 
-
     try {
-
-      await backend
-          .acceptMessage(
+      await backend.acceptMessage(
         tripId,
 
-        replyText:
-        widget
-            .settingsController
-            .settings
-            .acceptReplyText,
+        replyText: widget.settingsController.settings.acceptReplyText,
       );
-
 
       if (!mounted) {
         return;
       }
 
-
       setState(() {
-        trip['_uiStatus'] =
-        'accepted';
+        trip['_uiStatus'] = 'accepted';
       });
-
 
       // ========================================
       // CHO NGUOI DUNG THAY "DA NHAN"
       // ROI MOI BIEN MAT
       // ========================================
 
-      await Future.delayed(
-        const Duration(
-          milliseconds: 1500,
-        ),
-      );
-
+      await Future.delayed(const Duration(milliseconds: 1500));
 
       if (!mounted) {
         return;
       }
 
-
-      removeTrip(
-        tripId,
-      );
-
+      removeTrip(tripId);
     } catch (error) {
-
       if (!mounted) {
         return;
       }
-
 
       setState(() {
-        trip['_uiStatus'] =
-        'new';
+        trip['_uiStatus'] = 'new';
       });
 
-
-      ScaffoldMessenger
-          .of(context)
-          .showSnackBar(
-        SnackBar(
-          content:
-          Text(
-            'Không thể nhận cuốc: $error',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Không thể nhận cuốc: $error')));
     }
   }
 
   Future<void> loadHomeSummary() async {
-
     try {
+      final groups = await backend.getGroups();
 
-      final groups =
-      await backend.getGroups();
-
-
-      final filters =
-      await backend.getFilters();
-
+      final filters = await backend.getFilters();
 
       if (!mounted) {
         return;
       }
 
-
-      final includeKeywords =
-      filters['includeKeywords'];
-
+      final includeKeywords = filters['includeKeywords'];
 
       setState(() {
+        totalGroupCount = groups.length;
 
-        totalGroupCount =
-            groups.length;
+        enabledGroupCount = groups
+            .where((group) => group['enabled'] == true)
+            .length;
 
+        filterActive = filters['enabled'] == true;
 
-        enabledGroupCount =
-            groups
-                .where(
-                  (group) =>
-              group['enabled'] ==
-                  true,
-            )
-                .length;
-
-
-        filterActive =
-            filters['enabled'] ==
-                true;
-
-
-        notificationFilterCount =
-        includeKeywords is List
+        notificationFilterCount = includeKeywords is List
             ? includeKeywords.length
             : 0;
       });
-
     } catch (error) {
-
-      debugPrint(
-        'HOME SUMMARY ERROR: $error',
-      );
+      debugPrint('HOME SUMMARY ERROR: $error');
     }
   }
 
   Future<void> openGroups() async {
-
-    await widget
-        .onOpenGroups();
-
+    await widget.onOpenGroups();
 
     if (!mounted) {
       return;
     }
 
-
     await loadHomeSummary();
   }
 
-  Future<void> ignoreTrip(
-      Map<String, dynamic> trip,
-      ) async {
+  Future<void> ignoreTrip(Map<String, dynamic> trip) async {
+    final tripId = trip['id']?.toString();
 
-    final tripId =
-    trip['id']
-        ?.toString();
-
-
-    if (
-    tripId == null ||
-        tripId.isEmpty
-    ) {
+    if (tripId == null || tripId.isEmpty) {
       return;
     }
 
+    final currentStatus = trip['_uiStatus']?.toString();
 
-    final currentStatus =
-    trip['_uiStatus']
-        ?.toString();
-
-
-    if (
-    currentStatus ==
-        'accepting' ||
-        currentStatus ==
-            'ignoring'
-    ) {
+    if (currentStatus == 'accepting' || currentStatus == 'ignoring') {
       return;
     }
 
-    tripTimers[
-    tripId
-    ]?.cancel();
+    tripTimers[tripId]?.cancel();
 
-    tripTimers.remove(
-      tripId,
-    );
+    tripTimers.remove(tripId);
 
     setState(() {
-      trip['_uiStatus'] =
-      'ignoring';
+      trip['_uiStatus'] = 'ignoring';
     });
 
-
     try {
-
-      await backend
-          .ignoreMessage(
-        tripId,
-      );
-
+      await backend.ignoreMessage(tripId);
 
       if (!mounted) {
         return;
       }
-
 
       setState(() {
-        trip['_uiStatus'] =
-        'ignored';
+        trip['_uiStatus'] = 'ignored';
       });
 
-
-      await Future.delayed(
-        const Duration(
-          milliseconds: 1000,
-        ),
-      );
-
+      await Future.delayed(const Duration(milliseconds: 1000));
 
       if (!mounted) {
         return;
       }
 
-
-      removeTrip(
-        tripId,
-      );
-
+      removeTrip(tripId);
     } catch (error) {
-
       if (!mounted) {
         return;
       }
 
-
       setState(() {
-        trip['_uiStatus'] =
-        'new';
+        trip['_uiStatus'] = 'new';
       });
 
-
-      ScaffoldMessenger
-          .of(context)
-          .showSnackBar(
-        SnackBar(
-          content:
-          Text(
-            'Không thể bỏ qua cuốc: $error',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Không thể bỏ qua cuốc: $error')));
     }
   }
 
@@ -529,10 +329,7 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     realtimeHandler.dispose();
 
-    for (
-    final timer
-    in tripTimers.values
-    ) {
+    for (final timer in tripTimers.values) {
       timer.cancel();
     }
 
@@ -541,45 +338,24 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  void addTrip(
-      Map<String, dynamic> trip,
-      ) {
+  void addTrip(Map<String, dynamic> trip) {
+    final tripId = trip['id']?.toString();
 
-    final tripId =
-    trip['id']
-        ?.toString();
-
-
-    if (
-    tripId == null ||
-        tripId.isEmpty
-    ) {
+    if (tripId == null || tripId.isEmpty) {
       return;
     }
-
 
     // ========================================
     // KHONG THEM TRUNG CUOC
     // ========================================
 
-    final existed =
-    activeTrips.any(
-          (item) =>
-      item['id']
-          ?.toString() ==
-          tripId,
-    );
-
+    final existed = activeTrips.any((item) => item['id']?.toString() == tripId);
 
     if (existed) {
       return;
     }
 
-
-    final newTrip =
-    Map<String, dynamic>.from(
-      trip,
-    );
+    final newTrip = Map<String, dynamic>.from(trip);
 
     // Trang thai rieng cho UI.
     newTrip['_uiStatus'] = 'new';
@@ -588,157 +364,86 @@ class _HomePageState extends State<HomePage> {
     // COUNTDOWN RIENG CUA CUOC
     // ========================================
     newTrip['_remainingSeconds'] =
-        widget
-            .settingsController
-            .settings
-            .tripDisplaySeconds;
+        widget.settingsController.settings.tripDisplaySeconds;
 
     setState(() {
-
       // ADD CUOI DANH SACH
       // → cuoc moi nam ben duoi
-      activeTrips.add(
-        newTrip,
-      );
+      activeTrips.add(newTrip);
     });
-
 
     // ========================================
     // AUTO HIDE SAU THOI GIAN CAI DAT
     // ========================================
 
     // ========================================
-// COUNTDOWN TIMER
-// MOI CUOC CO TIMER RIENG
-// ========================================
+    // COUNTDOWN TIMER
+    // MOI CUOC CO TIMER RIENG
+    // ========================================
 
-    tripTimers[
-    tripId
-    ]?.cancel();
+    tripTimers[tripId]?.cancel();
 
+    tripTimers[tripId] = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
 
-    tripTimers[
-    tripId
-    ] = Timer.periodic(
+        return;
+      }
 
-      const Duration(
-        seconds: 1,
-      ),
+      // ========================================
+      // TIM CUOC TRONG DANH SACH
+      // ========================================
 
-          (
-          timer,
-          ) {
+      final index = activeTrips.indexWhere(
+        (item) => item['id']?.toString() == tripId,
+      );
 
-        if (!mounted) {
+      // Cuoc da bi xoa bang NHAN / BO QUA.
+      if (index == -1) {
+        timer.cancel();
 
-          timer.cancel();
+        tripTimers.remove(tripId);
 
-          return;
-        }
+        return;
+      }
 
+      final currentRemaining = activeTrips[index]['_remainingSeconds'] is int
+          ? activeTrips[index]['_remainingSeconds'] as int
+          : widget.settingsController.settings.tripDisplaySeconds;
 
-        // ========================================
-        // TIM CUOC TRONG DANH SACH
-        // ========================================
+      final nextRemaining = currentRemaining - 1;
 
-        final index =
-        activeTrips.indexWhere(
-              (
-              item,
-              ) =>
-          item['id']
-              ?.toString() ==
-              tripId,
-        );
+      // ========================================
+      // HET GIO
+      // ========================================
 
+      if (nextRemaining <= 0) {
+        removeTrip(tripId);
 
-        // Cuoc da bi xoa bang NHAN / BO QUA.
-        if (
-        index == -1
-        ) {
+        return;
+      }
 
-          timer.cancel();
+      // ========================================
+      // CAP NHAT COUNTDOWN
+      // ========================================
 
-          tripTimers.remove(
-            tripId,
-          );
-
-          return;
-        }
-
-
-        final currentRemaining =
-        activeTrips[index]['_remainingSeconds']
-        is int
-            ? activeTrips[index]['_remainingSeconds'] as int
-            : widget
-            .settingsController
-            .settings
-            .tripDisplaySeconds;
-
-
-        final nextRemaining =
-            currentRemaining - 1;
-
-
-        // ========================================
-        // HET GIO
-        // ========================================
-
-        if (
-        nextRemaining <= 0
-        ) {
-
-          removeTrip(
-            tripId,
-          );
-
-          return;
-        }
-
-
-        // ========================================
-        // CAP NHAT COUNTDOWN
-        // ========================================
-
-        setState(() {
-
-          activeTrips[index][
-          '_remainingSeconds'
-          ] =
-              nextRemaining;
-        });
-      },
-    );
+      setState(() {
+        activeTrips[index]['_remainingSeconds'] = nextRemaining;
+      });
+    });
   }
 
-  void removeTrip(
-      String tripId,
-      ) {
+  void removeTrip(String tripId) {
+    tripTimers[tripId]?.cancel();
 
-    tripTimers[
-    tripId
-    ]?.cancel();
-
-
-    tripTimers.remove(
-      tripId,
-    );
-
+    tripTimers.remove(tripId);
 
     if (!mounted) {
       return;
     }
 
-
     setState(() {
-
-      activeTrips.removeWhere(
-            (trip) =>
-        trip['id']
-            ?.toString() ==
-            tripId,
-      );
+      activeTrips.removeWhere((trip) => trip['id']?.toString() == tripId);
     });
   }
 
@@ -749,28 +454,16 @@ class _HomePageState extends State<HomePage> {
     required VoidCallback onTap,
     String? trailingText,
   }) {
-
-    final colorScheme =
-        Theme.of(context)
-            .colorScheme;
-
+    final colorScheme = Theme.of(context).colorScheme;
 
     return InkWell(
-      onTap:
-      onTap,
+      onTap: onTap,
 
-      child:
-      Padding(
-        padding:
-        const EdgeInsets.symmetric(
-          horizontal: 18,
-          vertical: 16,
-        ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
 
-        child:
-        Row(
+        child: Row(
           children: [
-
             // ========================================
             // ICON
             // ========================================
@@ -779,114 +472,62 @@ class _HomePageState extends State<HomePage> {
               width: 54,
               height: 54,
 
-              decoration:
-              BoxDecoration(
-                color:
-                colorScheme
-                    .primaryContainer,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
 
-                borderRadius:
-                BorderRadius.circular(
-                  16,
-                ),
+                borderRadius: BorderRadius.circular(16),
               ),
 
-              child:
-              Icon(
-                icon,
-
-                color:
-                colorScheme
-                    .primary,
-
-                size: 28,
-              ),
+              child: Icon(icon, color: colorScheme.primary, size: 28),
             ),
 
-
-            const SizedBox(
-              width: 16,
-            ),
-
+            const SizedBox(width: 16),
 
             // ========================================
             // TEXT
             // ========================================
-
             Expanded(
-              child:
-              Column(
-                crossAxisAlignment:
-                CrossAxisAlignment.start,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
 
                 children: [
-
                   Text(
                     title,
 
-                    style:
-                    const TextStyle(
+                    style: const TextStyle(
                       fontSize: 17,
-                      fontWeight:
-                      FontWeight.w600,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
 
-
-                  const SizedBox(
-                    height: 4,
-                  ),
-
+                  const SizedBox(height: 4),
 
                   Text(
                     subtitle,
 
-                    style:
-                    TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
 
-                      color:
-                      colorScheme
-                          .onSurfaceVariant,
+                      color: colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
               ),
             ),
 
-
-            if (
-            trailingText != null
-            ) ...[
-
-              const SizedBox(
-                width: 10,
-              ),
-
+            if (trailingText != null) ...[
+              const SizedBox(width: 10),
 
               Text(
                 trailingText,
 
-                style:
-                TextStyle(
-                  fontSize: 16,
-
-                  color:
-                  colorScheme
-                      .primary,
-                ),
+                style: TextStyle(fontSize: 16, color: colorScheme.primary),
               ),
             ],
 
+            const SizedBox(width: 6),
 
-            const SizedBox(
-              width: 6,
-            ),
-
-
-            const Icon(
-              Icons.chevron_right,
-            ),
+            const Icon(Icons.chevron_right),
           ],
         ),
       ),
@@ -894,45 +535,23 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget buildIdleHome() {
-
-    final colorScheme =
-        Theme.of(context)
-            .colorScheme;
-
+    final colorScheme = Theme.of(context).colorScheme;
 
     String notificationFilterText;
 
-
-    if (
-    !filterActive ||
-        notificationFilterCount == 0
-    ) {
-
-      notificationFilterText =
-      'Chưa bật bộ lọc nào — mọi cuốc đều hiện';
-
+    if (!filterActive || notificationFilterCount == 0) {
+      notificationFilterText = 'Chưa bật bộ lọc nào — mọi cuốc đều hiện';
     } else {
-
       notificationFilterText =
-      '$notificationFilterCount điều kiện lọc đang hoạt động';
+          '$notificationFilterCount điều kiện lọc đang hoạt động';
     }
 
-
     return SafeArea(
-      child:
-      Padding(
-        padding:
-        const EdgeInsets.fromLTRB(
-          20,
-          14,
-          20,
-          16,
-        ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
 
-        child:
-        Column(
+        child: Column(
           children: [
-
             // ========================================
             // TOP COUNTERS
             // LUON LUON HIEN
@@ -940,140 +559,70 @@ class _HomePageState extends State<HomePage> {
 
             Row(
               children: [
+                Icon(Icons.touch_app_outlined, color: colorScheme.primary),
 
-                Icon(
-                  Icons.touch_app_outlined,
+                const SizedBox(width: 8),
 
-                  color:
-                  colorScheme.primary,
-                ),
+                const Text('0/0', style: TextStyle(fontSize: 17)),
 
+                const SizedBox(width: 28),
 
-                const SizedBox(
-                  width: 8,
-                ),
+                Icon(Icons.chat_bubble_outline, color: colorScheme.primary),
 
+                const SizedBox(width: 8),
 
-                const Text(
-                  '0/0',
-
-                  style:
-                  TextStyle(
-                    fontSize: 17,
-                  ),
-                ),
-
-
-                const SizedBox(
-                  width: 28,
-                ),
-
-
-                Icon(
-                  Icons.chat_bubble_outline,
-
-                  color:
-                  colorScheme.primary,
-                ),
-
-
-                const SizedBox(
-                  width: 8,
-                ),
-
-
-                const Text(
-                  '0/0',
-
-                  style:
-                  TextStyle(
-                    fontSize: 17,
-                  ),
-                ),
-
+                const Text('0/0', style: TextStyle(fontSize: 17)),
 
                 const Spacer(),
 
-
                 TextButton(
-                  onPressed:
-                      () {
+                  onPressed: () {
                     // Upgrade se lam sau.
                   },
 
-                  child:
-                  const Text(
-                    'Nâng cấp',
-                  ),
+                  child: const Text('Nâng cấp'),
                 ),
               ],
             ),
 
+            const SizedBox(height: 14),
 
-            const SizedBox(
-              height: 14,
-            ),
+            const Divider(height: 1),
 
-
-            const Divider(
-              height: 1,
-            ),
-
-
-            const SizedBox(
-              height: 18,
-            ),
-
+            const SizedBox(height: 18),
 
             // ========================================
             // KHONG CO CUOC
             // ========================================
-
-            if (
-            activeTrips.isEmpty
-            ) ...[
-
+            if (activeTrips.isEmpty) ...[
               // ----------------------------------------
               // DANG LANG NGHE
               // ----------------------------------------
 
               Row(
                 children: [
-
                   Container(
                     width: 9,
                     height: 9,
 
-                    decoration:
-                    BoxDecoration(
-                      shape:
-                      BoxShape.circle,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
 
-                      color:
-                      connectionStatus ==
-                          'Đã kết nối realtime'
+                      color: connectionStatus == 'Đã kết nối realtime'
                           ? Colors.green
                           : Colors.grey,
                     ),
                   ),
 
-
-                  const SizedBox(
-                    width: 12,
-                  ),
-
+                  const SizedBox(width: 12),
 
                   Text(
-                    connectionStatus ==
-                        'Đã kết nối realtime'
+                    connectionStatus == 'Đã kết nối realtime'
                         ? 'Đang lắng nghe'
                         : connectionStatus,
 
-                    style:
-                    TextStyle(
-                      color:
-                      colorScheme
-                          .onSurfaceVariant,
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
 
                       fontSize: 15,
                     ),
@@ -1081,108 +630,72 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
 
-
               // ----------------------------------------
               // KHOANG TRONG
               // ----------------------------------------
-
               const Spacer(),
-
 
               // ========================================
               // SETTINGS
               // CHI HIEN KHI KHONG CO CUOC
               // ========================================
-
               Card(
-                clipBehavior:
-                Clip.antiAlias,
+                clipBehavior: Clip.antiAlias,
 
-                child:
-                Column(
+                child: Column(
                   children: [
-
                     // ==================================
                     // NHOM NHAN THONG BAO
                     // ==================================
 
                     homeSettingItem(
-                      icon:
-                      Icons.notifications_none,
+                      icon: Icons.notifications_none,
 
-                      title:
-                      'Nhóm nhận thông báo',
+                      title: 'Nhóm nhận thông báo',
 
-                      subtitle:
-                      'Chỉ cuốc từ nhóm đã bật mới hiện ở đây',
+                      subtitle: 'Chỉ cuốc từ nhóm đã bật mới hiện ở đây',
 
-                      trailingText:
-                      '$enabledGroupCount/$totalGroupCount',
+                      trailingText: '$enabledGroupCount/$totalGroupCount',
 
-                      onTap:
-                      openGroups,
+                      onTap: openGroups,
                     ),
 
-
-                    const Divider(
-                      height: 1,
-                    ),
-
+                    const Divider(height: 1),
 
                     // ==================================
                     // BO LOC THONG BAO
                     // ==================================
-
                     homeSettingItem(
-                      icon:
-                      Icons.tune,
+                      icon: Icons.tune,
 
-                      title:
-                      'Bộ lọc thông báo',
+                      title: 'Bộ lọc thông báo',
 
-                      subtitle:
-                      notificationFilterText,
+                      subtitle: notificationFilterText,
 
-                      onTap:
-                      widget
-                          .onOpenNotificationFilter,
+                      onTap: widget.onOpenNotificationFilter,
                     ),
 
-
-                    const Divider(
-                      height: 1,
-                    ),
-
+                    const Divider(height: 1),
 
                     // ==================================
                     // TU DONG NHAN
                     // ==================================
-
                     homeSettingItem(
-                      icon:
-                      Icons.bolt,
+                      icon: Icons.bolt,
 
-                      title:
-                      'Bộ lọc tự động nhận',
+                      title: 'Bộ lọc tự động nhận',
 
                       subtitle:
-                      'Chưa bật bộ lọc nào — không cuốc nào được tự nhận',
+                          'Chưa bật bộ lọc nào — không cuốc nào được tự nhận',
 
-                      onTap:
-                      widget
-                          .onOpenAutoAcceptFilter,
+                      onTap: widget.onOpenAutoAcceptFilter,
                     ),
                   ],
                 ),
               ),
 
-
-              const Spacer(
-                flex: 2,
-              ),
-
+              const Spacer(flex: 2),
             ] else ...[
-
               // ========================================
               // CO CUOC
               //
@@ -1196,47 +709,27 @@ class _HomePageState extends State<HomePage> {
               // ========================================
 
               Expanded(
-                child:
-                ListView.builder(
-                  padding:
-                  const EdgeInsets.only(
-                    bottom: 16,
-                  ),
+                child: ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 16),
 
-                  physics:
-                  const AlwaysScrollableScrollPhysics(),
+                  physics: const AlwaysScrollableScrollPhysics(),
 
-                  itemCount:
-                  activeTrips.length,
+                  itemCount: activeTrips.length,
 
-                  itemBuilder:
-                      (
-                      context,
-                      index,
-                      ) {
+                  itemBuilder: (context, index) {
+                    return TripCard(
+                      trip: activeTrips[index],
 
-                        return TripCard(
+                      settingsController: widget.settingsController,
 
-                          trip:
-                          activeTrips[index],
+                      onAccept: () {
+                        acceptTrip(activeTrips[index]);
+                      },
 
-                          settingsController:
-                          widget.settingsController,
-
-                          onAccept:
-                              () {
-                            acceptTrip(
-                              activeTrips[index],
-                            );
-                          },
-
-                          onIgnore:
-                              () {
-                            ignoreTrip(
-                              activeTrips[index],
-                            );
-                          },
-                        );
+                      onIgnore: () {
+                        ignoreTrip(activeTrips[index]);
+                      },
+                    );
                   },
                 ),
               ),
@@ -1248,15 +741,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
-  Widget build(
-      BuildContext context,
-      ) {
-
+  Widget build(BuildContext context) {
     return buildIdleHome();
   }
-
-
-
-
 }
-
