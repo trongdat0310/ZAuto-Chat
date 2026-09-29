@@ -21,6 +21,8 @@ class HomeRealtimeHandler {
 
   bool _disposed = false;
 
+  bool _authFailed = false;
+
   HomeRealtimeHandler({
     required this.backend,
 
@@ -63,6 +65,8 @@ class HomeRealtimeHandler {
         // ========================================
 
         if (type == 'authenticated') {
+          _authFailed = false;
+
           onAuthenticated();
 
           return;
@@ -73,6 +77,8 @@ class HomeRealtimeHandler {
         // ========================================
 
         if (type == 'auth_error') {
+          _authFailed = true;
+
           onAuthError();
 
           return;
@@ -112,6 +118,19 @@ class HomeRealtimeHandler {
 
         _subscription = null;
         _started = false;
+
+        // ========================================
+        // AUTH ERROR DA DUOC BAO RIENG.
+        //
+        // KHONG GHI DE:
+        // "Xac thuc realtime that bai"
+        // BANG:
+        // "Backend da ngat ket noi".
+        // ========================================
+
+        if (_authFailed) {
+          return;
+        }
 
         onConnectionDone();
       },
