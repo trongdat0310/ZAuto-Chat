@@ -21,6 +21,8 @@ class ChatRealtimeController {
 
   StreamSubscription<Map<String, dynamic>>? _subscription;
 
+  bool _disposed = false;
+
   ChatRealtimeController({
     required this.backend,
     required this.groupId,
@@ -34,6 +36,10 @@ class ChatRealtimeController {
   // ========================================
 
   void start() {
+    if (_disposed) {
+      return;
+    }
+
     final previous = _subscription;
 
     _subscription = null;
@@ -46,6 +52,10 @@ class ChatRealtimeController {
       _handleEvent,
 
       onError: (Object error) {
+        if (_disposed) {
+          return;
+        }
+
         debugPrint('CHAT REALTIME ERROR: $error');
       },
     );
@@ -56,6 +66,10 @@ class ChatRealtimeController {
   // ========================================
 
   void _handleEvent(Map<String, dynamic> event) {
+    if (_disposed) {
+      return;
+    }
+
     final type = event['type']?.toString();
 
     // ========================================
@@ -201,6 +215,12 @@ class ChatRealtimeController {
   // ========================================
 
   void dispose() {
+    if (_disposed) {
+      return;
+    }
+
+    _disposed = true;
+
     final subscription = _subscription;
 
     _subscription = null;

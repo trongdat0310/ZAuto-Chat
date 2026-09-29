@@ -34,7 +34,9 @@ class ChatVoiceController extends ChangeNotifier {
 
   Duration get duration => _duration;
 
-  bool get isPlaying => _player.state == PlayerState.playing;
+  bool get isPlaying {
+    return !_disposed && _player.state == PlayerState.playing;
+  }
 
   // ========================================
   // SETUP PLAYER
@@ -70,6 +72,8 @@ class ChatVoiceController extends ChangeNotifier {
 
       _position = Duration.zero;
 
+      _duration = Duration.zero;
+
       notifyListeners();
     });
   }
@@ -79,6 +83,10 @@ class ChatVoiceController extends ChangeNotifier {
   // ========================================
 
   Future<void> toggle(String url) async {
+    if (_disposed) {
+      return;
+    }
+
     final trimmedUrl = url.trim();
 
     if (trimmedUrl.isEmpty) {
@@ -137,10 +145,18 @@ class ChatVoiceController extends ChangeNotifier {
   // ========================================
 
   bool isCurrent(String url) {
+    if (_disposed) {
+      return false;
+    }
+
     return _playingUrl == url.trim();
   }
 
   bool isVoicePlaying(String url) {
+    if (_disposed) {
+      return false;
+    }
+
     return isCurrent(url) && _player.state == PlayerState.playing;
   }
 
@@ -150,6 +166,10 @@ class ChatVoiceController extends ChangeNotifier {
 
   @override
   void dispose() {
+    if (_disposed) {
+      return;
+    }
+
     _disposed = true;
 
     final positionSubscription = _positionSubscription;
@@ -163,6 +183,12 @@ class ChatVoiceController extends ChangeNotifier {
     _durationSubscription = null;
 
     _completeSubscription = null;
+
+    _playingUrl = null;
+
+    _position = Duration.zero;
+
+    _duration = Duration.zero;
 
     if (positionSubscription != null) {
       unawaited(positionSubscription.cancel());

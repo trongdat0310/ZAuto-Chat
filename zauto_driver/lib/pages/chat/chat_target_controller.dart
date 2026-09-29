@@ -19,6 +19,8 @@ class ChatTargetController {
 
   Timer? _highlightTimer;
 
+  bool _disposed = false;
+
   ChatTargetController({
     required this.targetMsgId,
     required this.targetCliMsgId,
@@ -41,6 +43,12 @@ class ChatTargetController {
   // ========================================
 
   void resetForLoad() {
+    if (_disposed) {
+      return;
+    }
+
+    cancelHighlightTimer();
+
     seekingTarget = false;
 
     targetIndex = null;
@@ -50,8 +58,6 @@ class ChatTargetController {
     targetErrorReason = null;
 
     targetNoticeShown = false;
-
-    cancelHighlightTimer();
   }
 
   // ========================================
@@ -59,9 +65,15 @@ class ChatTargetController {
   // ========================================
 
   void beginSeeking({bool clearCurrentTarget = false}) {
+    if (_disposed) {
+      return;
+    }
+
     seekingTarget = true;
 
     if (clearCurrentTarget) {
+      cancelHighlightTimer();
+
       targetIndex = null;
 
       highlightTarget = false;
@@ -73,6 +85,10 @@ class ChatTargetController {
   // ========================================
 
   void finishSeeking() {
+    if (_disposed) {
+      return;
+    }
+
     seekingTarget = false;
   }
 
@@ -81,6 +97,10 @@ class ChatTargetController {
   // ========================================
 
   void setFound(int index) {
+    if (_disposed) {
+      return;
+    }
+
     targetIndex = index;
 
     targetErrorReason = null;
@@ -91,6 +111,10 @@ class ChatTargetController {
   // ========================================
 
   void setError(String? reason) {
+    if (_disposed) {
+      return;
+    }
+
     targetErrorReason = reason;
   }
 
@@ -99,10 +123,18 @@ class ChatTargetController {
   // ========================================
 
   void showHighlight() {
+    if (_disposed) {
+      return;
+    }
+
     highlightTarget = true;
   }
 
   void hideHighlight() {
+    if (_disposed) {
+      return;
+    }
+
     highlightTarget = false;
   }
 
@@ -113,10 +145,18 @@ class ChatTargetController {
   }
 
   void scheduleHighlightRemoval({required void Function() onExpired}) {
+    if (_disposed) {
+      return;
+    }
+
     cancelHighlightTimer();
 
     _highlightTimer = Timer(const Duration(seconds: 2), () {
       _highlightTimer = null;
+
+      if (_disposed) {
+        return;
+      }
 
       highlightTarget = false;
 
@@ -129,28 +169,25 @@ class ChatTargetController {
   // ========================================
 
   void adjustAfterMessageRemoval(int removeIndex) {
+    if (_disposed) {
+      return;
+    }
+
     final currentTarget = targetIndex;
 
     if (currentTarget == null) {
       return;
     }
 
-    // ========================================
-    // XOA DUNG TARGET
-    // ========================================
-
     if (currentTarget == removeIndex) {
+      cancelHighlightTimer();
+
       targetIndex = null;
 
       highlightTarget = false;
 
       return;
     }
-
-    // ========================================
-    // XOA MESSAGE NAM TRUOC TARGET
-    // -> INDEX TARGET GIAM 1
-    // ========================================
 
     if (removeIndex < currentTarget) {
       targetIndex = currentTarget - 1;
@@ -162,6 +199,10 @@ class ChatTargetController {
   // ========================================
 
   void adjustAfterPrepend(int addedCount) {
+    if (_disposed) {
+      return;
+    }
+
     if (addedCount <= 0 || targetIndex == null) {
       return;
     }
@@ -174,13 +215,17 @@ class ChatTargetController {
   // ========================================
 
   void clearCurrentTarget() {
+    if (_disposed) {
+      return;
+    }
+
+    cancelHighlightTimer();
+
     targetIndex = null;
 
     highlightTarget = false;
 
     targetErrorReason = null;
-
-    cancelHighlightTimer();
   }
 
   // ========================================
@@ -224,6 +269,10 @@ class ChatTargetController {
   // ========================================
 
   bool markNoticeShown() {
+    if (_disposed) {
+      return false;
+    }
+
     if (targetNoticeShown) {
       return false;
     }
@@ -270,6 +319,16 @@ class ChatTargetController {
   // ========================================
 
   void dispose() {
+    if (_disposed) {
+      return;
+    }
+
+    _disposed = true;
+
     cancelHighlightTimer();
+
+    seekingTarget = false;
+
+    highlightTarget = false;
   }
 }
