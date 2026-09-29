@@ -23,6 +23,8 @@ class ChatRealtimeController {
 
   bool _disposed = false;
 
+  bool _started = false;
+
   ChatRealtimeController({
     required this.backend,
     required this.groupId,
@@ -36,17 +38,11 @@ class ChatRealtimeController {
   // ========================================
 
   void start() {
-    if (_disposed) {
+    if (_disposed || _started) {
       return;
     }
 
-    final previous = _subscription;
-
-    _subscription = null;
-
-    if (previous != null) {
-      unawaited(previous.cancel());
-    }
+    _started = true;
 
     _subscription = backend.connectRealtime().listen(
       _handleEvent,
@@ -58,7 +54,30 @@ class ChatRealtimeController {
 
         debugPrint('CHAT REALTIME ERROR: $error');
       },
+
+      onDone: () {
+        if (_disposed) {
+          return;
+        }
+
+        _subscription = null;
+        _started = false;
+
+        debugPrint('CHAT REALTIME STREAM DONE');
+      },
     );
+  }
+
+  bool _isCurrentGroup(dynamic value) {
+    final eventGroupId = value?.toString().trim() ?? '';
+
+    final currentGroupId = groupId.trim();
+
+    if (eventGroupId.isEmpty || currentGroupId.isEmpty) {
+      return false;
+    }
+
+    return eventGroupId == currentGroupId;
   }
 
   // ========================================
@@ -107,30 +126,38 @@ class ChatRealtimeController {
     if (type == 'conversation_history_synced') {
       final rawSyncData = event['data'];
 
-      if (rawSyncData is Map) {
-        final syncData = Map<String, dynamic>.from(rawSyncData);
-
-        final syncGroupId = syncData['groupId']?.toString();
-
-        // ========================================
-        // CHI RELOAD NEU LA GROUP DANG MO
-        // ========================================
-
-        if (syncGroupId == groupId) {
-          debugPrint(
-            'CHAT HISTORY SYNCED: '
-            'group=$syncGroupId '
-            'count=${syncData['count']}',
-          );
-
-          onReloadRequested(true);
-        }
+      if (rawSyncData is! Map) {
+        return;
       }
 
+      final syncData = Map<String, dynamic>.from(rawSyncData);
+
+      final syncGroupId = syncData['groupId']?.toString().trim();
+
       // ========================================
-      // GIU NGUYEN HANH VI CU CUA CHATP PAGE:
-      // history synced -> schedule mark read.
+      // EVENT HISTORY CUA GROUP KHAC
+      //
+      // KHONG:
+      // - reload group dang mo
+      // - mark read group dang mo
       // ========================================
+
+      if (!_isCurrentGroup(syncGroupId)) {
+        return;
+      }
+
+      debugPrint(
+        'CHAT HISTORY SYNCED: '
+        'group=$syncGroupId '
+        'count=${syncData['count']}',
+      );
+
+      // ========================================
+      // CHI GROUP DANG MO MOI DUOC RELOAD
+      // VA MARK READ.
+      // ========================================
+
+      onReloadRequested(true);
 
       onMarkReadRequested();
 
@@ -164,13 +191,9 @@ class ChatRealtimeController {
 
     final data = Map<String, dynamic>.from(rawData);
 
-    final eventGroupId = data['groupId']?.toString();
+    final eventGroupId = data['groupId']?.toString().trim();
 
-    // ========================================
-    // CHI MESSAGE CUA GROUP DANG MO
-    // ========================================
-
-    if (eventGroupId != groupId) {
+    if (!_isCurrentGroup(eventGroupId)) {
       return;
     }
 
@@ -220,6 +243,7 @@ class ChatRealtimeController {
     }
 
     _disposed = true;
+    _started = false;
 
     final subscription = _subscription;
 

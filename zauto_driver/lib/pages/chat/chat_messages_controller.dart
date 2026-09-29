@@ -7,7 +7,16 @@ class ChatMessagesPageData {
 
   final bool hasBefore;
 
-  const ChatMessagesPageData({required this.messages, required this.hasBefore});
+  final bool hasAfter;
+
+  final bool anchorFound;
+
+  const ChatMessagesPageData({
+    required this.messages,
+    required this.hasBefore,
+    required this.hasAfter,
+    required this.anchorFound,
+  });
 }
 
 class ChatMessagesReloadResult {
@@ -36,6 +45,12 @@ class ChatMessagesController {
   Timer? _latestReloadTimer;
 
   bool _reloadInFlight = false;
+
+  bool _scheduledReloadForce = false;
+
+  bool _reloadPending = false;
+
+  bool _reloadPendingForce = false;
 
   bool _disposed = false;
 
@@ -71,6 +86,14 @@ class ChatMessagesController {
   void reset() {
     _latestReloadTimer?.cancel();
 
+    _latestReloadTimer = null;
+
+    _scheduledReloadForce = false;
+
+    _reloadPending = false;
+
+    _reloadPendingForce = false;
+
     messages = [];
 
     loading = true;
@@ -103,51 +126,101 @@ class ChatMessagesController {
 
   void scheduleLatestReload({
     bool force = false,
-
     required void Function(ChatMessagesReloadResult result) onApplied,
-
     void Function(Object error, StackTrace stackTrace)? onError,
   }) {
     if (_disposed) {
       return;
     }
 
+    // ========================================
+    // DANG CO REQUEST CHAY
+    //
+    // KHONG BO MAT REQUEST MOI.
+    // GHI NHO DE CHAY LAI SAU.
+    // ========================================
+
+    if (_reloadInFlight) {
+      _reloadPending = true;
+
+      _reloadPendingForce = _reloadPendingForce || force;
+
+      return;
+    }
+
+    // ========================================
+    // NHIEU EVENT DEN TRONG 250ms:
+    //
+    // force=true CO DO UU TIEN CAO HON.
+    // ========================================
+
+    _scheduledReloadForce = _scheduledReloadForce || force;
+
     _latestReloadTimer?.cancel();
 
     _latestReloadTimer = Timer(const Duration(milliseconds: 250), () async {
+      _latestReloadTimer = null;
+
       if (_disposed) {
         return;
       }
 
+      // ========================================
+      // CO REQUEST KHAC VUA BAT DAU
+      // TRUOC TIMER NAY.
+      // ========================================
+
       if (_reloadInFlight) {
+        _reloadPending = true;
+
+        _reloadPendingForce = _reloadPendingForce || _scheduledReloadForce;
+
+        _scheduledReloadForce = false;
+
         return;
       }
 
+      final effectiveForce = _scheduledReloadForce;
+
+      _scheduledReloadForce = false;
+
       // ========================================
-      // DANG XEM HISTORY CU
+      // DANG O HISTORY CO KHOANG NEWER.
       //
-      // REALTIME BINH THUONG KHONG DUOC
-      // NHAY VE LATEST.
-      //
-      // force=true DUOC PHEP LAY LATEST.
+      // NORMAL realtime reload KHONG DUOC
+      // TU Y NHAY VE LATEST.
       // ========================================
 
-      if (hasMoreNewer && !force) {
+      if (hasMoreNewer && !effectiveForce) {
         return;
       }
+
+      _reloadInFlight = true;
 
       try {
-        _reloadInFlight = true;
+        int latestCount;
 
-        final page = await fetchLatestPage();
+        // ========================================
+        // FORCE:
+        // reconnect / history synced /
+        // photo fallback
+        //
+        // -> catch-up bang afterId.
+        // ========================================
 
-        if (_disposed) {
-          return;
+        if (effectiveForce) {
+          latestCount = await catchUpNewerMessages();
+        } else {
+          final page = await fetchLatestPage();
+
+          if (_disposed) {
+            return;
+          }
+
+          mergeLatest(page.messages, force: false);
+
+          latestCount = page.messages.length;
         }
-
-        final latest = page.messages;
-
-        mergeLatest(latest, force: force);
 
         if (_disposed) {
           return;
@@ -155,11 +228,9 @@ class ChatMessagesController {
 
         onApplied(
           ChatMessagesReloadResult(
-            latestCount: latest.length,
-
+            latestCount: latestCount,
             totalCount: messages.length,
-
-            force: force,
+            force: effectiveForce,
           ),
         );
       } catch (error, stackTrace) {
@@ -170,6 +241,27 @@ class ChatMessagesController {
         onError?.call(error, stackTrace);
       } finally {
         _reloadInFlight = false;
+
+        // ========================================
+        // TRONG LUC REQUEST DANG CHAY
+        // CO EVENT KHAC DEN.
+        //
+        // CHAY THEM MOT LAN.
+        // ========================================
+
+        if (!_disposed && _reloadPending) {
+          final pendingForce = _reloadPendingForce;
+
+          _reloadPending = false;
+
+          _reloadPendingForce = false;
+
+          scheduleLatestReload(
+            force: pendingForce,
+            onApplied: onApplied,
+            onError: onError,
+          );
+        }
       }
     });
   }
@@ -183,6 +275,13 @@ class ChatMessagesController {
     int limit = pageSize,
   }) async {
     return _fetchPage(limit: limit, beforeId: beforeId);
+  }
+
+  Future<ChatMessagesPageData> fetchNewerPage({
+    required String afterId,
+    int limit = pageSize,
+  }) async {
+    return _fetchPage(limit: limit, afterId: afterId);
   }
 
   // ========================================
@@ -254,11 +353,13 @@ class ChatMessagesController {
   Future<ChatMessagesPageData> _fetchPage({
     required int limit,
     String? beforeId,
+    String? afterId,
   }) async {
     final page = await backend.getConversationMessagesPage(
       groupId: groupId,
       limit: limit,
       beforeId: beforeId,
+      afterId: afterId,
     );
 
     final loadedMessages = extractMessages(page['messages']);
@@ -266,6 +367,8 @@ class ChatMessagesController {
     return ChatMessagesPageData(
       messages: loadedMessages,
       hasBefore: page['hasBefore'] == true,
+      hasAfter: page['hasAfter'] == true,
+      anchorFound: page['anchorFound'] != false,
     );
   }
 
@@ -393,6 +496,160 @@ class ChatMessagesController {
     messages.add(incoming);
 
     return ChatMessageUpsertResult.inserted;
+  }
+
+  // ========================================
+  // RECONNECT CATCH-UP
+  //
+  // Lay TAT CA message moi hon message
+  // cuoi cung Flutter dang co.
+  //
+  // Khong bi gioi han o latest 50.
+  // ========================================
+
+  Future<int> catchUpNewerMessages() async {
+    if (_disposed) {
+      return 0;
+    }
+
+    // ========================================
+    // CHUA CO MESSAGE
+    // -> FALLBACK LATEST PAGE
+    // ========================================
+
+    if (messages.isEmpty) {
+      final page = await fetchLatestPage();
+
+      if (_disposed) {
+        return 0;
+      }
+
+      messages = page.messages;
+
+      hasMoreOlder = page.hasBefore;
+
+      hasMoreNewer = false;
+
+      loading = false;
+
+      return page.messages.length;
+    }
+
+    var afterId = messages.last['id']?.toString().trim() ?? '';
+
+    // ========================================
+    // BACKEND CURSOR DUNG internal id.
+    //
+    // Neu message cuoi khong co id
+    // thi fallback latest page.
+    // ========================================
+
+    if (afterId.isEmpty) {
+      return _fallbackLatestPage();
+    }
+
+    var fetchedCount = 0;
+
+    // ========================================
+    // FAILSAFE:
+    // 100 page x 50 = toi da 5000 message
+    // cho mot lan catch-up.
+    // ========================================
+
+    for (var pageNumber = 0; pageNumber < 100; pageNumber += 1) {
+      if (_disposed) {
+        return fetchedCount;
+      }
+
+      final page = await fetchNewerPage(afterId: afterId);
+
+      if (_disposed) {
+        return fetchedCount;
+      }
+
+      // ========================================
+      // CURSOR CU KHONG CON TON TAI
+      // -> FALLBACK LATEST.
+      // ========================================
+
+      if (!page.anchorFound) {
+        return _fallbackLatestPage();
+      }
+
+      final newer = page.messages;
+
+      // ========================================
+      // KHONG CON MESSAGE MOI
+      // ========================================
+
+      if (newer.isEmpty) {
+        if (page.hasAfter) {
+          return _fallbackLatestPage();
+        }
+
+        hasMoreNewer = false;
+
+        return fetchedCount;
+      }
+
+      mergeLatest(newer, force: false);
+
+      fetchedCount += newer.length;
+
+      hasMoreNewer = page.hasAfter;
+
+      if (!page.hasAfter) {
+        hasMoreNewer = false;
+
+        return fetchedCount;
+      }
+
+      final nextAfterId = newer.last['id']?.toString().trim() ?? '';
+
+      // ========================================
+      // CURSOR KHONG TIEN LEN
+      // -> KHONG LOOP VO HAN.
+      // ========================================
+
+      if (nextAfterId.isEmpty || nextAfterId == afterId) {
+        return _fallbackLatestPage();
+      }
+
+      afterId = nextAfterId;
+    }
+
+    // ========================================
+    // FAILSAFE DAT GIOI HAN PAGE.
+    //
+    // GIU hasMoreNewer=true DE KHONG COI
+    // DATA HIEN TAI LA DA BAT KIP HOAN TOAN.
+    // ========================================
+
+    hasMoreNewer = true;
+
+    return fetchedCount;
+  }
+
+  Future<int> _fallbackLatestPage() async {
+    final page = await fetchLatestPage();
+
+    if (_disposed) {
+      return 0;
+    }
+
+    if (messages.isEmpty) {
+      messages = page.messages;
+
+      hasMoreOlder = page.hasBefore;
+
+      hasMoreNewer = false;
+
+      loading = false;
+    } else {
+      mergeLatest(page.messages, force: true);
+    }
+
+    return page.messages.length;
   }
 
   // ========================================

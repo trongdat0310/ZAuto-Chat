@@ -2,40 +2,26 @@ import 'dart:async';
 
 import '../../services/backend_service.dart';
 
-
 class HomeRealtimeHandler {
-
   final BackendService backend;
 
+  final void Function() onAuthenticated;
 
-  final void Function()
-  onAuthenticated;
+  final void Function() onAuthError;
 
+  final void Function(Map<String, dynamic> data) onNewTrip;
 
-  final void Function()
-  onAuthError;
+  final void Function() onConnectionError;
 
+  final void Function() onConnectionDone;
 
-  final void Function(
-      Map<String, dynamic> data,
-      )
-  onNewTrip;
+  StreamSubscription<Map<String, dynamic>>? _subscription;
 
+  bool _started = false;
 
-  final void Function()
-  onConnectionError;
-
-
-  final void Function()
-  onConnectionDone;
-
-
-  StreamSubscription<Map<String, dynamic>>?
-  _subscription;
-
+  bool _disposed = false;
 
   HomeRealtimeHandler({
-
     required this.backend,
 
     required this.onAuthenticated,
@@ -47,135 +33,106 @@ class HomeRealtimeHandler {
     required this.onConnectionError,
 
     required this.onConnectionDone,
-
   });
 
-
   void start() {
+    if (_disposed || _started) {
+      return;
+    }
 
-    _subscription =
-        backend
-            .connectRealtime()
-            .listen(
+    _started = true;
 
-              (event) {
+    _subscription = backend.connectRealtime().listen(
+      (event) {
+        if (_disposed) {
+          return;
+        }
 
-            final type =
-            event['type']
-                ?.toString();
+        final type = event['type']?.toString();
 
+        // ========================================
+        // BACKEND YEU CAU AUTH
+        // ========================================
 
-            // ========================================
-            // BACKEND YEU CAU AUTH
-            // ========================================
+        if (type == 'auth_required') {
+          return;
+        }
 
-            if (
-            type ==
-                'auth_required'
-            ) {
+        // ========================================
+        // DA XAC THUC
+        // ========================================
 
-              return;
-            }
+        if (type == 'authenticated') {
+          onAuthenticated();
 
+          return;
+        }
 
-            // ========================================
-            // DA XAC THUC
-            // ========================================
+        // ========================================
+        // AUTH THAT BAI
+        // ========================================
 
-            if (
-            type ==
-                'authenticated'
-            ) {
+        if (type == 'auth_error') {
+          onAuthError();
 
-              onAuthenticated();
+          return;
+        }
 
-              return;
-            }
+        // ========================================
+        // CHI NHAN NEW TRIP
+        // ========================================
 
+        if (type != 'new_trip') {
+          return;
+        }
 
-            // ========================================
-            // AUTH THAT BAI
-            // ========================================
+        final rawData = event['data'];
 
-            if (
-            type ==
-                'auth_error'
-            ) {
+        if (rawData is! Map) {
+          return;
+        }
 
-              onAuthError();
+        final data = Map<String, dynamic>.from(rawData);
 
-              return;
-            }
+        onNewTrip(data);
+      },
 
+      onError: (Object error) {
+        if (_disposed) {
+          return;
+        }
 
-            // ========================================
-            // KHONG PHAI CUOC MOI
-            // ========================================
+        onConnectionError();
+      },
 
-            if (
-            type !=
-                'new_trip'
-            ) {
+      onDone: () {
+        if (_disposed) {
+          return;
+        }
 
-              return;
-            }
+        _subscription = null;
+        _started = false;
 
-
-            // ========================================
-            // DU LIEU CUOC
-            // ========================================
-
-            final rawData =
-            event['data'];
-
-
-            if (
-            rawData is! Map
-            ) {
-
-              return;
-            }
-
-
-            final data =
-            Map<String, dynamic>.from(
-              rawData,
-            );
-
-
-            onNewTrip(
-              data,
-            );
-          },
-
-
-          onError:
-              (
-              error,
-              ) {
-
-            onConnectionError();
-          },
-
-
-          onDone:
-              () {
-
-            onConnectionDone();
-          },
-        );
+        onConnectionDone();
+      },
+    );
   }
 
-
   void dispose() {
+    if (_disposed) {
+      return;
+    }
 
-    _subscription
-        ?.cancel();
+    _disposed = true;
+    _started = false;
 
+    final subscription = _subscription;
 
-    _subscription =
-    null;
+    _subscription = null;
 
+    if (subscription != null) {
+      unawaited(subscription.cancel());
+    }
 
     backend.disconnect();
   }

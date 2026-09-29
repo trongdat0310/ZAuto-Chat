@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter/foundation.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../auth_service.dart';
 
@@ -19,26 +19,45 @@ class RealtimeApi {
 
   Timer? _reconnectTimer;
 
+  Completer<void>? _reconnectCompleter;
+
   RealtimeApi({required this.auth, required this.webSocketUrl});
+
+  // ========================================
+  // CONNECT REALTIME
+  // ========================================
 
   Stream<Map<String, dynamic>> connectRealtime() async* {
     // ========================================
     // MO MOT PHIEN REALTIME MOI
     //
     // Neu connectRealtime() duoc goi lai,
-    // loop cu se tu dung.
+    // generation cu se tu dung.
     // ========================================
 
     final generation = ++_realtimeGeneration;
 
     _manualRealtimeDisconnect = false;
 
-    // Dong socket cu neu co.
-    try {
-      await _channel?.sink.close();
-    } catch (_) {
-      // Khong can lam gi.
-    }
+    // ========================================
+    // DANH THUC RECONNECT WAIT CUA
+    // PHIEN CU NEU DANG CHO.
+    // ========================================
+
+    _cancelReconnectWait();
+
+    // ========================================
+    // DONG SOCKET CU NHUNG KHONG CHO DOI.
+    //
+    // Socket loi / mang mat khong duoc
+    // chan phien realtime moi.
+    // ========================================
+
+    final previousChannel = _channel;
+
+    _channel = null;
+
+    _closeChannel(previousChannel);
 
     int reconnectAttempt = 0;
 
@@ -54,10 +73,19 @@ class RealtimeApi {
         );
 
         // ========================================
-        // DOC TOKEN MOI MOI LAN RECONNECT
+        // LUON DOC TOKEN MOI KHI CONNECT LAI
         // ========================================
 
         final token = await auth.getToken();
+
+        // ========================================
+        // CO THE disconnect() DA XAY RA
+        // TRONG KHI DANG await TOKEN.
+        // ========================================
+
+        if (_manualRealtimeDisconnect || generation != _realtimeGeneration) {
+          return;
+        }
 
         if (token == null || token.isEmpty) {
           throw Exception('Chưa đăng nhập');
@@ -70,23 +98,23 @@ class RealtimeApi {
         _channel = channel;
 
         // ========================================
-        // DOI HANDSHAKE
+        // DOI WEBSOCKET HANDSHAKE
         // ========================================
 
         await channel.ready.timeout(
           const Duration(seconds: 5),
-
           onTimeout: () {
             throw Exception('WebSocket handshake timeout');
           },
         );
 
+        // ========================================
+        // TRONG LUC HANDSHAKE CO THE
+        // USER DA DONG CHAT.
+        // ========================================
+
         if (_manualRealtimeDisconnect || generation != _realtimeGeneration) {
-          try {
-            channel.sink.close();
-          } catch (_) {
-            // Ignore.
-          }
+          _closeChannel(channel);
 
           return;
         }
@@ -102,7 +130,7 @@ class RealtimeApi {
         channel.sink.add(jsonEncode({'type': 'auth', 'token': token}));
 
         // ========================================
-        // DOC EVENT CHO DEN KHI SOCKET BI DONG
+        // DOC EVENT CHO DEN KHI SOCKET DONG
         // ========================================
 
         await for (final rawEvent in channel.stream) {
@@ -124,20 +152,12 @@ class RealtimeApi {
           }
         }
 
-        // ========================================
-        // STREAM KET THUC
-        //
-        // VD:
-        // - npm start bi tat
-        // - backend restart
-        // - mang bi mat
-        //
-        // KHONG RETURN.
-        // XUONG DUOI DE RECONNECT.
-        // ========================================
-
         debugPrint('REALTIME DISCONNECTED');
       } catch (error) {
+        if (_manualRealtimeDisconnect || generation != _realtimeGeneration) {
+          return;
+        }
+
         debugPrint(
           'REALTIME CONNECTION ERROR: '
           '$error',
@@ -152,36 +172,17 @@ class RealtimeApi {
           _channel = null;
         }
 
-        // ========================================
-        // KHONG await close O DAY.
-        //
-        // Neu handshake dang timeout,
-        // await sink.close() co the lai bi treo
-        // va chan vong reconnect.
-        // ========================================
-
-        try {
-          channel?.sink.close();
-        } catch (_) {
-          // Ignore.
-        }
+        _closeChannel(channel);
       }
 
       // ========================================
-      // NEU USER TU DONG disconnect()
-      // THI KHONG RECONNECT.
+      // USER DA disconnect()
+      // HOAC DA CO PHIEN REALTIME MOI.
       // ========================================
 
       if (_manualRealtimeDisconnect || generation != _realtimeGeneration) {
         return;
       }
-
-      // ========================================
-      // DOI 2 GIAY ROI KET NOI LAI
-      //
-      // Backend dang tat:
-      // 2s sau thu lai.
-      // ========================================
 
       debugPrint(
         'REALTIME RECONNECT IN 2s... '
@@ -192,35 +193,94 @@ class RealtimeApi {
     }
   }
 
+  // ========================================
+  // DISCONNECT
+  // ========================================
+
   void disconnect() {
     _manualRealtimeDisconnect = true;
 
+    // ========================================
+    // INVALIDATE TAT CA PHIEN CU
+    // ========================================
+
     _realtimeGeneration += 1;
 
-    _reconnectTimer?.cancel();
+    // ========================================
+    // NEU DANG CHO RECONNECT:
+    //
+    // CANCEL TIMER + COMPLETE FUTURE
+    // DE async generator KHONG BI TREO.
+    // ========================================
 
-    _reconnectTimer = null;
+    _cancelReconnectWait();
 
     final channel = _channel;
 
     _channel = null;
 
-    try {
-      channel?.sink.close();
-    } catch (_) {
-      // Ignore.
-    }
+    _closeChannel(channel);
   }
 
-  Future<void> _waitBeforeReconnect() async {
+  // ========================================
+  // WAIT BEFORE RECONNECT
+  // ========================================
+
+  Future<void> _waitBeforeReconnect() {
+    // Chi cho phep mot reconnect wait
+    // ton tai tai mot thoi diem.
+    _cancelReconnectWait();
+
     final completer = Completer<void>();
 
+    _reconnectCompleter = completer;
+
     _reconnectTimer = Timer(const Duration(seconds: 2), () {
+      if (identical(_reconnectCompleter, completer)) {
+        _reconnectTimer = null;
+
+        _reconnectCompleter = null;
+      }
+
       if (!completer.isCompleted) {
         completer.complete();
       }
     });
 
-    await completer.future;
+    return completer.future;
+  }
+
+  // ========================================
+  // CANCEL RECONNECT WAIT
+  // ========================================
+
+  void _cancelReconnectWait() {
+    _reconnectTimer?.cancel();
+
+    _reconnectTimer = null;
+
+    final completer = _reconnectCompleter;
+
+    _reconnectCompleter = null;
+
+    if (completer != null && !completer.isCompleted) {
+      completer.complete();
+    }
+  }
+
+  // ========================================
+  // SAFE CLOSE CHANNEL
+  // ========================================
+
+  void _closeChannel(WebSocketChannel? channel) {
+    if (channel == null) {
+      return;
+    }
+
+    try {
+      unawaited(channel.sink.close());
+    } catch (_) {
+      // Socket da dong hoac dang loi.
+    }
   }
 }
