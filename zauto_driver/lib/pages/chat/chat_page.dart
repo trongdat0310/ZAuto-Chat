@@ -102,6 +102,13 @@ class _ChatPageState extends State<ChatPage> {
 
   Timer? topNoticeTimer;
 
+  bool showNewMessageButton = false;
+
+  // Dung khi dang o context/history co hasMoreNewer.
+  // Bam nut xuong se catch-up latest truoc,
+  // sau do moi scroll xuong.
+  bool scrollToLatestAfterReload = false;
+
   void _removeMessageFromUi(Map<String, dynamic> message) {
     if (!mounted) {
       return;
@@ -753,6 +760,12 @@ class _ChatPageState extends State<ChatPage> {
       return;
     }
 
+    final wasNearBottom =
+        !scrollController.hasClients ||
+        (scrollController.position.pixels -
+                scrollController.position.minScrollExtent) <
+            140;
+
     // ========================================
     // REPLY TARGET
     // ========================================
@@ -792,9 +805,24 @@ class _ChatPageState extends State<ChatPage> {
 
       messageFocusNode.requestFocus();
 
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-      });
+      // ========================================
+      // CHI TU DONG CUON XUONG CUOI
+      // NEU TRUOC KHI GUI USER DANG O GAN CUOI.
+      //
+      // Neu user dang xem tin cu:
+      // - giu nguyen vi tri
+      // - realtime message moi se hien nut ↓
+      // ========================================
+
+      if (wasNearBottom) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) {
+            return;
+          }
+
+          _scrollToBottom();
+        });
+      }
     } catch (error) {
       if (!mounted) {
         return;
@@ -1566,7 +1594,65 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  void _preserveViewportAfterNewContent({
+    required double beforePixels,
+    required double beforeMaxScrollExtent,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !scrollController.hasClients) {
+        return;
+      }
+
+      final position = scrollController.position;
+
+      // ========================================
+      // CHIEU CAO CONTENT VUA DUOC THEM.
+      // ========================================
+
+      final addedExtent = position.maxScrollExtent - beforeMaxScrollExtent;
+
+      if (addedExtent <= 0) {
+        return;
+      }
+
+      // ========================================
+      // reverse:true
+      //
+      // Tin moi nam phia bottom.
+      //
+      // Content tang bao nhieu thi tang
+      // scroll offset bay nhieu de giu nguyen
+      // bubble dang xem.
+      // ========================================
+
+      final targetPixels = (beforePixels + addedExtent)
+          .clamp(position.minScrollExtent, position.maxScrollExtent)
+          .toDouble();
+
+      if ((position.pixels - targetPixels).abs() < 0.5) {
+        return;
+      }
+
+      // jumpTo, KHONG animateTo.
+      //
+      // Day la bu offset noi bo,
+      // user khong duoc cam thay
+      // day la mot thao tac scroll.
+      scrollController.jumpTo(targetPixels);
+    });
+  }
+
   void _scrollToBottom() {
+    if (!mounted) {
+      return;
+    }
+
+    if (showNewMessageButton) {
+      setState(() {
+        showNewMessageButton = false;
+      });
+    }
+
     if (!scrollController.hasClients) {
       return;
     }
@@ -1578,6 +1664,55 @@ class _ChatPageState extends State<ChatPage> {
 
       curve: Curves.easeOut,
     );
+  }
+
+  void _jumpToLatestMessages() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      showNewMessageButton = false;
+
+      // User chu dong quay ve latest
+      // -> khong con o target cu nua.
+      targetController.clearCurrentTarget();
+    });
+
+    // ========================================
+    // DANG O HISTORY CONTEXT
+    //
+    // Danh sach hien tai chua co tat ca
+    // message moi hon.
+    //
+    // Phai catch-up truoc.
+    // ========================================
+
+    if (messagesController.hasMoreNewer) {
+      scrollToLatestAfterReload = true;
+
+      _requestLatestReload(force: true);
+
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      _scrollToBottom();
+    });
+  }
+
+  bool _isNearBottom({double threshold = 140}) {
+    if (!scrollController.hasClients) {
+      return true;
+    }
+
+    final position = scrollController.position;
+
+    return position.pixels - position.minScrollExtent < threshold;
   }
 
   void _removeTargetHighlightLater() {
@@ -1743,28 +1878,37 @@ class _ChatPageState extends State<ChatPage> {
     }
 
     // ========================================
-    // CONTROLLER DA MERGE DATA
-    //
-    // NHUNG UI CHUA REBUILD.
-    //
-    // VI VAY DAY VAN LA SCROLL POSITION CU,
-    // DUNG DE KIEM TRA USER CO GAN BOTTOM.
+    // LUU VIEWPORT CU TRUOC KHI REBUILD.
     // ========================================
 
-    final wasNearBottom =
-        !scrollController.hasClients ||
-        (scrollController.position.pixels -
-                scrollController.position.minScrollExtent) <
-            140;
+    final hadScrollPosition = scrollController.hasClients;
 
-    setState(() {});
+    final beforePixels = hadScrollPosition
+        ? scrollController.position.pixels
+        : 0.0;
+
+    final beforeMaxScrollExtent = hadScrollPosition
+        ? scrollController.position.maxScrollExtent
+        : 0.0;
+
+    final wasNearBottom = _isNearBottom();
+
+    final shouldJumpToLatest = scrollToLatestAfterReload;
+
+    scrollToLatestAfterReload = false;
+
+    setState(() {
+      if (wasNearBottom || shouldJumpToLatest) {
+        showNewMessageButton = false;
+      }
+    });
 
     // ========================================
-    // NEU USER DANG O GAN CUOI CHAT
-    // THI GIU HO O CUOI SAU REBUILD.
+    // USER MUON XUONG LATEST
+    // HOAC DANG O GAN BOTTOM.
     // ========================================
 
-    if (wasNearBottom) {
+    if (wasNearBottom || shouldJumpToLatest) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
@@ -1772,6 +1916,19 @@ class _ChatPageState extends State<ChatPage> {
 
         _scrollToBottom();
       });
+    } else if (hadScrollPosition) {
+      // ========================================
+      // USER DANG DOC TIN CU.
+      //
+      // Reload co them content moi thi
+      // GIU NGUYEN VIEWPORT.
+      // ========================================
+
+      _preserveViewportAfterNewContent(
+        beforePixels: beforePixels,
+
+        beforeMaxScrollExtent: beforeMaxScrollExtent,
+      );
     }
 
     debugPrint(
@@ -1783,6 +1940,15 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   void _handleLatestReloadError(Object error, StackTrace stackTrace) {
+    if (scrollToLatestAfterReload && mounted) {
+      scrollToLatestAfterReload = false;
+
+      setState(() {
+        // Cho user bam lai.
+        showNewMessageButton = true;
+      });
+    }
+
     debugPrint(
       'CHAT REALTIME RELOAD ERROR: '
       '$error',
@@ -1798,8 +1964,6 @@ class _ChatPageState extends State<ChatPage> {
 
     // ========================================
     // MESSAGE DA XOA
-    //
-    // BIEN MAT HOAN TOAN KHOI UI.
     // ========================================
 
     if (incomingStatus == 'deleted_local') {
@@ -1809,8 +1973,7 @@ class _ChatPageState extends State<ChatPage> {
     }
 
     // ========================================
-    // KHONG CHO EVENT RONG TRO THANH
-    // BUBBLE [Tin nhắn]
+    // KHONG RENDER EVENT RONG
     // ========================================
 
     if (!messagesController.shouldDisplayMessage(incoming)) {
@@ -1825,29 +1988,81 @@ class _ChatPageState extends State<ChatPage> {
     }
 
     // ========================================
-    // USER DANG O GAN CUOI CHAT?
+    // GHI LAI VI TRI TRUOC KHI
+    // MESSAGE MOI LAM THAY DOI CHIEU CAO LIST.
     // ========================================
 
-    final wasNearBottom =
-        !scrollController.hasClients ||
-        (scrollController.position.pixels -
-                scrollController.position.minScrollExtent) <
-            140;
+    final hadScrollPosition = scrollController.hasClients;
+
+    final beforePixels = hadScrollPosition
+        ? scrollController.position.pixels
+        : 0.0;
+
+    final beforeMaxScrollExtent = hadScrollPosition
+        ? scrollController.position.maxScrollExtent
+        : 0.0;
+
+    final wasNearBottom = _isNearBottom();
 
     late final ChatMessageUpsertResult upsertResult;
 
+    late final bool shouldAutoScroll;
+
     setState(() {
       upsertResult = messagesController.upsertRealtime(incoming);
+
+      // ========================================
+      // CHI AUTO SCROLL NEU USER
+      // DANG O CUOI CHAT.
+      // ========================================
+
+      shouldAutoScroll =
+          upsertResult == ChatMessageUpsertResult.inserted &&
+          wasNearBottom &&
+          targetController.targetIndex == null;
+
+      // ========================================
+      // USER DANG XEM TIN CU
+      // -> HIEN NUT XUONG.
+      // ========================================
+
+      final hasNewMessage =
+          upsertResult == ChatMessageUpsertResult.inserted ||
+          upsertResult == ChatMessageUpsertResult.skipped;
+
+      if (hasNewMessage) {
+        showNewMessageButton = !shouldAutoScroll;
+      }
     });
 
     // ========================================
-    // MESSAGE MOI + USER DANG O CUOI CHAT
-    // -> TU DONG CUON THEO
+    // QUAN TRONG:
+    //
+    // USER DANG XEM TIN CU.
+    //
+    // Bubble moi duoc chen vao bottom cua
+    // reverse ListView lam content tang chieu cao.
+    //
+    // Bu scroll offset dung bang phan tang do
+    // de bubble user dang doc KHONG DI CHUYEN.
     // ========================================
 
     if (upsertResult == ChatMessageUpsertResult.inserted &&
-        wasNearBottom &&
-        targetController.targetIndex == null) {
+        !shouldAutoScroll &&
+        hadScrollPosition) {
+      _preserveViewportAfterNewContent(
+        beforePixels: beforePixels,
+
+        beforeMaxScrollExtent: beforeMaxScrollExtent,
+      );
+    }
+
+    // ========================================
+    // USER DANG O CUOI
+    // -> THEO MESSAGE MOI.
+    // ========================================
+
+    if (shouldAutoScroll) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
@@ -1859,8 +2074,37 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   bool _handleScrollNotification(ScrollNotification notification) {
-    if (!mounted ||
-        !messagesController.paginationReady ||
+    if (!mounted) {
+      return false;
+    }
+
+    // ========================================
+    // USER TU CUON VE BOTTOM
+    // -> AN NUT TIN MOI.
+    //
+    // Logic nay PHAI chay truoc
+    // pagination guard.
+    // ========================================
+
+    if (notification is ScrollUpdateNotification ||
+        notification is ScrollEndNotification) {
+      final metrics = notification.metrics;
+
+      final nearBottom = metrics.pixels - metrics.minScrollExtent < 140;
+
+      if (nearBottom && showNewMessageButton) {
+        setState(() {
+          showNewMessageButton = false;
+        });
+      }
+    }
+
+    // ========================================
+    // CAC GUARD BEN DUOI CHI DANH
+    // CHO LOAD OLDER.
+    // ========================================
+
+    if (!messagesController.paginationReady ||
         targetController.seekingTarget ||
         messagesController.loading ||
         messagesController.loadingOlder ||
@@ -2655,18 +2899,56 @@ class _ChatPageState extends State<ChatPage> {
           // ========================================
 
           Expanded(
-            child: ChatBackground(
-              child: ChatMessageList(
-                loading: messagesController.loading,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: ChatBackground(
+                    child: ChatMessageList(
+                      loading: messagesController.loading,
 
-                messages: messagesController.messages,
+                      messages: messagesController.messages,
 
-                scrollController: scrollController,
+                      scrollController: scrollController,
 
-                messageBuilder: buildMessage,
+                      messageBuilder: buildMessage,
 
-                onScrollNotification: _handleScrollNotification,
-              ),
+                      onScrollNotification: _handleScrollNotification,
+                    ),
+                  ),
+                ),
+
+                // ========================================
+                // CO TIN NHAN MOI TRONG KHI
+                // USER DANG XEM HISTORY.
+                // ========================================
+                if (showNewMessageButton)
+                  Positioned(
+                    right: 16,
+                    bottom: 16,
+
+                    child: Material(
+                      elevation: 5,
+
+                      color: Theme.of(context).colorScheme.surfaceContainerHigh,
+
+                      shape: const CircleBorder(),
+
+                      child: IconButton(
+                        tooltip: 'Xuống tin nhắn mới nhất',
+
+                        icon: Icon(
+                          Icons.keyboard_arrow_down_rounded,
+
+                          size: 30,
+
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+
+                        onPressed: _jumpToLatestMessages,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
 
