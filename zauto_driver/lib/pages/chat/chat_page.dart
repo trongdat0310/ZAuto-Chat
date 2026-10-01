@@ -217,19 +217,9 @@ class _ChatPageState extends State<ChatPage> {
 
     voiceController = ChatVoiceController();
 
-    voiceController.addListener(_handleVoiceControllerChanged);
-
     messageController.addListener(_handleComposerChanged);
 
     initializeChat();
-  }
-
-  void _handleVoiceControllerChanged() {
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {});
   }
 
   void _handleComposerChanged() {
@@ -2185,19 +2175,15 @@ class _ChatPageState extends State<ChatPage> {
     if (url == null || url.isEmpty) {
       return Text(
         '[Tin nhắn thoại]',
-
         style: TextStyle(color: colorScheme.onSurface),
       );
     }
 
     // ========================================
-    // VOICE NAY CO DANG DUOC CHON KHONG
-    // ========================================
-
-    final isCurrentVoice = voiceController.isCurrent(url);
-
-    // ========================================
-    // DURATION TU MESSAGE
+    // CAC DU LIEU KHONG DOI TRONG LUC PLAY
+    //
+    // TINH MOT LAN KHI MESSAGE DUOC BUILD.
+    // KHONG TINH LAI MOI AUDIO TICK.
     // ========================================
 
     final rawDuration = message['mediaDuration'];
@@ -2206,51 +2192,50 @@ class _ChatPageState extends State<ChatPage> {
         ? Duration(milliseconds: rawDuration.toInt())
         : Duration.zero;
 
-    // ========================================
-    // WAVEFORM
-    // ========================================
-
     final samples = message['waveformSamples'] is List
         ? message['waveformSamples'] as List
         : <dynamic>[];
 
     // ========================================
-    // DURATION THUC TE
+    // CHI VOICE BUBBLE NAY LANG NGHE PLAYER.
+    //
+    // ChatPage KHONG CON setState()
+    // THEO AUDIO POSITION.
     // ========================================
 
-    final totalDuration =
-        isCurrentVoice && voiceController.duration > Duration.zero
-        ? voiceController.duration
-        : messageDuration;
+    return AnimatedBuilder(
+      animation: voiceController,
 
-    // ========================================
-    // PROGRESS
-    // ========================================
+      builder: (context, child) {
+        final isCurrentVoice = voiceController.isCurrent(url);
 
-    final progress = isCurrentVoice && totalDuration.inMilliseconds > 0
-        ? (voiceController.position.inMilliseconds /
-                  totalDuration.inMilliseconds)
-              .clamp(0.0, 1.0)
-              .toDouble()
-        : 0.0;
+        final totalDuration =
+            isCurrentVoice && voiceController.duration > Duration.zero
+            ? voiceController.duration
+            : messageDuration;
 
-    // ========================================
-    // PLAYER CO DANG PLAY VOICE NAY KHONG
-    // ========================================
+        final progress = isCurrentVoice && totalDuration.inMilliseconds > 0
+            ? (voiceController.position.inMilliseconds /
+                      totalDuration.inMilliseconds)
+                  .clamp(0.0, 1.0)
+                  .toDouble()
+            : 0.0;
 
-    final isActuallyPlaying = voiceController.isVoicePlaying(url);
+        final isActuallyPlaying = voiceController.isVoicePlaying(url);
 
-    return VoiceMessageBubble(
-      samples: samples,
+        return VoiceMessageBubble(
+          samples: samples,
 
-      duration: totalDuration,
+          duration: totalDuration,
 
-      progress: progress,
+          progress: progress,
 
-      isPlaying: isActuallyPlaying,
+          isPlaying: isActuallyPlaying,
 
-      onToggle: () {
-        voiceController.toggle(url);
+          onToggle: () {
+            voiceController.toggle(url);
+          },
+        );
       },
     );
   }
@@ -2642,8 +2627,6 @@ class _ChatPageState extends State<ChatPage> {
     messageController.removeListener(_handleComposerChanged);
 
     messageController.dispose();
-
-    voiceController.removeListener(_handleVoiceControllerChanged);
 
     voiceController.dispose();
 
