@@ -5,19 +5,12 @@ import 'package:flutter/material.dart';
 import '../config/app_config.dart';
 import '../services/backend_service.dart';
 
+class AccountPage extends StatefulWidget {
+  final Future<void> Function() onLogout;
 
-class AccountPage
-    extends StatefulWidget {
+  final Future<void> Function() onAuthChanged;
 
-  final Future<void> Function()
-  onLogout;
-
-  final Future<void> Function()
-  onAuthChanged;
-
-  final Future<void> Function()
-  onAccountDeleted;
-
+  final Future<void> Function() onAccountDeleted;
 
   const AccountPage({
     super.key,
@@ -26,45 +19,26 @@ class AccountPage
     required this.onAccountDeleted,
   });
 
-
   @override
-  State<AccountPage>
-  createState() =>
-      _AccountPageState();
+  State<AccountPage> createState() => _AccountPageState();
 }
 
-
-class _AccountPageState
-    extends State<AccountPage> {
-
+class _AccountPageState extends State<AccountPage> {
   bool showZaloPhone = false;
 
-  final BackendService backend =
-  BackendService(
-    baseUrl:
-    AppConfig.backendUrl,
-  );
+  final BackendService backend = BackendService(baseUrl: AppConfig.backendUrl);
 
+  Map<String, dynamic>? profile;
 
-  Map<String, dynamic>?
-  profile;
+  bool loading = true;
 
-
-  bool loading =
-  true;
-
-
-  bool unlinking =
-  false;
-
+  bool unlinking = false;
 
   String? error;
 
-
   Timer? refreshTimer;
 
-  List<Map<String, dynamic>>
-  notificationGroups = [];
+  List<Map<String, dynamic>> notificationGroups = [];
 
   @override
   void initState() {
@@ -72,287 +46,194 @@ class _AccountPageState
 
     loadProfile();
 
-
-    refreshTimer =
-        Timer.periodic(
-          const Duration(
-            seconds: 10,
-          ),
-
-              (_) {
-            loadProfile(
-              silent: true,
-            );
-          },
-        );
+    refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      loadProfile(silent: true);
+    });
   }
-
 
   @override
   void dispose() {
-
     refreshTimer?.cancel();
 
     super.dispose();
   }
 
-
   // ========================================
   // LOAD PROFILE
   // ========================================
 
-  Future<void> loadProfile({
-    bool silent = false,
-  }) async {
-
-    if (!silent) {
-
+  Future<void> loadProfile({bool silent = false}) async {
+    if (!silent && mounted) {
       setState(() {
         loading = true;
         error = null;
       });
     }
 
-
     try {
+      // ========================================
+      // PROFILE KHONG PHU THUOC ZALO
+      // ========================================
 
-      final result =
-      await backend
-          .getProfile();
+      final result = await backend.getProfile();
 
-      final groups =
-      await backend
-          .getGroups();
+      final user = Map<String, dynamic>.from(result['user'] ?? {});
 
+      final zaloLinked = user['zaloLinked'] == true;
+
+      // ========================================
+      // GROUP CHI TON TAI KHI DA LINK ZALO
+      // ========================================
+
+      List<Map<String, dynamic>> groups = [];
+
+      if (zaloLinked) {
+        try {
+          groups = await backend.getGroups();
+        } catch (groupError) {
+          // Group API loi khong duoc lam
+          // ca trang Tai khoan bi loi.
+          debugPrint(
+            'ACCOUNT GROUPS LOAD ERROR: '
+            '$groupError',
+          );
+
+          // Silent refresh thi giu data cu.
+          if (silent) {
+            groups = notificationGroups;
+          }
+        }
+      }
 
       if (!mounted) {
         return;
       }
-
 
       setState(() {
         profile = result;
-        notificationGroups = groups;
+
+        notificationGroups = zaloLinked ? groups : [];
+
         loading = false;
         error = null;
       });
-
     } catch (e) {
-
       if (!mounted) {
         return;
       }
 
-
       setState(() {
         loading = false;
 
+        // Chi profile that bai moi lam
+        // AccountPage vao error state.
         if (!silent) {
-          error =
-              e.toString();
+          error = e.toString().replaceFirst('Exception: ', '');
         }
       });
     }
   }
 
   Future<void> editName() async {
+    final currentName = profile?['user']?['name']?.toString() ?? '';
 
-    final currentName =
-        profile?['user']?['name']
-            ?.toString() ??
-            '';
+    String draftName = currentName;
 
+    final newName = await showDialog<String>(
+      context: context,
 
-    String draftName =
-        currentName;
+      barrierDismissible: false,
 
-
-    final newName =
-    await showDialog<String>(
-      context:
-      context,
-
-      barrierDismissible:
-      false,
-
-      builder:
-          (dialogContext) {
-
+      builder: (dialogContext) {
         return AlertDialog(
-          title:
-          const Text(
-            'Đổi tên',
-          ),
+          title: const Text('Đổi tên'),
 
-          content:
-          TextFormField(
-            initialValue:
-            currentName,
+          content: TextFormField(
+            initialValue: currentName,
 
-            autofocus:
-            true,
+            autofocus: true,
 
-            textInputAction:
-            TextInputAction.done,
+            textInputAction: TextInputAction.done,
 
-            onChanged:
-                (value) {
-
-              draftName =
-                  value;
+            onChanged: (value) {
+              draftName = value;
             },
 
-            onFieldSubmitted:
-                (value) {
-
-              Navigator.of(
-                dialogContext,
-              ).pop(
-                value.trim(),
-              );
+            onFieldSubmitted: (value) {
+              Navigator.of(dialogContext).pop(value.trim());
             },
 
-            decoration:
-            const InputDecoration(
-              labelText:
-              'Tên hiển thị',
+            decoration: const InputDecoration(
+              labelText: 'Tên hiển thị',
 
-              border:
-              OutlineInputBorder(),
+              border: OutlineInputBorder(),
             ),
           ),
 
           actions: [
-
             TextButton(
-              onPressed:
-                  () {
-
-                Navigator.of(
-                  dialogContext,
-                ).pop();
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
               },
 
-              child:
-              const Text(
-                'HỦY',
-              ),
+              child: const Text('HỦY'),
             ),
 
-
             FilledButton(
-              onPressed:
-                  () {
-
-                Navigator.of(
-                  dialogContext,
-                ).pop(
-                  draftName.trim(),
-                );
+              onPressed: () {
+                Navigator.of(dialogContext).pop(draftName.trim());
               },
 
-              child:
-              const Text(
-                'LƯU',
-              ),
+              child: const Text('LƯU'),
             ),
           ],
         );
       },
     );
 
-
     if (!mounted) {
       return;
     }
 
-
-    if (
-    newName == null ||
-        newName.trim().isEmpty
-    ) {
+    if (newName == null || newName.trim().isEmpty) {
       return;
     }
 
-
-    if (
-    newName.trim() ==
-        currentName.trim()
-    ) {
-
-      ScaffoldMessenger
-          .of(context)
-          .showSnackBar(
-        const SnackBar(
-          content:
-          Text(
-            'Tên không thay đổi',
-          ),
-        ),
-      );
+    if (newName.trim() == currentName.trim()) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Tên không thay đổi')));
 
       return;
     }
-
 
     try {
-
-      await backend
-          .updateProfileName(
-        newName.trim(),
-      );
-
+      await backend.updateProfileName(newName.trim());
 
       if (!mounted) {
         return;
       }
-
 
       // Chỉ refresh AccountPage.
       // KHÔNG refresh AuthGate.
-      await loadProfile(
-        silent: true,
-      );
-
+      await loadProfile(silent: true);
 
       if (!mounted) {
         return;
       }
 
-
-      ScaffoldMessenger
-          .of(context)
-          .showSnackBar(
-        const SnackBar(
-          content:
-          Text(
-            'Đã cập nhật tên',
-          ),
-        ),
-      );
-
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Đã cập nhật tên')));
     } catch (error) {
-
       if (!mounted) {
         return;
       }
 
-
-      ScaffoldMessenger
-          .of(context)
-          .showSnackBar(
-        SnackBar(
-          content:
-          Text(
-            'Lỗi: $error',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Lỗi: $error')));
     }
   }
 
   Future<void> changePassword() async {
-
     String currentPassword = '';
     String newPassword = '';
     String confirmPassword = '';
@@ -368,382 +249,210 @@ class _AccountPageState
     bool hideNewPassword = true;
     bool hideConfirmPassword = true;
 
-
-    final success =
-    await showDialog<bool>(
+    final success = await showDialog<bool>(
       context: context,
 
       barrierDismissible: false,
 
       builder: (dialogContext) {
-
         return StatefulBuilder(
-          builder: (
-              context,
-              setDialogState,
-              ) {
-
+          builder: (context, setDialogState) {
             // ========================================
             // PASSWORD RULE STATES
             // ========================================
 
-            final hasLength =
-                newPassword.length >= 8;
+            final hasLength = newPassword.length >= 8;
 
-            final hasUppercase =
-            RegExp(
-              r'[A-Z]',
-            ).hasMatch(
-              newPassword,
-            );
+            final hasUppercase = RegExp(r'[A-Z]').hasMatch(newPassword);
 
-            final hasLowercase =
-            RegExp(
-              r'[a-z]',
-            ).hasMatch(
-              newPassword,
-            );
+            final hasLowercase = RegExp(r'[a-z]').hasMatch(newPassword);
 
-            final hasNumber =
-            RegExp(
-              r'[0-9]',
-            ).hasMatch(
-              newPassword,
-            );
+            final hasNumber = RegExp(r'[0-9]').hasMatch(newPassword);
 
-            final hasSpecial =
-            RegExp(
-              r'[^A-Za-z0-9\s]',
-            ).hasMatch(
-              newPassword,
-            );
-
+            final hasSpecial = RegExp(r'[^A-Za-z0-9\s]').hasMatch(newPassword);
 
             // ========================================
             // PASSWORD RULE WIDGET
             // ========================================
 
-            Widget passwordRule(
-                String text,
-                bool passed,
-                ) {
-
+            Widget passwordRule(String text, bool passed) {
               return Row(
-                mainAxisSize:
-                MainAxisSize.min,
+                mainAxisSize: MainAxisSize.min,
 
                 children: [
-
                   Icon(
-                    passed
-                        ? Icons.check_circle
-                        : Icons
-                        .radio_button_unchecked,
+                    passed ? Icons.check_circle : Icons.radio_button_unchecked,
 
                     size: 17,
 
-                    color:
-                    passed
-                        ? Colors.green
-                        : Colors.grey,
+                    color: passed ? Colors.green : Colors.grey,
                   ),
 
-
-                  const SizedBox(
-                    width: 5,
-                  ),
-
+                  const SizedBox(width: 5),
 
                   Text(
                     text,
 
-                    style:
-                    TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
 
-                      color:
-                      passed
-                          ? Colors.green
-                          : Colors
-                          .grey
-                          .shade700,
+                      color: passed ? Colors.green : Colors.grey.shade700,
                     ),
                   ),
                 ],
               );
             }
 
-
             // ========================================
             // SUBMIT
             // ========================================
 
             Future<void> submit() async {
-
               if (submitting) {
                 return;
               }
 
-
               setDialogState(() {
-                currentPasswordError =
-                null;
+                currentPasswordError = null;
 
-                newPasswordError =
-                null;
+                newPasswordError = null;
 
-                confirmPasswordError =
-                null;
+                confirmPasswordError = null;
 
-                generalError =
-                null;
+                generalError = null;
               });
 
-
-              bool valid =
-              true;
-
+              bool valid = true;
 
               // ========================================
               // CURRENT PASSWORD
               // ========================================
 
-              if (
-              currentPassword.isEmpty
-              ) {
+              if (currentPassword.isEmpty) {
+                currentPasswordError = 'Vui lòng nhập mật khẩu hiện tại';
 
-                currentPasswordError =
-                'Vui lòng nhập mật khẩu hiện tại';
-
-                valid =
-                false;
+                valid = false;
               }
-
 
               // ========================================
               // NEW PASSWORD POLICY
               // ========================================
 
               if (newPassword.isEmpty) {
+                newPasswordError = 'Vui lòng nhập mật khẩu mới';
 
-                newPasswordError =
-                'Vui lòng nhập mật khẩu mới';
-
-                valid =
-                false;
-
+                valid = false;
               } else if (!hasLength) {
+                newPasswordError = 'Mật khẩu phải có ít nhất 8 ký tự';
 
-                newPasswordError =
-                'Mật khẩu phải có ít nhất 8 ký tự';
-
-                valid =
-                false;
-
+                valid = false;
               } else if (!hasUppercase) {
+                newPasswordError = 'Cần ít nhất 1 chữ hoa A-Z';
 
-                newPasswordError =
-                'Cần ít nhất 1 chữ hoa A-Z';
-
-                valid =
-                false;
-
+                valid = false;
               } else if (!hasLowercase) {
+                newPasswordError = 'Cần ít nhất 1 chữ thường a-z';
 
-                newPasswordError =
-                'Cần ít nhất 1 chữ thường a-z';
-
-                valid =
-                false;
-
+                valid = false;
               } else if (!hasNumber) {
+                newPasswordError = 'Cần ít nhất 1 chữ số 0-9';
 
-                newPasswordError =
-                'Cần ít nhất 1 chữ số 0-9';
-
-                valid =
-                false;
-
+                valid = false;
               } else if (!hasSpecial) {
+                newPasswordError = 'Cần ít nhất 1 ký tự đặc biệt';
 
-                newPasswordError =
-                'Cần ít nhất 1 ký tự đặc biệt';
+                valid = false;
+              } else if (newPassword == currentPassword) {
+                newPasswordError = 'Mật khẩu mới phải khác mật khẩu hiện tại';
 
-                valid =
-                false;
-
-              } else if (
-              newPassword ==
-                  currentPassword
-              ) {
-
-                newPasswordError =
-                'Mật khẩu mới phải khác mật khẩu hiện tại';
-
-                valid =
-                false;
+                valid = false;
               }
-
 
               // ========================================
               // CONFIRM
               // ========================================
 
-              if (
-              confirmPassword.isEmpty
-              ) {
+              if (confirmPassword.isEmpty) {
+                confirmPasswordError = 'Vui lòng nhập lại mật khẩu mới';
 
-                confirmPasswordError =
-                'Vui lòng nhập lại mật khẩu mới';
+                valid = false;
+              } else if (confirmPassword != newPassword) {
+                confirmPasswordError = 'Mật khẩu nhập lại không khớp';
 
-                valid =
-                false;
-
-              } else if (
-              confirmPassword !=
-                  newPassword
-              ) {
-
-                confirmPasswordError =
-                'Mật khẩu nhập lại không khớp';
-
-                valid =
-                false;
+                valid = false;
               }
 
-
               if (!valid) {
-
                 setDialogState(() {});
 
                 return;
               }
-
 
               // ========================================
               // CALL BACKEND
               // ========================================
 
               setDialogState(() {
-                submitting =
-                true;
+                submitting = true;
               });
 
-
               try {
+                await backend.changePassword(
+                  currentPassword: currentPassword,
 
-                await backend
-                    .changePassword(
-                  currentPassword:
-                  currentPassword,
-
-                  newPassword:
-                  newPassword,
+                  newPassword: newPassword,
                 );
 
-
-                if (
-                !dialogContext.mounted
-                ) {
+                if (!dialogContext.mounted) {
                   return;
                 }
 
-
-                Navigator.of(
-                  dialogContext,
-                ).pop(true);
-
+                Navigator.of(dialogContext).pop(true);
               } catch (error) {
-
-                if (
-                !dialogContext.mounted
-                ) {
+                if (!dialogContext.mounted) {
                   return;
                 }
 
+                var message = error.toString();
 
-                var message =
-                error.toString();
-
-
-                message =
-                    message.replaceFirst(
-                      'Exception: ',
-                      '',
-                    );
-
+                message = message.replaceFirst('Exception: ', '');
 
                 setDialogState(() {
+                  submitting = false;
 
-                  submitting =
-                  false;
+                  final lower = message.toLowerCase();
 
-
-                  final lower =
-                  message
-                      .toLowerCase();
-
-
-                  if (
-                  lower.contains(
-                    'mat khau hien tai khong dung',
-                  )
-                  ) {
-
-                    currentPasswordError =
-                    'Mật khẩu hiện tại không đúng';
-
+                  if (lower.contains('mat khau hien tai khong dung')) {
+                    currentPasswordError = 'Mật khẩu hiện tại không đúng';
                   } else {
-
-                    generalError =
-                        message;
+                    generalError = message;
                   }
                 });
               }
             }
-
 
             // ========================================
             // DIALOG
             // ========================================
 
             return AlertDialog(
-
-              insetPadding:
-              const EdgeInsets
-                  .symmetric(
+              insetPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
                 vertical: 24,
               ),
 
+              title: const Text('Đổi mật khẩu'),
 
-              title:
-              const Text(
-                'Đổi mật khẩu',
-              ),
+              content: SingleChildScrollView(
+                child: SizedBox(
+                  width: double.maxFinite,
 
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
 
-              content:
-              SingleChildScrollView(
-
-                child:
-                SizedBox(
-
-                  width:
-                  double.maxFinite,
-
-
-                  child:
-                  Column(
-                    mainAxisSize:
-                    MainAxisSize.min,
-
-                    crossAxisAlignment:
-                    CrossAxisAlignment
-                        .stretch,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
 
                     children: [
-
                       // ========================================
                       // CURRENT PASSWORD
                       // ========================================
@@ -751,354 +460,204 @@ class _AccountPageState
                       TextFormField(
                         autofocus: true,
 
-                        obscureText:
-                        hideCurrentPassword,
+                        obscureText: hideCurrentPassword,
 
-                        enabled:
-                        !submitting,
+                        enabled: !submitting,
 
-                        textInputAction:
-                        TextInputAction.next,
+                        textInputAction: TextInputAction.next,
 
-                        onChanged:
-                            (value) {
-
+                        onChanged: (value) {
                           setDialogState(() {
+                            currentPassword = value;
 
-                            currentPassword =
-                                value;
-
-                            currentPasswordError =
-                            null;
+                            currentPasswordError = null;
                           });
                         },
 
-                        decoration:
-                        InputDecoration(
+                        decoration: InputDecoration(
+                          labelText: 'Mật khẩu hiện tại',
 
-                          labelText:
-                          'Mật khẩu hiện tại',
+                          border: const OutlineInputBorder(),
 
-                          border:
-                          const OutlineInputBorder(),
+                          errorText: currentPasswordError,
 
-                          errorText:
-                          currentPasswordError,
-
-                          suffixIcon:
-                          IconButton(
-
-                            onPressed:
-                            submitting
+                          suffixIcon: IconButton(
+                            onPressed: submitting
                                 ? null
                                 : () {
+                                    setDialogState(() {
+                                      hideCurrentPassword =
+                                          !hideCurrentPassword;
+                                    });
+                                  },
 
-                              setDialogState(
-                                    () {
-
-                                  hideCurrentPassword =
-                                  !hideCurrentPassword;
-                                },
-                              );
-                            },
-
-                            icon:
-                            Icon(
-
+                            icon: Icon(
                               hideCurrentPassword
-                                  ? Icons
-                                  .visibility_outlined
-                                  : Icons
-                                  .visibility_off_outlined,
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
                             ),
                           ),
                         ),
                       ),
 
-
-                      const SizedBox(
-                        height: 16,
-                      ),
-
+                      const SizedBox(height: 16),
 
                       // ========================================
                       // NEW PASSWORD
                       // ========================================
-
                       TextFormField(
-                        obscureText:
-                        hideNewPassword,
+                        obscureText: hideNewPassword,
 
-                        enabled:
-                        !submitting,
+                        enabled: !submitting,
 
-                        textInputAction:
-                        TextInputAction.next,
+                        textInputAction: TextInputAction.next,
 
-                        onChanged:
-                            (value) {
-
+                        onChanged: (value) {
                           // Quan trong:
                           // rebuild checklist moi lan go.
                           setDialogState(() {
+                            newPassword = value;
 
-                            newPassword =
-                                value;
+                            newPasswordError = null;
 
-                            newPasswordError =
-                            null;
-
-                            generalError =
-                            null;
+                            generalError = null;
                           });
                         },
 
-                        decoration:
-                        InputDecoration(
+                        decoration: InputDecoration(
+                          labelText: 'Mật khẩu mới',
 
-                          labelText:
-                          'Mật khẩu mới',
+                          border: const OutlineInputBorder(),
 
-                          border:
-                          const OutlineInputBorder(),
+                          errorText: newPasswordError,
 
-                          errorText:
-                          newPasswordError,
-
-                          suffixIcon:
-                          IconButton(
-
-                            onPressed:
-                            submitting
+                          suffixIcon: IconButton(
+                            onPressed: submitting
                                 ? null
                                 : () {
+                                    setDialogState(() {
+                                      hideNewPassword = !hideNewPassword;
+                                    });
+                                  },
 
-                              setDialogState(
-                                    () {
-
-                                  hideNewPassword =
-                                  !hideNewPassword;
-                                },
-                              );
-                            },
-
-                            icon:
-                            Icon(
-
+                            icon: Icon(
                               hideNewPassword
-                                  ? Icons
-                                  .visibility_outlined
-                                  : Icons
-                                  .visibility_off_outlined,
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
                             ),
                           ),
                         ),
                       ),
 
-
-                      const SizedBox(
-                        height: 10,
-                      ),
-
+                      const SizedBox(height: 10),
 
                       // ========================================
                       // REALTIME PASSWORD CHECKLIST
                       // ========================================
-
                       Wrap(
                         spacing: 14,
                         runSpacing: 8,
 
                         children: [
+                          passwordRule('8+ ký tự', hasLength),
 
-                          passwordRule(
-                            '8+ ký tự',
-                            hasLength,
-                          ),
+                          passwordRule('Chữ hoa A-Z', hasUppercase),
 
-                          passwordRule(
-                            'Chữ hoa A-Z',
-                            hasUppercase,
-                          ),
+                          passwordRule('Chữ thường a-z', hasLowercase),
 
-                          passwordRule(
-                            'Chữ thường a-z',
-                            hasLowercase,
-                          ),
+                          passwordRule('Số 0-9', hasNumber),
 
-                          passwordRule(
-                            'Số 0-9',
-                            hasNumber,
-                          ),
-
-                          passwordRule(
-                            'Ký tự đặc biệt',
-                            hasSpecial,
-                          ),
+                          passwordRule('Ký tự đặc biệt', hasSpecial),
                         ],
                       ),
 
-
-                      const SizedBox(
-                        height: 18,
-                      ),
-
+                      const SizedBox(height: 18),
 
                       // ========================================
                       // CONFIRM PASSWORD
                       // ========================================
-
                       TextFormField(
-                        obscureText:
-                        hideConfirmPassword,
+                        obscureText: hideConfirmPassword,
 
-                        enabled:
-                        !submitting,
+                        enabled: !submitting,
 
-                        textInputAction:
-                        TextInputAction.done,
+                        textInputAction: TextInputAction.done,
 
-                        onChanged:
-                            (value) {
-
+                        onChanged: (value) {
                           setDialogState(() {
+                            confirmPassword = value;
 
-                            confirmPassword =
-                                value;
-
-                            confirmPasswordError =
-                            null;
+                            confirmPasswordError = null;
                           });
                         },
 
-                        onFieldSubmitted:
-                            (_) {
-
+                        onFieldSubmitted: (_) {
                           if (!submitting) {
                             submit();
                           }
                         },
 
-                        decoration:
-                        InputDecoration(
+                        decoration: InputDecoration(
+                          labelText: 'Nhập lại mật khẩu mới',
 
-                          labelText:
-                          'Nhập lại mật khẩu mới',
+                          border: const OutlineInputBorder(),
 
-                          border:
-                          const OutlineInputBorder(),
+                          errorText: confirmPasswordError,
 
-                          errorText:
-                          confirmPasswordError,
-
-                          suffixIcon:
-                          IconButton(
-
-                            onPressed:
-                            submitting
+                          suffixIcon: IconButton(
+                            onPressed: submitting
                                 ? null
                                 : () {
+                                    setDialogState(() {
+                                      hideConfirmPassword =
+                                          !hideConfirmPassword;
+                                    });
+                                  },
 
-                              setDialogState(
-                                    () {
-
-                                  hideConfirmPassword =
-                                  !hideConfirmPassword;
-                                },
-                              );
-                            },
-
-                            icon:
-                            Icon(
-
+                            icon: Icon(
                               hideConfirmPassword
-                                  ? Icons
-                                  .visibility_outlined
-                                  : Icons
-                                  .visibility_off_outlined,
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
                             ),
                           ),
                         ),
                       ),
 
-
                       // ========================================
                       // GENERAL ERROR
                       // ========================================
-
-                      if (
-                      generalError !=
-                          null
-                      ) ...[
-
-                        const SizedBox(
-                          height: 16,
-                        ),
-
+                      if (generalError != null) ...[
+                        const SizedBox(height: 16),
 
                         Container(
-                          padding:
-                          const EdgeInsets
-                              .all(
-                            12,
+                          padding: const EdgeInsets.all(12),
+
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.errorContainer,
+
+                            borderRadius: BorderRadius.circular(8),
                           ),
 
-                          decoration:
-                          BoxDecoration(
-
-                            color:
-                            Theme.of(
-                              context,
-                            )
-                                .colorScheme
-                                .errorContainer,
-
-                            borderRadius:
-                            BorderRadius
-                                .circular(
-                              8,
-                            ),
-                          ),
-
-                          child:
-                          Row(
-                            crossAxisAlignment:
-                            CrossAxisAlignment
-                                .start,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
 
                             children: [
-
                               Icon(
-                                Icons
-                                    .error_outline,
+                                Icons.error_outline,
 
-                                color:
-                                Theme.of(
-                                  context,
-                                )
+                                color: Theme.of(context)
                                     .colorScheme
                                     .onErrorContainer,
                               ),
 
-
-                              const SizedBox(
-                                width: 10,
-                              ),
-
+                              const SizedBox(width: 10),
 
                               Expanded(
-                                child:
-                                Text(
-
+                                child: Text(
                                   generalError!,
 
-                                  style:
-                                  TextStyle(
-
-                                    color:
-                                    Theme.of(
-                                      context,
-                                    )
+                                  style: TextStyle(
+                                    color: Theme.of(context)
                                         .colorScheme
                                         .onErrorContainer,
                                   ),
@@ -1109,58 +668,31 @@ class _AccountPageState
                         ),
                       ],
 
-
                       if (submitting) ...[
+                        const SizedBox(height: 18),
 
-                        const SizedBox(
-                          height: 18,
-                        ),
-
-                        const Center(
-                          child:
-                          CircularProgressIndicator(),
-                        ),
+                        const Center(child: CircularProgressIndicator()),
                       ],
                     ],
                   ),
                 ),
               ),
 
-
               actions: [
-
                 TextButton(
-                  onPressed:
-                  submitting
+                  onPressed: submitting
                       ? null
                       : () {
+                          Navigator.of(dialogContext).pop(false);
+                        },
 
-                    Navigator.of(
-                      dialogContext,
-                    ).pop(
-                      false,
-                    );
-                  },
-
-                  child:
-                  const Text(
-                    'HỦY',
-                  ),
+                  child: const Text('HỦY'),
                 ),
 
-
                 FilledButton(
-                  onPressed:
-                  submitting
-                      ? null
-                      : submit,
+                  onPressed: submitting ? null : submit,
 
-                  child:
-                  Text(
-                    submitting
-                        ? 'ĐANG ĐỔI...'
-                        : 'ĐỔI MẬT KHẨU',
-                  ),
+                  child: Text(submitting ? 'ĐANG ĐỔI...' : 'ĐỔI MẬT KHẨU'),
                 ),
               ],
             );
@@ -1169,34 +701,19 @@ class _AccountPageState
       },
     );
 
-
     // ========================================
     // SUCCESS
     // ========================================
 
-    if (
-    success != true ||
-        !mounted
-    ) {
+    if (success != true || !mounted) {
       return;
     }
 
-
-    ScaffoldMessenger
-        .of(context)
-        .showSnackBar(
-
-      const SnackBar(
-        content:
-        Text(
-          'Đổi mật khẩu thành công',
-        ),
-      ),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Đổi mật khẩu thành công')));
   }
 
   Future<void> deleteAccount() async {
-
     String password = '';
 
     String? passwordError;
@@ -1205,261 +722,154 @@ class _AccountPageState
     bool deleting = false;
     bool hidePassword = true;
 
-
-    final deleted =
-    await showDialog<bool>(
+    final deleted = await showDialog<bool>(
       context: context,
 
       barrierDismissible: false,
 
       builder: (dialogContext) {
-
         return StatefulBuilder(
-          builder: (
-              context,
-              setDialogState,
-              ) {
-
+          builder: (context, setDialogState) {
             Future<void> submit() async {
-
               if (deleting) {
                 return;
               }
-
 
               setDialogState(() {
                 passwordError = null;
                 generalError = null;
               });
 
-
               if (password.isEmpty) {
-
                 setDialogState(() {
-                  passwordError =
-                  'Vui lòng nhập mật khẩu để xác nhận';
+                  passwordError = 'Vui lòng nhập mật khẩu để xác nhận';
                 });
 
                 return;
               }
 
-
               setDialogState(() {
                 deleting = true;
               });
 
-
               try {
+                await backend.deleteAccount(password);
 
-                await backend
-                    .deleteAccount(
-                  password,
-                );
-
-
-                if (
-                !dialogContext.mounted
-                ) {
+                if (!dialogContext.mounted) {
                   return;
                 }
 
-
-                Navigator.of(
-                  dialogContext,
-                ).pop(true);
-
+                Navigator.of(dialogContext).pop(true);
               } catch (error) {
-
-                if (
-                !dialogContext.mounted
-                ) {
+                if (!dialogContext.mounted) {
                   return;
                 }
 
+                var message = error.toString().replaceFirst('Exception: ', '');
 
-                var message =
-                error
-                    .toString()
-                    .replaceFirst(
-                  'Exception: ',
-                  '',
-                );
-
-
-                final lower =
-                message.toLowerCase();
-
+                final lower = message.toLowerCase();
 
                 setDialogState(() {
-
                   deleting = false;
 
-
-                  if (
-                  lower.contains(
-                    'mat khau khong dung',
-                  ) ||
-                      lower.contains(
-                        'mật khẩu không đúng',
-                      )
-                  ) {
-
-                    passwordError =
-                    'Mật khẩu không đúng';
-
+                  if (lower.contains('mat khau khong dung') ||
+                      lower.contains('mật khẩu không đúng')) {
+                    passwordError = 'Mật khẩu không đúng';
                   } else {
-
-                    generalError =
-                        message;
+                    generalError = message;
                   }
                 });
               }
             }
 
-
             return AlertDialog(
-
-              insetPadding:
-              const EdgeInsets.symmetric(
+              insetPadding: const EdgeInsets.symmetric(
                 horizontal: 20,
                 vertical: 24,
               ),
 
-
-              title:
-              const Row(
+              title: const Row(
                 children: [
+                  Icon(Icons.warning_amber_rounded, color: Colors.red),
 
-                  Icon(
-                    Icons.warning_amber_rounded,
-                    color: Colors.red,
-                  ),
+                  SizedBox(width: 10),
 
-                  SizedBox(
-                    width: 10,
-                  ),
-
-                  Expanded(
-                    child: Text(
-                      'Xóa tài khoản?',
-                    ),
-                  ),
+                  Expanded(child: Text('Xóa tài khoản?')),
                 ],
               ),
 
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
 
-              content:
-              SingleChildScrollView(
-
-                child:
-                Column(
-                  mainAxisSize:
-                  MainAxisSize.min,
-
-                  crossAxisAlignment:
-                  CrossAxisAlignment.stretch,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
 
                   children: [
-
                     const Text(
                       'Hành động này sẽ xóa vĩnh viễn tài khoản và dữ liệu ZAUTO của bạn.',
                     ),
 
-
-                    const SizedBox(
-                      height: 12,
-                    ),
-
+                    const SizedBox(height: 12),
 
                     const Text(
                       'Dữ liệu sẽ bị xóa:',
-                      style: TextStyle(
-                        fontWeight:
-                        FontWeight.bold,
-                      ),
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
 
-
-                    const SizedBox(
-                      height: 6,
-                    ),
-
+                    const SizedBox(height: 6),
 
                     const Text(
                       '• Phiên Zalo đã liên kết\n'
-                          '• Nhóm theo dõi\n'
-                          '• Bộ lọc\n'
-                          '• Lịch sử cuốc\n'
-                          '• Thiết bị nhận thông báo',
+                      '• Nhóm theo dõi\n'
+                      '• Bộ lọc\n'
+                      '• Lịch sử cuốc\n'
+                      '• Thiết bị nhận thông báo',
                     ),
 
-
-                    const SizedBox(
-                      height: 20,
-                    ),
-
+                    const SizedBox(height: 20),
 
                     TextFormField(
                       autofocus: true,
 
-                      obscureText:
-                      hidePassword,
+                      obscureText: hidePassword,
 
-                      enabled:
-                      !deleting,
+                      enabled: !deleting,
 
-                      textInputAction:
-                      TextInputAction.done,
+                      textInputAction: TextInputAction.done,
 
-                      onChanged:
-                          (value) {
-
+                      onChanged: (value) {
                         setDialogState(() {
-                          password =
-                              value;
+                          password = value;
 
-                          passwordError =
-                          null;
+                          passwordError = null;
 
-                          generalError =
-                          null;
+                          generalError = null;
                         });
                       },
 
-                      onFieldSubmitted:
-                          (_) {
-
+                      onFieldSubmitted: (_) {
                         if (!deleting) {
                           submit();
                         }
                       },
 
-                      decoration:
-                      InputDecoration(
-                        labelText:
-                        'Nhập mật khẩu để xác nhận',
+                      decoration: InputDecoration(
+                        labelText: 'Nhập mật khẩu để xác nhận',
 
-                        border:
-                        const OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
 
-                        errorText:
-                        passwordError,
+                        errorText: passwordError,
 
-                        suffixIcon:
-                        IconButton(
-                          onPressed:
-                          deleting
+                        suffixIcon: IconButton(
+                          onPressed: deleting
                               ? null
                               : () {
+                                  setDialogState(() {
+                                    hidePassword = !hidePassword;
+                                  });
+                                },
 
-                            setDialogState(() {
-                              hidePassword =
-                              !hidePassword;
-                            });
-                          },
-
-                          icon:
-                          Icon(
+                          icon: Icon(
                             hidePassword
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
@@ -1468,43 +878,23 @@ class _AccountPageState
                       ),
                     ),
 
-
-                    if (
-                    generalError != null
-                    ) ...[
-
-                      const SizedBox(
-                        height: 14,
-                      ),
-
+                    if (generalError != null) ...[
+                      const SizedBox(height: 14),
 
                       Container(
-                        padding:
-                        const EdgeInsets.all(
-                          12,
+                        padding: const EdgeInsets.all(12),
+
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.errorContainer,
+
+                          borderRadius: BorderRadius.circular(8),
                         ),
 
-                        decoration:
-                        BoxDecoration(
-                          color:
-                          Theme.of(context)
-                              .colorScheme
-                              .errorContainer,
-
-                          borderRadius:
-                          BorderRadius.circular(
-                            8,
-                          ),
-                        ),
-
-                        child:
-                        Text(
+                        child: Text(
                           generalError!,
 
-                          style:
-                          TextStyle(
-                            color:
-                            Theme.of(context)
+                          style: TextStyle(
+                            color: Theme.of(context)
                                 .colorScheme
                                 .onErrorContainer,
                           ),
@@ -1512,61 +902,32 @@ class _AccountPageState
                       ),
                     ],
 
-
                     if (deleting) ...[
+                      const SizedBox(height: 18),
 
-                      const SizedBox(
-                        height: 18,
-                      ),
-
-                      const Center(
-                        child:
-                        CircularProgressIndicator(),
-                      ),
+                      const Center(child: CircularProgressIndicator()),
                     ],
                   ],
                 ),
               ),
 
-
               actions: [
-
                 TextButton(
-                  onPressed:
-                  deleting
+                  onPressed: deleting
                       ? null
                       : () {
+                          Navigator.of(dialogContext).pop(false);
+                        },
 
-                    Navigator.of(
-                      dialogContext,
-                    ).pop(false);
-                  },
-
-                  child:
-                  const Text(
-                    'HỦY',
-                  ),
+                  child: const Text('HỦY'),
                 ),
 
-
                 FilledButton(
-                  onPressed:
-                  deleting
-                      ? null
-                      : submit,
+                  onPressed: deleting ? null : submit,
 
-                  style:
-                  FilledButton.styleFrom(
-                    backgroundColor:
-                    Colors.red,
-                  ),
+                  style: FilledButton.styleFrom(backgroundColor: Colors.red),
 
-                  child:
-                  Text(
-                    deleting
-                        ? 'ĐANG XÓA...'
-                        : 'XÓA TÀI KHOẢN',
-                  ),
+                  child: Text(deleting ? 'ĐANG XÓA...' : 'XÓA TÀI KHOẢN'),
                 ),
               ],
             );
@@ -1575,32 +936,22 @@ class _AccountPageState
       },
     );
 
-
-    if (
-    deleted != true ||
-        !mounted
-    ) {
+    if (deleted != true || !mounted) {
       return;
     }
-
 
     // Backend da xoa user.
     // Bay gio chi xoa JWT local
     // va quay ve Login.
-    await widget
-        .onAccountDeleted();
+    await widget.onAccountDeleted();
   }
 
   // ========================================
   // STATUS LABEL
   // ========================================
 
-  String workerLabel(
-      String status,
-      ) {
-
+  String workerLabel(String status) {
     switch (status) {
-
       case 'running':
         return 'Hoạt động';
 
@@ -1624,14 +975,8 @@ class _AccountPageState
     }
   }
 
-
-  Color workerColor(
-      BuildContext context,
-      String status,
-      ) {
-
+  Color workerColor(BuildContext context, String status) {
     switch (status) {
-
       case 'running':
         return Colors.green;
 
@@ -1651,232 +996,140 @@ class _AccountPageState
     }
   }
 
-
   // ========================================
   // RELINK
   // ========================================
 
   Future<void> relinkZalo() async {
-
-    final confirmed =
-    await showDialog<bool>(
+    final confirmed = await showDialog<bool>(
       context: context,
 
       barrierDismissible: false,
 
       builder: (dialogContext) {
-
         return AlertDialog(
-          title:
-          const Text(
-            'Liên kết lại Zalo',
-          ),
+          title: const Text('Liên kết lại Zalo'),
 
-          content:
-          const Text(
+          content: const Text(
             'Phiên Zalo hiện tại sẽ được xóa và bạn sẽ cần quét mã QR để liên kết lại.',
           ),
 
           actions: [
-
             TextButton(
               onPressed: () {
-
-                Navigator.of(
-                  dialogContext,
-                ).pop(false);
+                Navigator.of(dialogContext).pop(false);
               },
 
-              child:
-              const Text(
-                'HỦY',
-              ),
+              child: const Text('HỦY'),
             ),
-
 
             FilledButton(
               onPressed: () {
-
-                Navigator.of(
-                  dialogContext,
-                ).pop(true);
+                Navigator.of(dialogContext).pop(true);
               },
 
-              child:
-              const Text(
-                'TIẾP TỤC',
-              ),
+              child: const Text('TIẾP TỤC'),
             ),
           ],
         );
       },
     );
 
-
     if (confirmed != true) {
       return;
     }
-
 
     if (!mounted) {
       return;
     }
 
-
     setState(() {
       unlinking = true;
     });
 
-
     try {
-
-      await backend
-          .unlinkZalo();
-
+      await backend.unlinkZalo();
 
       if (!mounted) {
         return;
       }
 
-
-      await widget
-          .onAuthChanged();
-
+      await widget.onAuthChanged();
     } catch (error) {
-
       if (!mounted) {
         return;
       }
 
-
-      ScaffoldMessenger
-          .of(context)
-          .showSnackBar(
-        SnackBar(
-          content:
-          Text(
-            'Không thể liên kết lại: $error',
-          ),
-        ),
-      );
-
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Không thể liên kết lại: $error')));
     } finally {
-
       if (mounted) {
-
         setState(() {
           unlinking = false;
         });
       }
     }
   }
-
 
   // ========================================
   // UNLINK
   // ========================================
 
-  Future<void>
-  unlinkZalo() async {
+  Future<void> unlinkZalo() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
 
-    final confirmed =
-    await showDialog<bool>(
-      context:
-      context,
-
-      builder:
-          (context) {
-
+      builder: (context) {
         return AlertDialog(
-          title:
-          const Text(
-            'Ngắt liên kết Zalo?',
-          ),
+          title: const Text('Ngắt liên kết Zalo?'),
 
-          content:
-          const Text(
+          content: const Text(
             'ZAUTO sẽ ngừng theo dõi các nhóm Zalo cho đến khi bạn liên kết lại.',
           ),
 
           actions: [
-
             TextButton(
-              onPressed:
-                  () {
-                Navigator.pop(
-                  context,
-                  false,
-                );
+              onPressed: () {
+                Navigator.pop(context, false);
               },
 
-              child:
-              const Text(
-                'HỦY',
-              ),
+              child: const Text('HỦY'),
             ),
 
-
             FilledButton(
-              onPressed:
-                  () {
-                Navigator.pop(
-                  context,
-                  true,
-                );
+              onPressed: () {
+                Navigator.pop(context, true);
               },
 
-              child:
-              const Text(
-                'NGẮT LIÊN KẾT',
-              ),
+              child: const Text('NGẮT LIÊN KẾT'),
             ),
           ],
         );
       },
     );
 
-
     if (confirmed != true) {
       return;
     }
-
 
     setState(() {
       unlinking = true;
     });
 
-
     try {
+      await backend.unlinkZalo();
 
-      await backend
-          .unlinkZalo();
-
-
-      await widget
-          .onAuthChanged();
-
+      await widget.onAuthChanged();
     } catch (e) {
-
       if (!mounted) {
         return;
       }
 
-
-      ScaffoldMessenger
-          .of(context)
-          .showSnackBar(
-        SnackBar(
-          content:
-          Text(
-            'Lỗi: $e',
-          ),
-        ),
-      );
-
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Lỗi: $e')));
     } finally {
-
       if (mounted) {
-
         setState(() {
           unlinking = false;
         });
@@ -1884,77 +1137,45 @@ class _AccountPageState
     }
   }
 
-
   // ========================================
   // LOGOUT
   // ========================================
 
-  Future<void>
-  logout() async {
+  Future<void> logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
 
-    final confirmed =
-    await showDialog<bool>(
-      context:
-      context,
-
-      builder:
-          (context) {
-
+      builder: (context) {
         return AlertDialog(
-          title:
-          const Text(
-            'Đăng xuất?',
-          ),
+          title: const Text('Đăng xuất?'),
 
-          content:
-          const Text(
-            'Bạn có chắc muốn đăng xuất khỏi tài khoản này?',
-          ),
+          content: const Text('Bạn có chắc muốn đăng xuất khỏi tài khoản này?'),
 
           actions: [
-
             TextButton(
-              onPressed:
-                  () {
-                Navigator.pop(
-                  context,
-                  false,
-                );
+              onPressed: () {
+                Navigator.pop(context, false);
               },
 
-              child:
-              const Text(
-                'HỦY',
-              ),
+              child: const Text('HỦY'),
             ),
 
-
             FilledButton(
-              onPressed:
-                  () {
-                Navigator.pop(
-                  context,
-                  true,
-                );
+              onPressed: () {
+                Navigator.pop(context, true);
               },
 
-              child:
-              const Text(
-                'ĐĂNG XUẤT',
-              ),
+              child: const Text('ĐĂNG XUẤT'),
             ),
           ],
         );
-
       },
     );
-
 
     if (confirmed == true) {
       await widget.onLogout();
     }
   }
-
 
   // ========================================
   // ROW
@@ -1966,55 +1187,27 @@ class _AccountPageState
     required String value,
     Color? valueColor,
   }) {
-
     return Padding(
-      padding:
-      const EdgeInsets.symmetric(
-        vertical: 10,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 10),
 
-      child:
-      Row(
+      child: Row(
         children: [
+          Icon(icon, size: 22),
 
-          Icon(
-            icon,
-            size: 22,
-          ),
+          const SizedBox(width: 14),
 
-
-          const SizedBox(
-            width: 14,
-          ),
-
-
-          Expanded(
-            child:
-            Text(
-              title,
-              style:
-              const TextStyle(
-                fontSize: 15,
-              ),
-            ),
-          ),
-
+          Expanded(child: Text(title, style: const TextStyle(fontSize: 15))),
 
           Flexible(
-            child:
-            Text(
+            child: Text(
               value,
-              textAlign:
-              TextAlign.right,
+              textAlign: TextAlign.right,
 
-              style:
-              TextStyle(
+              style: TextStyle(
                 fontSize: 15,
-                fontWeight:
-                FontWeight.w600,
+                fontWeight: FontWeight.w600,
 
-                color:
-                valueColor,
+                color: valueColor,
               ),
             ),
           ),
@@ -2023,32 +1216,18 @@ class _AccountPageState
     );
   }
 
-  Widget _sectionTitle(
-      String title,
-      ) {
-    final colorScheme =
-        Theme.of(context).colorScheme;
+  Widget _sectionTitle(String title) {
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
-      padding:
-      const EdgeInsets.fromLTRB(
-        12,
-        22,
-        12,
-        10,
-      ),
-      child:
-      Text(
+      padding: const EdgeInsets.fromLTRB(12, 22, 12, 10),
+      child: Text(
         title,
-        style:
-        TextStyle(
+        style: TextStyle(
           fontSize: 14,
-          fontWeight:
-          FontWeight.w500,
-          letterSpacing:
-          0.8,
-          color:
-          colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w500,
+          letterSpacing: 0.8,
+          color: colorScheme.onSurfaceVariant,
         ),
       ),
     );
@@ -2061,105 +1240,62 @@ class _AccountPageState
     VoidCallback? onTap,
     bool danger = false,
   }) {
-    final colorScheme =
-        Theme.of(context).colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
-    final foreground =
-    danger
-        ? colorScheme.error
-        : colorScheme.onSurface;
+    final foreground = danger ? colorScheme.error : colorScheme.onSurface;
 
-    final iconBackground =
-    danger
+    final iconBackground = danger
         ? colorScheme.errorContainer
         : colorScheme.primaryContainer;
 
     return InkWell(
-      onTap:
-      onTap,
+      onTap: onTap,
 
-      child:
-      Padding(
-        padding:
-        const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 13,
-        ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
 
-        child:
-        Row(
+        child: Row(
           children: [
-
             Container(
               width: 46,
               height: 46,
 
-              decoration:
-              BoxDecoration(
-                color:
-                iconBackground,
-                borderRadius:
-                BorderRadius.circular(
-                  13,
-                ),
+              decoration: BoxDecoration(
+                color: iconBackground,
+                borderRadius: BorderRadius.circular(13),
               ),
 
-              alignment:
-              Alignment.center,
+              alignment: Alignment.center,
 
-              child:
-              Icon(
-                icon,
-                size: 24,
-                color:
-                foreground,
-              ),
+              child: Icon(icon, size: 24, color: foreground),
             ),
 
-            const SizedBox(
-              width: 16,
-            ),
+            const SizedBox(width: 16),
 
             Expanded(
-              child:
-              Column(
-                crossAxisAlignment:
-                CrossAxisAlignment.start,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
 
-                mainAxisSize:
-                MainAxisSize.min,
+                mainAxisSize: MainAxisSize.min,
 
                 children: [
-
                   Text(
                     title,
-                    style:
-                    TextStyle(
+                    style: TextStyle(
                       fontSize: 17,
-                      fontWeight:
-                      FontWeight.w500,
-                      color:
-                      foreground,
+                      fontWeight: FontWeight.w500,
+                      color: foreground,
                     ),
                   ),
 
-                  if (
-                  subtitle != null &&
-                      subtitle.isNotEmpty
-                  ) ...[
-
-                    const SizedBox(
-                      height: 3,
-                    ),
+                  if (subtitle != null && subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 3),
 
                     Text(
                       subtitle,
-                      style:
-                      TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
-                        color:
-                        colorScheme
-                            .onSurfaceVariant,
+                        color: colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -2170,9 +1306,7 @@ class _AccountPageState
             Icon(
               Icons.chevron_right_rounded,
               size: 26,
-              color:
-              colorScheme
-                  .onSurfaceVariant,
+              color: colorScheme.onSurfaceVariant,
             ),
           ],
         ),
@@ -2180,118 +1314,54 @@ class _AccountPageState
     );
   }
 
-  Widget _accountCard({
-    required List<Widget> children,
-  }) {
-    final colorScheme =
-        Theme.of(context).colorScheme;
+  Widget _accountCard({required List<Widget> children}) {
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      decoration:
-      BoxDecoration(
-        color:
-        colorScheme.surfaceContainer,
-        borderRadius:
-        BorderRadius.circular(
-          22,
-        ),
-        border:
-        Border.all(
-          color:
-          colorScheme.outline
-              .withValues(
-            alpha: 0.45,
-          ),
-        ),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.45)),
       ),
 
-      clipBehavior:
-      Clip.antiAlias,
+      clipBehavior: Clip.antiAlias,
 
-      child:
-      Column(
-        children:
-        children,
-      ),
+      child: Column(children: children),
     );
   }
 
-  void _showTopMessage(
-      String message,
-      ) {
+  void _showTopMessage(String message) {
     if (!mounted) {
       return;
     }
 
-    ScaffoldMessenger
-        .of(context)
-        .showSnackBar(
-      SnackBar(
-        content:
-        Text(
-          message,
-        ),
-      ),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
-
   @override
-  Widget build(
-      BuildContext context,
-      ) {
-
-    if (
-    loading &&
-        profile == null
-    ) {
-
-      return const Center(
-        child:
-        CircularProgressIndicator(),
-      );
+  Widget build(BuildContext context) {
+    if (loading && profile == null) {
+      return const Center(child: CircularProgressIndicator());
     }
 
-
-    if (
-    error != null &&
-        profile == null
-    ) {
-
+    if (error != null && profile == null) {
       return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
 
-        child:
-        Padding(
-          padding:
-          const EdgeInsets.all(
-            24,
-          ),
-
-          child:
-          Column(
-            mainAxisSize:
-            MainAxisSize.min,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
 
             children: [
+              Text(error!, textAlign: TextAlign.center),
 
-              Text(
-                error!,
-                textAlign:
-                TextAlign.center,
-              ),
-
-              const SizedBox(
-                height: 16,
-              ),
+              const SizedBox(height: 16),
 
               FilledButton(
-                onPressed:
-                loadProfile,
+                onPressed: loadProfile,
 
-                child:
-                const Text(
-                  'THỬ LẠI',
-                ),
+                child: const Text('THỬ LẠI'),
               ),
             ],
           ),
@@ -2299,79 +1369,33 @@ class _AccountPageState
       );
     }
 
+    final user = Map<String, dynamic>.from(profile?['user'] ?? {});
 
-    final user =
-    Map<String, dynamic>.from(
-      profile?['user'] ??
-          {},
+    final worker = Map<String, dynamic>.from(profile?['worker'] ?? {});
+
+    final zaloProfile = Map<String, dynamic>.from(
+      profile?['zaloProfile'] ?? {},
     );
 
+    final zaloAvatar = zaloProfile['avatar']?.toString().trim() ?? '';
 
-    final worker =
-    Map<String, dynamic>.from(
-      profile?['worker'] ??
-          {},
-    );
-
-    final zaloProfile =
-    Map<String, dynamic>.from(
-      profile?['zaloProfile'] ??
-          {},
-    );
-
-
-    final zaloAvatar =
-        zaloProfile['avatar']
-            ?.toString()
-            .trim() ??
-            '';
-
-
-    final zaloPhone =
-    (
-        zaloProfile['phone'] ??
-            zaloProfile['phoneNumber'] ??
-            ''
-    )
+    final zaloPhone = (zaloProfile['phone'] ?? zaloProfile['phoneNumber'] ?? '')
         .toString()
         .trim();
 
-    final name =
-        user['name']
-            ?.toString() ??
-            'Người dùng';
+    final name = user['name']?.toString() ?? 'Người dùng';
 
+    final phone = user['phone']?.toString() ?? '';
 
-    final phone =
-        user['phone']
-            ?.toString() ??
-            '';
+    final membership = user['membership']?.toString().toUpperCase() ?? 'FREE';
 
+    final zaloLinked = user['zaloLinked'] == true;
 
-    final membership =
-        user['membership']
-            ?.toString()
-            .toUpperCase() ??
-            'FREE';
-
-
-    final zaloLinked =
-        user['zaloLinked'] ==
-            true;
-
-
-    final workerStatus =
-        worker['status']
-            ?.toString() ??
-            'stopped';
-
+    final workerStatus = worker['status']?.toString() ?? 'stopped';
 
     final needRelink =
-        workerStatus ==
-            'needs_relink' ||
-            workerStatus ==
-                'error';
-
+        zaloLinked &&
+        (workerStatus == 'needs_relink' || workerStatus == 'error');
 
     // ========================================
     // SO NHOM
@@ -2380,982 +1404,493 @@ class _AccountPageState
     // khong tu bịa so.
     // ========================================
 
-    final totalGroups =
-        notificationGroups.length;
+    final totalGroups = notificationGroups.length;
 
+    final enabledGroups = notificationGroups
+        .where((group) => group['enabled'] == true)
+        .length;
 
-    final enabledGroups =
-        notificationGroups
-            .where(
-              (group) =>
-          group['enabled'] ==
-              true,
-        )
-            .length;
-
-
-    final groupText =
-    totalGroups > 0
+    final groupText = totalGroups > 0
         ? '$enabledGroups/$totalGroups nhóm nhận thông báo'
         : '0/0 nhóm nhận thông báo';
 
-
-    final colorScheme =
-        Theme.of(context)
-            .colorScheme;
-
+    final colorScheme = Theme.of(context).colorScheme;
 
     return RefreshIndicator(
+      onRefresh: loadProfile,
 
-      onRefresh:
-      loadProfile,
-
-
-      child:
-      ListView(
-
-        padding:
-        const EdgeInsets.fromLTRB(
-          16,
-          34,
-          16,
-          30,
-        ),
-
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 34, 16, 30),
 
         children: [
-
           // ========================================
           // HEADER
           // ========================================
 
           Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
 
-            padding:
-            const EdgeInsets.symmetric(
-              horizontal: 8,
-            ),
-
-            child:
-            Row(
-
-              crossAxisAlignment:
-              CrossAxisAlignment.center,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
 
               children: [
-
                 CircleAvatar(
+                  radius: 46,
 
-                  radius:
-                  46,
-
-                  backgroundImage:
-                  const AssetImage(
+                  backgroundImage: const AssetImage(
                     'assets/images/AvatarApp.png',
                   ),
-
                 ),
 
-
-                const SizedBox(
-                  width:
-                  18,
-                ),
-
+                const SizedBox(width: 18),
 
                 Expanded(
-
-                  child:
-                  Column(
-
-                    crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
 
                     children: [
-
                       Text(
-
                         name,
 
-                        maxLines:
-                        1,
+                        maxLines: 1,
 
-                        overflow:
-                        TextOverflow
-                            .ellipsis,
+                        overflow: TextOverflow.ellipsis,
 
-                        style:
-                        const TextStyle(
+                        style: const TextStyle(
+                          fontSize: 25,
 
-                          fontSize:
-                          25,
-
-                          fontWeight:
-                          FontWeight.w700,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
 
-
-                      const SizedBox(
-                        height:
-                        4,
-                      ),
-
+                      const SizedBox(height: 4),
 
                       Text(
-
                         phone,
 
-                        style:
-                        TextStyle(
+                        style: TextStyle(
+                          fontSize: 17,
 
-                          fontSize:
-                          17,
-
-                          color:
-                          colorScheme
-                              .onSurfaceVariant,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
                 ),
 
-
                 IconButton(
+                  tooltip: 'Làm mới',
 
-                  tooltip:
-                  'Làm mới',
+                  onPressed: loadProfile,
 
-                  onPressed:
-                  loadProfile,
-
-                  icon:
-                  const Icon(
-                    Icons
-                        .notifications_none_rounded,
-
-                    size:
-                    30,
-                  ),
+                  icon: const Icon(Icons.notifications_none_rounded, size: 30),
                 ),
               ],
             ),
           ),
 
-
           // ========================================
-          // DA LIEN KET
+          // THONG TIN ZALO
+          //
+          // CHI HIEN KHI TAI KHOAN
+          // DA LIEN KET ZALO.
           // ========================================
+          if (zaloLinked) ...[
+            _sectionTitle('ĐÃ LIÊN KẾT'),
 
-          _sectionTitle(
-            'ĐÃ LIÊN KẾT',
-          ),
+            _accountCard(
+              children: [
+                // ==================================
+                // ZALO USER
+                // ==================================
 
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 31,
 
-          _accountCard(
+                        backgroundColor: colorScheme.surfaceContainerHighest,
 
-            children: [
+                        backgroundImage: zaloAvatar.isNotEmpty
+                            ? NetworkImage(zaloAvatar)
+                            : null,
 
-              // ==================================
-              // USER
-              // ==================================
+                        child: zaloAvatar.isEmpty
+                            ? Icon(
+                                Icons.person_rounded,
+                                size: 34,
+                                color: colorScheme.onSurfaceVariant,
+                              )
+                            : null,
+                      ),
 
-              Padding(
+                      const SizedBox(width: 14),
 
-                padding:
-                const EdgeInsets.fromLTRB(
-                  18,
-                  16,
-                  18,
-                  16,
-                ),
-
-                child:
-                Row(
-
-                  children: [
-
-                    CircleAvatar(
-
-                      radius:
-                      31,
-
-                      backgroundColor:
-                      colorScheme
-                          .surfaceContainerHighest,
-
-                      backgroundImage:
-                      zaloAvatar.isNotEmpty
-                          ? NetworkImage(
-                        zaloAvatar,
-                      )
-                          : null,
-
-                      child:
-                      zaloAvatar.isEmpty
-                          ? Icon(
-                        Icons.person_rounded,
-
-                        size:
-                        34,
-
-                        color:
-                        colorScheme
-                            .onSurfaceVariant,
-                      )
-                          : null,
-                    ),
-
-                    const SizedBox(
-                      width:
-                      14,
-                    ),
-
-
-                    Expanded(
-
-                      child:
-                      Column(
-
-                        crossAxisAlignment:
-                        CrossAxisAlignment.start,
-
-                        mainAxisSize:
-                        MainAxisSize.min,
-
-                        children: [
-
-                          Text(
-
-                            zaloProfile['name']
-                                ?.toString()
-                                .trim()
-                                .isNotEmpty ==
-                                true
-                                ? zaloProfile['name']
-                                .toString()
-                                .trim()
-                                : name,
-
-                            maxLines:
-                            1,
-
-                            overflow:
-                            TextOverflow
-                                .ellipsis,
-
-                            style:
-                            const TextStyle(
-
-                              fontSize:
-                              18,
-
-                              fontWeight:
-                              FontWeight.w500,
-                            ),
-                          ),
-
-
-                          if (
-                          zaloPhone.isNotEmpty
-                          ) ...[
-
-                            const SizedBox(
-                              height:
-                              4,
-                            ),
-
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
                             Text(
+                              zaloProfile['name']
+                                          ?.toString()
+                                          .trim()
+                                          .isNotEmpty ==
+                                      true
+                                  ? zaloProfile['name'].toString().trim()
+                                  : name,
 
-                              zaloPhone,
+                              maxLines: 1,
 
-                              style:
-                              TextStyle(
+                              overflow: TextOverflow.ellipsis,
 
-                                fontSize:
-                                14,
-
-                                color:
-                                colorScheme
-                                    .onSurfaceVariant,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-
-              Divider(
-                height:
-                1,
-
-                color:
-                colorScheme
-                    .outline
-                    .withValues(
-                  alpha:
-                  0.35,
-                ),
-              ),
-
-
-              // ==================================
-              // CONNECTION
-              // ==================================
-
-              Padding(
-
-                padding:
-                const EdgeInsets.fromLTRB(
-                  18,
-                  14,
-                  18,
-                  4,
-                ),
-
-                child:
-                Column(
-
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
-
-                  children: [
-
-                    Row(
-
-                      children: [
-
-                        Icon(
-                          Icons.link_rounded,
-
-                          size:
-                          30,
-
-                          color:
-                          zaloLinked
-                              ? Colors.green
-                              : colorScheme.error,
-                        ),
-
-
-                        const SizedBox(
-                          width:
-                          14,
-                        ),
-
-
-                        Text(
-
-                          zaloLinked
-                              ? 'Đang kết nối'
-                              : 'Chưa liên kết',
-
-                          style:
-                          TextStyle(
-
-                            fontSize:
-                            17,
-
-                            fontWeight:
-                            FontWeight.w500,
-
-                            color:
-                            zaloLinked
-                                ? Colors.green
-                                : colorScheme.error,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              // ==================================
-              // ZALO PHONE HIDDEN / SHOW
-              // ==================================
-
-              if (
-              zaloPhone.isNotEmpty
-              )
-
-                Padding(
-
-                  padding:
-                  const EdgeInsets.fromLTRB(
-                    18,
-                    4,
-                    18,
-                    4,
-                  ),
-
-                  child:
-                  Row(
-
-                    children: [
-
-                      Icon(
-                        Icons.phone_outlined,
-
-                        size:
-                        28,
-
-                        color:
-                        colorScheme
-                            .onSurfaceVariant,
-                      ),
-
-
-                      const SizedBox(
-                        width:
-                        14,
-                      ),
-
-
-                      Expanded(
-
-                        child:
-                        Text(
-
-                          showZaloPhone
-                              ? zaloPhone
-                              : '• • • • • • • • • •',
-
-                          style:
-                          TextStyle(
-
-                            fontSize:
-                            17,
-
-                            color:
-                            colorScheme
-                                .onSurface,
-                          ),
-                        ),
-                      ),
-
-
-                      IconButton(
-
-                        padding:
-                        EdgeInsets.zero,
-
-
-                        constraints:
-                        const BoxConstraints(
-                          minWidth:
-                          40,
-
-                          minHeight:
-                          40,
-                        ),
-
-
-                        onPressed:
-                            () {
-
-                          setState(() {
-
-                            showZaloPhone =
-                            !showZaloPhone;
-                          });
-                        },
-
-
-                        icon:
-
-                        Icon(
-
-                          showZaloPhone
-                              ? Icons.visibility_off_outlined
-                              : Icons.visibility_outlined,
-
-                          size:
-                          26,
-
-                          color:
-                          colorScheme
-                              .onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
                 ),
 
-
-              // ==================================
-              // GROUP NOTIFICATION
-              // ==================================
-
-              Padding(
-
-                padding:
-                const EdgeInsets.fromLTRB(
-                  18,
-                  4,
-                  18,
-                  14,
+                Divider(
+                  height: 1,
+                  color: colorScheme.outline.withValues(alpha: 0.35),
                 ),
 
-                child:
-                Row(
-
-                  children: [
-
-                    Icon(
-
-                      Icons
-                          .notifications_none_rounded,
-
-                      size:
-                      30,
-
-                      color:
-                      colorScheme
-                          .onSurfaceVariant,
-                    ),
-
-
-                    const SizedBox(
-                      width:
-                      14,
-                    ),
-
-
-                    Text(
-
-                      groupText,
-
-                      style:
-                      const TextStyle(
-
-                        fontSize:
-                        17,
-
-                        fontWeight:
-                        FontWeight.w500,
+                // ==================================
+                // CONNECTION
+                // ==================================
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.link_rounded,
+                        size: 30,
+                        color: Colors.green,
                       ),
-                    ),
-                  ],
-                ),
-              ),
 
+                      const SizedBox(width: 14),
 
-              // ==================================
-              // UNLINK
-              // ==================================
-
-              Padding(
-
-                padding:
-                const EdgeInsets.fromLTRB(
-                  18,
-                  0,
-                  18,
-                  16,
-                ),
-
-                child:
-                SizedBox(
-
-                  width:
-                  double.infinity,
-
-                  height:
-                  48,
-
-                  child:
-                  OutlinedButton.icon(
-
-                    onPressed:
-                    unlinking
-                        ? null
-                        : unlinkZalo,
-
-                    icon:
-                    Icon(
-                      Icons
-                          .link_off_rounded,
-
-                      color:
-                      colorScheme.error,
-                    ),
-
-                    label:
-                    Text(
-                      'Gỡ liên kết',
-
-                      style:
-                      TextStyle(
-                        color:
-                        colorScheme.error,
-
-                        fontSize:
-                        16,
+                      const Text(
+                        'Đang kết nối',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.green,
+                        ),
                       ),
+                    ],
+                  ),
+                ),
+
+                // ==================================
+                // ZALO PHONE
+                // ==================================
+                if (zaloPhone.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 4, 18, 4),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.phone_outlined,
+                          size: 28,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+
+                        const SizedBox(width: 14),
+
+                        Expanded(
+                          child: Text(
+                            showZaloPhone ? zaloPhone : '• • • • • • • • • •',
+
+                            style: TextStyle(
+                              fontSize: 17,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+
+                        IconButton(
+                          padding: EdgeInsets.zero,
+
+                          constraints: const BoxConstraints(
+                            minWidth: 40,
+                            minHeight: 40,
+                          ),
+
+                          onPressed: () {
+                            setState(() {
+                              showZaloPhone = !showZaloPhone;
+                            });
+                          },
+
+                          icon: Icon(
+                            showZaloPhone
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+
+                            size: 26,
+
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
+                  ),
 
-                    style:
-                    OutlinedButton.styleFrom(
+                // ==================================
+                // GROUP NOTIFICATION
+                // ==================================
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 4, 18, 14),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.notifications_none_rounded,
+                        size: 30,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
 
-                      side:
-                      BorderSide(
-                        color:
-                        colorScheme
-                            .outline
-                            .withValues(
-                          alpha:
-                          0.5,
+                      const SizedBox(width: 14),
+
+                      Expanded(
+                        child: Text(
+                          groupText,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // ==================================
+                // UNLINK
+                // ==================================
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 48,
+
+                    child: OutlinedButton.icon(
+                      onPressed: unlinking ? null : unlinkZalo,
+
+                      icon: Icon(
+                        Icons.link_off_rounded,
+                        color: colorScheme.error,
+                      ),
+
+                      label: Text(
+                        'Gỡ liên kết',
+                        style: TextStyle(
+                          color: colorScheme.error,
+                          fontSize: 16,
                         ),
                       ),
 
-                      shape:
-                      RoundedRectangleBorder(
-                        borderRadius:
-                        BorderRadius.circular(
-                          24,
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: colorScheme.outline.withValues(alpha: 0.5),
+                        ),
+
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-
+              ],
+            ),
+          ],
 
           // ========================================
           // THONG TIN CA NHAN
           // ========================================
-
-          _sectionTitle(
-            'THÔNG TIN CÁ NHÂN',
-          ),
-
+          _sectionTitle('THÔNG TIN CÁ NHÂN'),
 
           _accountCard(
-
             children: [
-
               _accountTile(
+                icon: Icons.lock_outline_rounded,
 
-                icon:
-                Icons.lock_outline_rounded,
+                title: 'Đổi mật khẩu',
 
-                title:
-                'Đổi mật khẩu',
-
-                onTap:
-                unlinking
-                    ? null
-                    : changePassword,
+                onTap: unlinking ? null : changePassword,
               ),
-
 
               Divider(
-                height:
-                1,
+                height: 1,
 
-                indent:
-                78,
+                indent: 78,
 
-                color:
-                colorScheme
-                    .outline
-                    .withValues(
-                  alpha:
-                  0.35,
-                ),
+                color: colorScheme.outline.withValues(alpha: 0.35),
               ),
 
-
               _accountTile(
+                icon: Icons.person_outline_rounded,
 
-                icon:
-                Icons.person_outline_rounded,
+                title: 'Thông tin thành viên',
 
-                title:
-                'Thông tin thành viên',
+                subtitle: membership == 'FREE' ? 'Miễn phí' : membership,
 
-                subtitle:
-                membership == 'FREE'
-                    ? 'Miễn phí'
-                    : membership,
-
-                onTap:
-                editName,
+                onTap: editName,
               ),
             ],
           ),
-
 
           // ========================================
           // HO TRO
           // ========================================
-
-          _sectionTitle(
-            'HỖ TRỢ',
-          ),
-
+          _sectionTitle('HỖ TRỢ'),
 
           _accountCard(
-
             children: [
-
               _accountTile(
+                icon: Icons.language_rounded,
 
-                icon:
-                Icons.language_rounded,
+                title: 'Trang chủ',
 
-                title:
-                'Trang chủ',
-
-                onTap:
-                    () {
-                  _showTopMessage(
-                    'Trang chủ',
-                  );
+                onTap: () {
+                  _showTopMessage('Trang chủ');
                 },
               ),
 
-
               Divider(
-                height:
-                1,
+                height: 1,
 
-                indent:
-                78,
+                indent: 78,
 
-                color:
-                colorScheme
-                    .outline
-                    .withValues(
-                  alpha:
-                  0.35,
-                ),
+                color: colorScheme.outline.withValues(alpha: 0.35),
               ),
 
-
               _accountTile(
+                icon: Icons.description_outlined,
 
-                icon:
-                Icons.description_outlined,
+                title: 'Hướng dẫn sử dụng',
 
-                title:
-                'Hướng dẫn sử dụng',
-
-                onTap:
-                    () {
-                  _showTopMessage(
-                    'Hướng dẫn sử dụng',
-                  );
+                onTap: () {
+                  _showTopMessage('Hướng dẫn sử dụng');
                 },
               ),
 
-
               Divider(
-                height:
-                1,
+                height: 1,
 
-                indent:
-                78,
+                indent: 78,
 
-                color:
-                colorScheme
-                    .outline
-                    .withValues(
-                  alpha:
-                  0.35,
-                ),
+                color: colorScheme.outline.withValues(alpha: 0.35),
               ),
 
-
               _accountTile(
+                icon: Icons.support_agent_rounded,
 
-                icon:
-                Icons.support_agent_rounded,
+                title: 'Hỗ trợ khách hàng',
 
-                title:
-                'Hỗ trợ khách hàng',
-
-                onTap:
-                    () {
-                  _showTopMessage(
-                    'Hỗ trợ khách hàng',
-                  );
+                onTap: () {
+                  _showTopMessage('Hỗ trợ khách hàng');
                 },
               ),
             ],
           ),
 
-
           // ========================================
           // NEED RELINK
           // ========================================
-
           if (needRelink) ...[
-
-            const SizedBox(
-              height:
-              16,
-            ),
+            const SizedBox(height: 16),
 
             Container(
+              padding: const EdgeInsets.all(16),
 
-              padding:
-              const EdgeInsets.all(
-                16,
+              decoration: BoxDecoration(
+                color: colorScheme.errorContainer,
+
+                borderRadius: BorderRadius.circular(18),
               ),
 
-              decoration:
-              BoxDecoration(
-
-                color:
-                colorScheme
-                    .errorContainer,
-
-                borderRadius:
-                BorderRadius.circular(
-                  18,
-                ),
-              ),
-
-              child:
-              Row(
-
+              child: Row(
                 children: [
-
                   Icon(
-                    Icons
-                        .warning_amber_rounded,
+                    Icons.warning_amber_rounded,
 
-                    color:
-                    colorScheme
-                        .onErrorContainer,
+                    color: colorScheme.onErrorContainer,
                   ),
 
-                  const SizedBox(
-                    width:
-                    12,
-                  ),
+                  const SizedBox(width: 12),
 
                   Expanded(
-
-                    child:
-                    Text(
-
+                    child: Text(
                       'Phiên Zalo cần được liên kết lại.',
 
-                      style:
-                      TextStyle(
+                      style: TextStyle(
+                        color: colorScheme.onErrorContainer,
 
-                        color:
-                        colorScheme
-                            .onErrorContainer,
-
-                        fontWeight:
-                        FontWeight.w600,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
 
                   IconButton(
+                    onPressed: relinkZalo,
 
-                    onPressed:
-                    relinkZalo,
-
-                    icon:
-                    const Icon(
-                      Icons
-                          .qr_code_rounded,
-                    ),
+                    icon: const Icon(Icons.qr_code_rounded),
                   ),
                 ],
               ),
             ),
           ],
 
-
           // ========================================
           // THAO TAC NGUY HIEM
           // ========================================
-
-          _sectionTitle(
-            'THAO TÁC NGUY HIỂM',
-          ),
-
+          _sectionTitle('THAO TÁC NGUY HIỂM'),
 
           _accountCard(
-
             children: [
-
               _accountTile(
+                icon: Icons.logout_rounded,
 
-                icon:
-                Icons.logout_rounded,
+                title: 'Đăng xuất',
 
-                title:
-                'Đăng xuất',
+                danger: true,
 
-                danger:
-                true,
-
-                onTap:
-                unlinking
-                    ? null
-                    : logout,
+                onTap: unlinking ? null : logout,
               ),
-
 
               Divider(
-                height:
-                1,
+                height: 1,
 
-                indent:
-                78,
+                indent: 78,
 
-                color:
-                colorScheme
-                    .outline
-                    .withValues(
-                  alpha:
-                  0.35,
-                ),
+                color: colorScheme.outline.withValues(alpha: 0.35),
               ),
 
-
               _accountTile(
+                icon: Icons.delete_outline_rounded,
 
-                icon:
-                Icons.delete_outline_rounded,
+                title: 'Xóa tài khoản',
 
-                title:
-                'Xóa tài khoản',
+                subtitle: 'Xóa vĩnh viễn tài khoản khỏi hệ thống',
 
-                subtitle:
-                'Xóa vĩnh viễn tài khoản khỏi hệ thống',
+                danger: true,
 
-                danger:
-                true,
-
-                onTap:
-                unlinking
-                    ? null
-                    : deleteAccount,
+                onTap: unlinking ? null : deleteAccount,
               ),
             ],
           ),
 
-
-          const SizedBox(
-            height:
-            24,
-          ),
+          const SizedBox(height: 24),
         ],
       ),
     );
