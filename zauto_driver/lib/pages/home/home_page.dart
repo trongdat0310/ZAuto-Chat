@@ -136,7 +136,7 @@ class _HomePageState extends State<HomePage> {
         }
 
         setState(() {
-          connectionStatus = 'Mất kết nối backend';
+          connectionStatus = 'Mất kết nối';
         });
       },
 

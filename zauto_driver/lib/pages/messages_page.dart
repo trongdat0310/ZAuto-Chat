@@ -133,7 +133,7 @@ class _MessagesPageState extends State<MessagesPage>
         // ========================================
 
         if (type == 'trip_accepted') {
-          refreshAcceptedTrips();
+          scheduleRealtimeRefresh();
 
           return;
         }
@@ -375,22 +375,6 @@ class _MessagesPageState extends State<MessagesPage>
           'REFRESH ERROR: $error',
         );
       }
-    }
-  }
-
-  Future<void> refreshAcceptedTrips() async {
-    try {
-      final result = await backend.getAcceptedTrips();
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        acceptedTrips = result;
-      });
-    } catch (error) {
-      debugPrint('REFRESH ACCEPTED TRIPS ERROR: $error');
     }
   }
 
