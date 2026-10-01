@@ -188,7 +188,22 @@ class RealtimeApi {
           }
         }
 
+        if (_manualRealtimeDisconnect || generation != _realtimeGeneration) {
+          return;
+        }
+
         debugPrint('REALTIME DISCONNECTED');
+
+        // ========================================
+        // GUI CAN BIET SOCKET DA MAT
+        // DE KHONG HIEN "DANG LANG NGHE" SAI.
+        // ========================================
+
+        yield <String, dynamic>{
+          'type': 'realtime_disconnected',
+
+          'data': <String, dynamic>{'reason': 'socket_closed'},
+        };
       } catch (error) {
         if (_manualRealtimeDisconnect || generation != _realtimeGeneration) {
           return;
@@ -198,6 +213,20 @@ class RealtimeApi {
           'REALTIME CONNECTION ERROR: '
           '$error',
         );
+
+        // ========================================
+        // BAO CHO UI:
+        // BACKEND / SOCKET DANG MAT.
+        //
+        // RealtimeApi VAN TU RECONNECT,
+        // DAY KHONG PHAI STREAM ERROR.
+        // ========================================
+
+        yield <String, dynamic>{
+          'type': 'realtime_disconnected',
+
+          'data': <String, dynamic>{'reason': 'connection_error'},
+        };
 
         debugPrint(
           'REALTIME WILL RETRY '

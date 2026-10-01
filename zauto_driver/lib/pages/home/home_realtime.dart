@@ -48,6 +48,17 @@ class HomeRealtimeHandler {
         final type = event['type']?.toString();
 
         // ========================================
+        // SOCKET MAT NHUNG SERVICE VAN
+        // DANG TU RECONNECT.
+        // ========================================
+
+        if (type == 'realtime_disconnected') {
+          onConnectionError();
+
+          return;
+        }
+
+        // ========================================
         // BACKEND YEU CAU AUTH
         // ========================================
 

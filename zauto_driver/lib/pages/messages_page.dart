@@ -55,6 +55,14 @@ class _MessagesPageState extends State<MessagesPage>
 
   bool realtimeAuthFailed = false;
 
+  Future<void>? _loadFuture;
+
+  bool _loadPending = false;
+
+  bool _pendingShowLoading = false;
+
+  bool _pendingShowError = false;
+
   @override
   void initState() {
     super.initState();
@@ -125,7 +133,7 @@ class _MessagesPageState extends State<MessagesPage>
         // ========================================
 
         if (type == 'trip_accepted') {
-          refreshAcceptedTrips();
+          scheduleRealtimeRefresh();
 
           return;
         }
@@ -190,7 +198,7 @@ class _MessagesPageState extends State<MessagesPage>
         return;
       }
 
-      await loadData(showLoading: false);
+      await loadData(showLoading: false, showError: false);
     });
   }
 
@@ -198,39 +206,130 @@ class _MessagesPageState extends State<MessagesPage>
   // LOAD
   // ========================================
 
-  Future<void> loadData({bool showLoading = true}) async {
-    if (showLoading && mounted) {
+  Future<void> loadData({bool showLoading = true, bool showError = true}) {
+    if (realtimeDisposed || !mounted) {
+      return Future.value();
+    }
+
+    // ========================================
+    // GHI NHAN MOT LAN LOAD CAN CHAY.
+    //
+    // Neu request dang chay:
+    // KHONG mo request moi ngay lap tuc.
+    // ========================================
+
+    _loadPending = true;
+
+    _pendingShowLoading = _pendingShowLoading || showLoading;
+
+    _pendingShowError = _pendingShowError || showError;
+
+    // ========================================
+    // DA CO LOAD CYCLE DANG CHAY
+    //
+    // Tat ca caller cung doi cycle nay.
+    // ========================================
+
+    final running = _loadFuture;
+
+    if (running != null) {
+      return running;
+    }
+
+    final future = _drainLoadQueue();
+
+    _loadFuture = future;
+
+    return future;
+  }
+
+  Future<void> _drainLoadQueue() async {
+    try {
+      while (_loadPending && mounted && !realtimeDisposed) {
+        final showLoading = _pendingShowLoading;
+
+        final showError = _pendingShowError;
+
+        // ========================================
+        // CONSUME REQUEST HIEN TAI.
+        //
+        // Neu realtime event den trong luc
+        // await API, _loadPending se lai = true
+        // va loop se chay them MOT lan.
+        // ========================================
+
+        _loadPending = false;
+
+        _pendingShowLoading = false;
+
+        _pendingShowError = false;
+
+        await _loadDataOnce(showLoading: showLoading, showError: showError);
+      }
+    } finally {
+      _loadFuture = null;
+    }
+  }
+
+  Future<void> _loadDataOnce({
+    required bool showLoading,
+    required bool showError,
+  }) async {
+    if (realtimeDisposed || !mounted) {
+      return;
+    }
+
+    if (showLoading) {
       setState(() {
         loading = true;
       });
     }
 
     try {
-      final acceptedResult = await backend.getAcceptedTrips();
+      // ========================================
+      // 3 REQUEST DOC LAP
+      //
+      // CHAY SONG SONG THAY VI:
+      //
+      // accepted
+      //   ↓ doi
+      // conversations + groups
+      //
+      // Giup MessagesPage load nhanh hon.
+      // ========================================
 
-      final results = await Future.wait([
+      final results = await Future.wait<List<Map<String, dynamic>>>([
+        backend.getAcceptedTrips(),
+
         backend.getConversations(),
+
         backend.getGroups(),
       ]);
 
-      final conversationResult = results[0];
+      if (realtimeDisposed || !mounted) {
+        return;
+      }
 
-      final groupResult = results[1];
+      final acceptedResult = results[0];
+
+      final conversationResult = results[1];
+
+      final groupResult = results[2];
 
       final enabled = <String>{};
 
       for (final group in groupResult) {
-        if (group['enabled'] == true) {
-          final id = group['groupId']?.toString();
-
-          if (id != null && id.isNotEmpty) {
-            enabled.add(id);
-          }
+        if (group['enabled'] != true) {
+          continue;
         }
-      }
 
-      if (!mounted) {
-        return;
+        final id = group['groupId']?.toString().trim();
+
+        if (id == null || id.isEmpty) {
+          continue;
+        }
+
+        enabled.add(id);
       }
 
       setState(() {
@@ -243,33 +342,39 @@ class _MessagesPageState extends State<MessagesPage>
         loading = false;
       });
     } catch (error) {
-      if (!mounted) {
+      if (realtimeDisposed || !mounted) {
         return;
       }
 
-      setState(() {
-        loading = false;
-      });
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Không thể tải tin nhắn: $error')));
-    }
-  }
-
-  Future<void> refreshAcceptedTrips() async {
-    try {
-      final result = await backend.getAcceptedTrips();
-
-      if (!mounted) {
-        return;
+      if (loading) {
+        setState(() {
+          loading = false;
+        });
       }
 
-      setState(() {
-        acceptedTrips = result;
-      });
-    } catch (error) {
-      debugPrint('REFRESH ACCEPTED TRIPS ERROR: $error');
+      // ========================================
+      // BACKGROUND REALTIME REFRESH:
+      // KHONG SPAM SNACKBAR.
+      //
+      // Manual load / pull refresh:
+      // van hien loi.
+      // ========================================
+
+      if (showError) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Không thể tải tin nhắn: '
+              '$error',
+            ),
+          ),
+        );
+      } else {
+        debugPrint(
+          'MESSAGES BACKGROUND '
+          'REFRESH ERROR: $error',
+        );
+      }
     }
   }
 
@@ -289,7 +394,7 @@ class _MessagesPageState extends State<MessagesPage>
     try {
       await backend.syncConversations();
 
-      await loadData(showLoading: false);
+      await loadData(showLoading: false, showError: false);
 
       if (!mounted) {
         return;
@@ -429,7 +534,7 @@ class _MessagesPageState extends State<MessagesPage>
       }
 
       // Backend fail -> reload lai truth.
-      await loadData(showLoading: false);
+      await loadData(showLoading: false, showError: false);
 
       if (!mounted) {
         return;
@@ -508,7 +613,7 @@ class _MessagesPageState extends State<MessagesPage>
       return;
     }
 
-    await loadData(showLoading: false);
+    await loadData(showLoading: false, showError: false);
   }
 
   String? _getGroupAvatar(String groupId) {
@@ -1212,7 +1317,9 @@ class _MessagesPageState extends State<MessagesPage>
   }) {
     if (items.isEmpty) {
       return RefreshIndicator(
-        onRefresh: loadData,
+        onRefresh: () {
+          return loadData(showLoading: false);
+        },
 
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -1245,7 +1352,9 @@ class _MessagesPageState extends State<MessagesPage>
     }
 
     return RefreshIndicator(
-      onRefresh: loadData,
+      onRefresh: () {
+        return loadData(showLoading: false);
+      },
 
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -1315,7 +1424,9 @@ class _MessagesPageState extends State<MessagesPage>
     }
 
     return RefreshIndicator(
-      onRefresh: loadData,
+      onRefresh: () {
+        return loadData(showLoading: false);
+      },
 
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -1407,6 +1518,12 @@ class _MessagesPageState extends State<MessagesPage>
   void dispose() {
     realtimeDisposed = true;
     realtimeStarted = false;
+
+    _loadPending = false;
+
+    _pendingShowLoading = false;
+
+    _pendingShowError = false;
 
     final subscription = realtimeSubscription;
 

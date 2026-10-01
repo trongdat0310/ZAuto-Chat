@@ -54,7 +54,7 @@ class _HomePageState extends State<HomePage> {
 
   final List<Map<String, dynamic>> activeTrips = [];
 
-  final Map<String, Timer> tripTimers = {};
+  Timer? tripCountdownTimer;
 
   int enabledGroupCount = 0;
   int totalGroupCount = 0;
@@ -136,7 +136,7 @@ class _HomePageState extends State<HomePage> {
         }
 
         setState(() {
-          connectionStatus = 'Mất kết nối backend';
+          connectionStatus = 'Mất kết nối';
         });
       },
 
@@ -167,6 +167,91 @@ class _HomePageState extends State<HomePage> {
     notificationHandler.initialize(context);
   }
 
+  bool get _hasCountdownTrips {
+    return activeTrips.any((trip) {
+      final status = trip['_uiStatus']?.toString() ?? 'new';
+
+      return status == 'new';
+    });
+  }
+
+  void _ensureTripCountdownTimer() {
+    if (!mounted || tripCountdownTimer != null || !_hasCountdownTrips) {
+      return;
+    }
+
+    tripCountdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _tickTripCountdowns();
+    });
+  }
+
+  void _stopTripCountdownTimerIfIdle() {
+    if (_hasCountdownTrips) {
+      return;
+    }
+
+    tripCountdownTimer?.cancel();
+
+    tripCountdownTimer = null;
+  }
+
+  void _tickTripCountdowns() {
+    if (!mounted) {
+      tripCountdownTimer?.cancel();
+
+      tripCountdownTimer = null;
+
+      return;
+    }
+
+    if (!_hasCountdownTrips) {
+      _stopTripCountdownTimerIfIdle();
+
+      return;
+    }
+
+    setState(() {
+      for (final trip in activeTrips) {
+        final status = trip['_uiStatus']?.toString() ?? 'new';
+
+        // Dang nhan / bo qua / da xu ly
+        // thi countdown khong chay.
+        if (status != 'new') {
+          continue;
+        }
+
+        final currentRemaining = trip['_remainingSeconds'] is int
+            ? trip['_remainingSeconds'] as int
+            : widget.settingsController.settings.tripDisplaySeconds;
+
+        final nextRemaining = currentRemaining - 1;
+
+        trip['_remainingSeconds'] = nextRemaining > 0 ? nextRemaining : 0;
+      }
+
+      // ========================================
+      // XOA TAT CA CUOC HET GIO TRONG
+      // CUNG MOT setState.
+      // ========================================
+
+      activeTrips.removeWhere((trip) {
+        final status = trip['_uiStatus']?.toString() ?? 'new';
+
+        if (status != 'new') {
+          return false;
+        }
+
+        final remaining = trip['_remainingSeconds'] is int
+            ? trip['_remainingSeconds'] as int
+            : 0;
+
+        return remaining <= 0;
+      });
+    });
+
+    _stopTripCountdownTimerIfIdle();
+  }
+
   Future<void> acceptTrip(Map<String, dynamic> trip) async {
     final tripId = trip['id']?.toString();
 
@@ -182,13 +267,11 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    tripTimers[tripId]?.cancel();
-
-    tripTimers.remove(tripId);
-
     setState(() {
       trip['_uiStatus'] = 'accepting';
     });
+
+    _stopTripCountdownTimerIfIdle();
 
     try {
       await backend.acceptMessage(
@@ -225,6 +308,8 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         trip['_uiStatus'] = 'new';
       });
+
+      _ensureTripCountdownTimer();
 
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Không thể nhận cuốc: $error')));
@@ -284,13 +369,11 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    tripTimers[tripId]?.cancel();
-
-    tripTimers.remove(tripId);
-
     setState(() {
       trip['_uiStatus'] = 'ignoring';
     });
+
+    _stopTripCountdownTimerIfIdle();
 
     try {
       await backend.ignoreMessage(tripId);
@@ -319,6 +402,8 @@ class _HomePageState extends State<HomePage> {
         trip['_uiStatus'] = 'new';
       });
 
+      _ensureTripCountdownTimer();
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Không thể bỏ qua cuốc: $error')));
@@ -329,11 +414,9 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     realtimeHandler.dispose();
 
-    for (final timer in tripTimers.values) {
-      timer.cancel();
-    }
+    tripCountdownTimer?.cancel();
 
-    tripTimers.clear();
+    tripCountdownTimer = null;
 
     super.dispose();
   }
@@ -372,72 +455,10 @@ class _HomePageState extends State<HomePage> {
       activeTrips.add(newTrip);
     });
 
-    // ========================================
-    // AUTO HIDE SAU THOI GIAN CAI DAT
-    // ========================================
-
-    // ========================================
-    // COUNTDOWN TIMER
-    // MOI CUOC CO TIMER RIENG
-    // ========================================
-
-    tripTimers[tripId]?.cancel();
-
-    tripTimers[tripId] = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-
-        return;
-      }
-
-      // ========================================
-      // TIM CUOC TRONG DANH SACH
-      // ========================================
-
-      final index = activeTrips.indexWhere(
-        (item) => item['id']?.toString() == tripId,
-      );
-
-      // Cuoc da bi xoa bang NHAN / BO QUA.
-      if (index == -1) {
-        timer.cancel();
-
-        tripTimers.remove(tripId);
-
-        return;
-      }
-
-      final currentRemaining = activeTrips[index]['_remainingSeconds'] is int
-          ? activeTrips[index]['_remainingSeconds'] as int
-          : widget.settingsController.settings.tripDisplaySeconds;
-
-      final nextRemaining = currentRemaining - 1;
-
-      // ========================================
-      // HET GIO
-      // ========================================
-
-      if (nextRemaining <= 0) {
-        removeTrip(tripId);
-
-        return;
-      }
-
-      // ========================================
-      // CAP NHAT COUNTDOWN
-      // ========================================
-
-      setState(() {
-        activeTrips[index]['_remainingSeconds'] = nextRemaining;
-      });
-    });
+    _ensureTripCountdownTimer();
   }
 
   void removeTrip(String tripId) {
-    tripTimers[tripId]?.cancel();
-
-    tripTimers.remove(tripId);
-
     if (!mounted) {
       return;
     }
@@ -445,6 +466,8 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       activeTrips.removeWhere((trip) => trip['id']?.toString() == tripId);
     });
+
+    _stopTripCountdownTimerIfIdle();
   }
 
   Widget homeSettingItem({
