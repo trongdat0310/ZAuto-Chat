@@ -148,7 +148,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                       'Cách viết từ khoá',
 
                       style: TextStyle(
-                        fontSize: 25,
+                        fontSize: 21,
                         fontWeight: FontWeight.w700,
                         color: colorScheme.onSurface,
                       ),
@@ -174,7 +174,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                         'Tin nhắn khớp MỘT từ khoá bất kỳ là đủ.',
 
                         style: TextStyle(
-                          fontSize: 17,
+                          fontSize: 15,
                           height: 1.45,
                           color: colorScheme.onSurfaceVariant,
                         ),
@@ -258,7 +258,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                         'Lưu ý',
 
                         style: TextStyle(
-                          fontSize: 20,
+                          fontSize: 17,
                           fontWeight: FontWeight.w700,
                           color: colorScheme.onSurface,
                         ),
@@ -310,7 +310,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                         'Đã hiểu',
 
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 16,
                           fontWeight: FontWeight.w400,
                         ),
                       ),
@@ -372,7 +372,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                       'Hướng dẫn Lọc thông báo',
 
                       style: TextStyle(
-                        fontSize: 25,
+                        fontSize: 21,
                         fontWeight: FontWeight.w700,
                         color: colorScheme.onSurface,
                       ),
@@ -532,7 +532,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                         'Đã hiểu',
 
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 16,
                           fontWeight: FontWeight.w400,
                         ),
                       ),
@@ -566,7 +566,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
           text,
 
           style: TextStyle(
-            fontSize: 17,
+            fontSize: 15,
             fontWeight: FontWeight.w500,
             letterSpacing: 0.5,
             color: colorScheme.onSurface,
@@ -583,7 +583,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       text,
 
       style: TextStyle(
-        fontSize: 16.5,
+        fontSize: 14.5,
         height: 1.45,
         color: colorScheme.onSurfaceVariant,
       ),
@@ -618,7 +618,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
               text,
 
               style: TextStyle(
-                fontSize: 16.5,
+                fontSize: 14.5,
                 height: 1.45,
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -636,7 +636,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       text,
 
       style: TextStyle(
-        fontSize: 20,
+        fontSize: 17,
         fontWeight: FontWeight.w700,
         color: colorScheme.onSurface,
       ),
@@ -671,7 +671,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
               text,
 
               style: TextStyle(
-                fontSize: 16.5,
+                fontSize: 14.5,
                 height: 1.45,
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -710,7 +710,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
               text,
 
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 14,
                 height: 1.4,
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -769,7 +769,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                       'Cách viết Khung giờ',
 
                       style: TextStyle(
-                        fontSize: 25,
+                        fontSize: 21,
                         fontWeight: FontWeight.w700,
                         color: colorScheme.onSurface,
                       ),
@@ -798,7 +798,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                         '(VD "sáng, 0-30p").',
 
                         style: TextStyle(
-                          fontSize: 17,
+                          fontSize: 15,
                           height: 1.45,
                           color: colorScheme.onSurfaceVariant,
                         ),
@@ -965,7 +965,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                         'Đã hiểu',
 
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 16,
                           fontWeight: FontWeight.w400,
                         ),
                       ),
@@ -1133,7 +1133,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                 title,
 
                 style: const TextStyle(
-                  fontSize: 20,
+                  fontSize: 17,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1206,7 +1206,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                         Text(
                           keyword,
 
-                          style: TextStyle(fontSize: 16, color: chipForeground),
+                          style: TextStyle(fontSize: 14, color: chipForeground),
                         ),
 
                         const SizedBox(width: 6),
@@ -1343,7 +1343,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
             Text(
               'Thêm bộ lọc mới',
 
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w400),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w400),
             ),
 
             SizedBox(height: 2),
@@ -1351,7 +1351,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
             Text(
               'Lọc thông báo',
 
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
             ),
           ],
         ),
@@ -1387,6 +1387,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
 
               TextField(
                 controller: nameController,
+
+                style: const TextStyle(fontSize: 15),
 
                 maxLength: maxNameLength,
 
@@ -1477,7 +1479,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                             'Nhận cả hai chiều',
 
                             style: TextStyle(
-                              fontSize: 20,
+                              fontSize: 17,
                               fontWeight: FontWeight.w600,
                               color: colorScheme.onSurface,
                             ),
@@ -1490,7 +1492,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                             'và bỏ qua cuốc hai chiều.',
 
                             style: TextStyle(
-                              fontSize: 15,
+                              fontSize: 14,
                               height: 1.35,
                               color: colorScheme.onSurfaceVariant,
                             ),
@@ -1562,7 +1564,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                   'Để trống = không lọc theo giá.',
 
                   style: TextStyle(
-                    fontSize: 15,
+                    fontSize: 14,
                     height: 1.35,
 
                     color: colorScheme.onSurfaceVariant,
@@ -1689,7 +1691,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                             'Tất cả các nhóm',
 
                             style: TextStyle(
-                              fontSize: 17,
+                              fontSize: 15,
                               fontWeight: FontWeight.w400,
                             ),
                           ),
@@ -1756,7 +1758,10 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                   label: Text(
                     'Kiểm tra',
 
-                    style: TextStyle(fontSize: 17, color: colorScheme.primary),
+                    style: TextStyle(
+                      fontSize: 15.5,
+                      color: colorScheme.primary,
+                    ),
                   ),
 
                   style: OutlinedButton.styleFrom(
@@ -1786,7 +1791,10 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                   child: const Text(
                     'Lưu và sử dụng',
 
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w400),
+                    style: TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w400,
+                    ),
                   ),
                 ),
               ),
@@ -1843,7 +1851,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                 title,
 
                 style: const TextStyle(
-                  fontSize: 20,
+                  fontSize: 17,
                   fontWeight: FontWeight.w400,
                 ),
               ),
@@ -1922,7 +1930,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     return RichText(
       text: TextSpan(
         style: TextStyle(
-          fontSize: 20,
+          fontSize: 17,
           fontWeight: FontWeight.w600,
           color: colorScheme.onSurface,
         ),
@@ -1953,6 +1961,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     return TextField(
       controller: controller,
 
+      style: const TextStyle(fontSize: 15),
+
       minLines: 2,
       maxLines: 3,
 
@@ -1972,6 +1982,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
   }) {
     return TextField(
       controller: controller,
+
+      style: const TextStyle(fontSize: 15),
 
       keyboardType: keyboardType,
 
@@ -1993,7 +2005,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       hintText: hint,
 
       hintStyle: TextStyle(
-        fontSize: 16,
+        fontSize: 14.5,
         color: colorScheme.onSurfaceVariant.withValues(alpha: 0.65),
       ),
 

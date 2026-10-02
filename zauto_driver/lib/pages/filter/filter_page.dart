@@ -56,7 +56,7 @@ class _FilterPageState extends State<FilterPage> {
               child: Text(
                 'Bộ lọc thông báo',
                 style: TextStyle(
-                  fontSize: 30,
+                  fontSize: 24,
                   fontWeight: FontWeight.w400,
                   color: colorScheme.onSurface,
                 ),
@@ -136,7 +136,7 @@ class _FilterPageState extends State<FilterPage> {
           textAlign: TextAlign.center,
 
           style: TextStyle(
-            fontSize: 21,
+            fontSize: 18,
             fontWeight: FontWeight.w500,
             color: colorScheme.onSurface,
           ),
@@ -152,7 +152,7 @@ class _FilterPageState extends State<FilterPage> {
           textAlign: TextAlign.center,
 
           style: TextStyle(
-            fontSize: 17,
+            fontSize: 14.5,
             height: 1.4,
             color: colorScheme.onSurfaceVariant,
           ),
@@ -251,7 +251,7 @@ class _FilterPageState extends State<FilterPage> {
                 'Thêm bộ lọc',
 
                 style: TextStyle(
-                  fontSize: 17,
+                  fontSize: 16,
                   fontWeight: FontWeight.w500,
 
                   color: disabled
@@ -266,7 +266,7 @@ class _FilterPageState extends State<FilterPage> {
                 '$filterCount/$maxFilters',
 
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 14,
                   fontWeight: FontWeight.w500,
 
                   color: disabled
