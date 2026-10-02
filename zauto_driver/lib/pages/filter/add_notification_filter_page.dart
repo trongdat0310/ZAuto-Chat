@@ -31,6 +31,17 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
 
   bool acceptBothDirections = false;
 
+  // ========================================
+  // ADVANCED MODE - UI STATE ONLY
+  //
+  // Chua luu backend.
+  // Logic filter se lam sau.
+  // ========================================
+
+  final List<String> advancedShowKeywords = [];
+
+  final List<String> advancedHideKeywords = [];
+
   @override
   void initState() {
     super.initState();
@@ -995,6 +1006,297 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     setState(() {});
   }
 
+  Future<void> _addAdvancedKeyword({required bool showKeyword}) async {
+    final controller = TextEditingController();
+
+    final value = await showDialog<String>(
+      context: context,
+
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(
+            showKeyword ? 'Thêm từ khoá hiển thị' : 'Thêm từ khoá ẩn',
+          ),
+
+          content: TextField(
+            controller: controller,
+
+            autofocus: true,
+
+            textInputAction: TextInputAction.done,
+
+            onSubmitted: (value) {
+              Navigator.of(dialogContext).pop(value.trim());
+            },
+
+            decoration: const InputDecoration(
+              hintText: 'Nhập từ khoá...',
+
+              border: OutlineInputBorder(),
+            ),
+          ),
+
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+
+              child: const Text('HỦY'),
+            ),
+
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(controller.text.trim());
+              },
+
+              child: const Text('THÊM'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (!mounted || value == null || value.trim().isEmpty) {
+      return;
+    }
+
+    final keyword = value.trim();
+
+    final target = showKeyword ? advancedShowKeywords : advancedHideKeywords;
+
+    if (target.contains(keyword)) {
+      return;
+    }
+
+    setState(() {
+      target.add(keyword);
+    });
+  }
+
+  void _removeAdvancedKeyword({
+    required bool showKeyword,
+    required String keyword,
+  }) {
+    setState(() {
+      final target = showKeyword ? advancedShowKeywords : advancedHideKeywords;
+
+      target.remove(keyword);
+    });
+  }
+
+  void _showAdvancedUiNotice(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget _buildAdvancedKeywordSection(
+    BuildContext context, {
+    required bool showKeyword,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final keywords = showKeyword ? advancedShowKeywords : advancedHideKeywords;
+
+    final title = showKeyword
+        ? 'Hiện thông báo với các từ khoá'
+        : 'Ẩn thông báo với các từ khoá';
+
+    final chipBackground = showKeyword
+        ? Colors.green.withValues(alpha: 0.10)
+        : Colors.red.withValues(alpha: 0.08);
+
+    final chipForeground = showKeyword
+        ? Colors.green.shade700
+        : colorScheme.error;
+
+    final actionBackground = showKeyword
+        ? colorScheme.primaryContainer
+        : colorScheme.tertiaryContainer.withValues(alpha: 0.55);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+
+      children: [
+        // ========================================
+        // TITLE + ACTION BUTTONS
+        // ========================================
+
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+
+          children: [
+            Expanded(
+              child: Text(
+                title,
+
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+
+            _buildAdvancedRoundButton(
+              context,
+
+              icon: Icons.bookmark_add_outlined,
+
+              backgroundColor: actionBackground,
+
+              tooltip: 'Từ khoá đã lưu',
+
+              onTap: () {
+                _showAdvancedUiNotice(
+                  'Danh sách từ khoá đã lưu sẽ được thêm sau.',
+                );
+              },
+            ),
+
+            const SizedBox(width: 10),
+
+            _buildAdvancedRoundButton(
+              context,
+
+              icon: Icons.list_alt_rounded,
+
+              backgroundColor: actionBackground,
+
+              tooltip: 'Danh sách từ khoá',
+
+              onTap: () {
+                _showAdvancedUiNotice(
+                  'Quản lý danh sách từ khoá sẽ được thêm sau.',
+                );
+              },
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 20),
+
+        // ========================================
+        // CHIPS + ADD BUTTON
+        // ========================================
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+
+          children: [
+            Expanded(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+
+                children: keywords.map((keyword) {
+                  return Container(
+                    padding: const EdgeInsets.fromLTRB(14, 8, 7, 8),
+
+                    decoration: BoxDecoration(
+                      color: chipBackground,
+
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+
+                      children: [
+                        Text(
+                          keyword,
+
+                          style: TextStyle(fontSize: 16, color: chipForeground),
+                        ),
+
+                        const SizedBox(width: 6),
+
+                        InkWell(
+                          borderRadius: BorderRadius.circular(20),
+
+                          onTap: () {
+                            _removeAdvancedKeyword(
+                              showKeyword: showKeyword,
+
+                              keyword: keyword,
+                            );
+                          },
+
+                          child: Padding(
+                            padding: const EdgeInsets.all(3),
+
+                            child: Icon(
+                              Icons.close_rounded,
+
+                              size: 21,
+
+                              color: chipForeground,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            _buildAdvancedRoundButton(
+              context,
+
+              icon: Icons.add_rounded,
+
+              backgroundColor: actionBackground,
+
+              tooltip: 'Thêm từ khoá',
+
+              onTap: () {
+                _addAdvancedKeyword(showKeyword: showKeyword);
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAdvancedRoundButton(
+    BuildContext context, {
+    required IconData icon,
+    required Color backgroundColor,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Tooltip(
+      message: tooltip,
+
+      child: Material(
+        color: backgroundColor,
+
+        shape: const CircleBorder(),
+
+        clipBehavior: Clip.antiAlias,
+
+        child: InkWell(
+          onTap: onTap,
+
+          customBorder: const CircleBorder(),
+
+          child: SizedBox(
+            width: 54,
+            height: 54,
+
+            child: Icon(icon, size: 27, color: colorScheme.primary),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     nameController.removeListener(_handleNameChanged);
@@ -1122,200 +1424,224 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                 title: 'Nâng cao',
               ),
 
-              const SizedBox(height: 26),
+              if (mode == _FilterMode.basic) ...[
+                const SizedBox(height: 26),
 
-              // ========================================
-              // DIEM DON
-              // ========================================
-              _buildSectionLabel(context, 'Điểm đón'),
+                // ========================================
+                // DIEM DON
+                // ========================================
+                _buildSectionLabel(context, 'Điểm đón'),
 
-              const SizedBox(height: 8),
+                const SizedBox(height: 8),
 
-              _buildLargeField(
-                context,
+                _buildLargeField(
+                  context,
 
-                controller: pickupController,
+                  controller: pickupController,
 
-                hint: 'VD: hà nội, hn, ben thanh',
-              ),
-
-              const SizedBox(height: 24),
-
-              // ========================================
-              // DIEM TRA
-              // ========================================
-              _buildSectionLabel(context, 'Điểm trả'),
-
-              const SizedBox(height: 8),
-
-              _buildLargeField(
-                context,
-
-                controller: dropoffController,
-
-                hint: 'VD: tan son nhat, sân bay',
-              ),
-
-              const SizedBox(height: 20),
-
-              // ========================================
-              // HAI CHIEU
-              // ========================================
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-
-                      children: [
-                        Text(
-                          'Nhận cả hai chiều',
-
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: colorScheme.onSurface,
-                          ),
-                        ),
-
-                        const SizedBox(height: 3),
-
-                        Text(
-                          'Tắt thì chỉ nhận cuốc chạy đúng chiều đón → trả, '
-                          'và bỏ qua cuốc hai chiều.',
-
-                          style: TextStyle(
-                            fontSize: 15,
-                            height: 1.35,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  Switch(
-                    value: acceptBothDirections,
-
-                    onChanged: (value) {
-                      setState(() {
-                        acceptBothDirections = value;
-                      });
-                    },
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 28),
-
-              // ========================================
-              // INCLUDE
-              // ========================================
-              _buildSectionLabel(context, 'Nhận nếu chứa từ khoá'),
-
-              const SizedBox(height: 8),
-
-              _buildLargeField(
-                context,
-
-                controller: includeController,
-
-                hint: 'VD: 4 chỗ, xe 4c, 500',
-              ),
-
-              const SizedBox(height: 26),
-
-              // ========================================
-              // EXCLUDE
-              // ========================================
-              _buildSectionLabel(context, 'Bỏ qua nếu chứa từ khoá'),
-
-              const SizedBox(height: 8),
-
-              _buildLargeField(
-                context,
-
-                controller: excludeController,
-
-                hint: 'VD: ghép, hàng cồng kềnh',
-              ),
-
-              const SizedBox(height: 28),
-
-              // ========================================
-              // MIN PRICE
-              // ========================================
-              _buildSectionLabel(context, 'Giá tối thiểu (nghìn đồng)'),
-
-              const SizedBox(height: 6),
-
-              Text(
-                'Đọc được cả “300” lẫn “300k”, “1tr2”, “500.000”. '
-                'Tin không ghi giá sẽ KHÔNG khớp. '
-                'Để trống = không lọc theo giá.',
-
-                style: TextStyle(
-                  fontSize: 15,
-                  height: 1.35,
-
-                  color: colorScheme.onSurfaceVariant,
+                  hint: 'VD: hà nội, hn, ben thanh',
                 ),
-              ),
 
-              const SizedBox(height: 12),
+                const SizedBox(height: 24),
 
-              _buildSingleField(
-                context,
+                // ========================================
+                // DIEM TRA
+                // ========================================
+                _buildSectionLabel(context, 'Điểm trả'),
 
-                controller: minimumPriceController,
+                const SizedBox(height: 8),
 
-                hint: 'VD: 500 (= 500k)',
+                _buildLargeField(
+                  context,
 
-                keyboardType: TextInputType.number,
-              ),
+                  controller: dropoffController,
 
-              const SizedBox(height: 28),
+                  hint: 'VD: tan son nhat, sân bay',
+                ),
 
-              // ========================================
-              // TIME
-              // ========================================
-              Row(
-                children: [
-                  Expanded(child: _buildSectionLabel(context, 'Khung giờ')),
+                const SizedBox(height: 20),
 
-                  IconButton(
-                    tooltip: 'Thông tin khung giờ',
+                // ========================================
+                // HAI CHIEU
+                // ========================================
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
 
-                    onPressed: _showTimeInfo,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
 
-                    icon: Icon(
-                      Icons.info_rounded,
+                        children: [
+                          Text(
+                            'Nhận cả hai chiều',
 
-                      color: colorScheme.onSurfaceVariant,
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+
+                          const SizedBox(height: 3),
+
+                          Text(
+                            'Tắt thì chỉ nhận cuốc chạy đúng chiều đón → trả, '
+                            'và bỏ qua cuốc hai chiều.',
+
+                            style: TextStyle(
+                              fontSize: 15,
+                              height: 1.35,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+
+                    const SizedBox(width: 12),
+
+                    Switch(
+                      value: acceptBothDirections,
+
+                      onChanged: (value) {
+                        setState(() {
+                          acceptBothDirections = value;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 28),
+
+                // ========================================
+                // INCLUDE
+                // ========================================
+                _buildSectionLabel(context, 'Nhận nếu chứa từ khoá'),
+
+                const SizedBox(height: 8),
+
+                _buildLargeField(
+                  context,
+
+                  controller: includeController,
+
+                  hint: 'VD: 4 chỗ, xe 4c, 500',
+                ),
+
+                const SizedBox(height: 26),
+
+                // ========================================
+                // EXCLUDE
+                // ========================================
+                _buildSectionLabel(context, 'Bỏ qua nếu chứa từ khoá'),
+
+                const SizedBox(height: 8),
+
+                _buildLargeField(
+                  context,
+
+                  controller: excludeController,
+
+                  hint: 'VD: ghép, hàng cồng kềnh',
+                ),
+
+                const SizedBox(height: 28),
+
+                // ========================================
+                // MIN PRICE
+                // ========================================
+                _buildSectionLabel(context, 'Giá tối thiểu (nghìn đồng)'),
+
+                const SizedBox(height: 6),
+
+                Text(
+                  'Đọc được cả “300” lẫn “300k”, “1tr2”, “500.000”. '
+                  'Tin không ghi giá sẽ KHÔNG khớp. '
+                  'Để trống = không lọc theo giá.',
+
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.35,
+
+                    color: colorScheme.onSurfaceVariant,
                   ),
-                ],
-              ),
+                ),
 
-              const SizedBox(height: 6),
+                const SizedBox(height: 12),
 
-              _buildSingleField(
-                context,
+                _buildSingleField(
+                  context,
 
-                controller: timeController,
+                  controller: minimumPriceController,
 
-                hint: 'VD: sáng, chiều, sau 22h, 0-30p',
-              ),
+                  hint: 'VD: 500 (= 500k)',
 
-              const SizedBox(height: 16),
+                  keyboardType: TextInputType.number,
+                ),
 
-              _buildTimeChips(context),
+                const SizedBox(height: 28),
 
-              const SizedBox(height: 34),
+                // ========================================
+                // TIME
+                // ========================================
+                Row(
+                  children: [
+                    Expanded(child: _buildSectionLabel(context, 'Khung giờ')),
+
+                    IconButton(
+                      tooltip: 'Thông tin khung giờ',
+
+                      onPressed: _showTimeInfo,
+
+                      icon: Icon(
+                        Icons.info_rounded,
+
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 6),
+
+                _buildSingleField(
+                  context,
+
+                  controller: timeController,
+
+                  hint: 'VD: sáng, chiều, sau 22h, 0-30p',
+                ),
+
+                const SizedBox(height: 16),
+
+                _buildTimeChips(context),
+
+                const SizedBox(height: 34),
+              ] else ...[
+                // ========================================
+                // ADVANCED MODE
+                // ========================================
+
+                const SizedBox(height: 34),
+
+                _buildAdvancedKeywordSection(context, showKeyword: true),
+
+                const SizedBox(height: 26),
+
+                Divider(
+                  height: 1,
+
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.65),
+                ),
+
+                const SizedBox(height: 30),
+
+                _buildAdvancedKeywordSection(context, showKeyword: false),
+
+                const SizedBox(height: 38),
+              ],
 
               // ========================================
               // GROUP
