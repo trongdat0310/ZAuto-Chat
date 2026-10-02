@@ -3,40 +3,21 @@ import 'package:flutter/material.dart';
 import '../config/app_config.dart';
 import '../services/backend_service.dart';
 
-
-class HistoryPage
-    extends StatefulWidget {
-
-  const HistoryPage({
-    super.key,
-  });
+class HistoryPage extends StatefulWidget {
+  const HistoryPage({super.key});
 
   @override
-  State<HistoryPage>
-  createState() =>
-      _HistoryPageState();
+  State<HistoryPage> createState() => _HistoryPageState();
 }
 
+class _HistoryPageState extends State<HistoryPage> {
+  final BackendService backend = BackendService(baseUrl: AppConfig.backendUrl);
 
-class _HistoryPageState
-    extends State<HistoryPage> {
-
-  final BackendService backend =
-  BackendService(
-    baseUrl: AppConfig.backendUrl,
-  );
-
-
-  List<Map<String, dynamic>>
-  messages = [];
-
+  List<Map<String, dynamic>> messages = [];
 
   bool loading = true;
 
-
-  final Set<String> processing =
-  {};
-
+  final Set<String> processing = {};
 
   @override
   void initState() {
@@ -45,50 +26,31 @@ class _HistoryPageState
     loadMessages();
   }
 
-
   // ========================================
   // LOAD HISTORY
   // ========================================
 
   Future<void> loadMessages() async {
-
     if (mounted) {
       setState(() {
         loading = true;
       });
     }
 
-
     try {
-      final result =
-      await backend.getMessages(
-        limit: 200,
-      );
-
+      final result = await backend.getMessages(limit: 200);
 
       if (!mounted) return;
-
 
       setState(() {
         messages = result;
       });
-
     } catch (error) {
-
       if (!mounted) return;
 
-
       ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            'Lỗi tải lịch sử: $error',
-          ),
-        ),
-      );
-
+          .showSnackBar(SnackBar(content: Text('Lỗi tải lịch sử: $error')));
     } finally {
-
       if (mounted) {
         setState(() {
           loading = false;
@@ -97,69 +59,38 @@ class _HistoryPageState
     }
   }
 
-
   // ========================================
   // ACCEPT
   // ========================================
 
-  Future<void> accept(
-      Map<String, dynamic> message,
-      ) async {
+  Future<void> accept(Map<String, dynamic> message) async {
+    final id = message['id']?.toString();
 
-    final id =
-    message['id']?.toString();
-
-
-    if (id == null ||
-        processing.contains(id)) {
+    if (id == null || processing.contains(id)) {
       return;
     }
-
 
     setState(() {
       processing.add(id);
     });
 
-
     try {
-
       await backend.acceptMessage(id);
 
-
       if (!mounted) return;
-
 
       await loadMessages();
 
-
       if (!mounted) return;
 
-
       ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Đã nhận cuốc',
-          ),
-        ),
-      );
-
+          .showSnackBar(const SnackBar(content: Text('Đã nhận cuốc')));
     } catch (error) {
-
       if (!mounted) return;
 
-
       ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            'Lỗi: $error',
-          ),
-        ),
-      );
-
+          .showSnackBar(SnackBar(content: Text('Lỗi: $error')));
     } finally {
-
       if (mounted) {
         setState(() {
           processing.remove(id);
@@ -167,70 +98,39 @@ class _HistoryPageState
       }
     }
   }
-
 
   // ========================================
   // IGNORE
   // ========================================
 
-  Future<void> ignore(
-      Map<String, dynamic> message,
-      ) async {
+  Future<void> ignore(Map<String, dynamic> message) async {
+    final id = message['id']?.toString();
 
-    final id =
-    message['id']?.toString();
-
-
-    if (id == null ||
-        processing.contains(id)) {
+    if (id == null || processing.contains(id)) {
       return;
     }
-
 
     setState(() {
       processing.add(id);
     });
 
-
     try {
-
       await backend.ignoreMessage(id);
 
-
       if (!mounted) return;
-
 
       await loadMessages();
 
-
       if (!mounted) return;
 
-
       ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Đã bỏ qua cuốc',
-          ),
-        ),
-      );
-
+          .showSnackBar(const SnackBar(content: Text('Đã bỏ qua cuốc')));
     } catch (error) {
-
       if (!mounted) return;
 
-
       ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            'Lỗi: $error',
-          ),
-        ),
-      );
-
+          .showSnackBar(SnackBar(content: Text('Lỗi: $error')));
     } finally {
-
       if (mounted) {
         setState(() {
           processing.remove(id);
@@ -239,17 +139,12 @@ class _HistoryPageState
     }
   }
 
-
   // ========================================
   // STATUS
   // ========================================
 
-  String statusText(
-      String status,
-      ) {
-
+  String statusText(String status) {
     switch (status) {
-
       case 'accepted':
         return 'Đã nhận';
 
@@ -261,13 +156,8 @@ class _HistoryPageState
     }
   }
 
-
-  IconData statusIcon(
-      String status,
-      ) {
-
+  IconData statusIcon(String status) {
     switch (status) {
-
       case 'accepted':
         return Icons.check_circle;
 
@@ -279,426 +169,234 @@ class _HistoryPageState
     }
   }
 
-
   // ========================================
   // TIME
   // ========================================
 
-  String formatTime(
-      dynamic rawValue,
-      ) {
-
+  String formatTime(dynamic rawValue) {
     if (rawValue == null) {
       return '';
     }
 
-
-    final date =
-    DateTime.tryParse(
-      rawValue.toString(),
-    );
-
+    final date = DateTime.tryParse(rawValue.toString());
 
     if (date == null) {
       return '';
     }
 
+    final local = date.toLocal();
 
-    final local =
-    date.toLocal();
+    String twoDigits(int value) => value.toString().padLeft(2, '0');
 
-
-    String twoDigits(int value) =>
-        value
-            .toString()
-            .padLeft(2, '0');
-
-
-    return
-      '${twoDigits(local.hour)}:'
-          '${twoDigits(local.minute)} '
-          '${twoDigits(local.day)}/'
-          '${twoDigits(local.month)}/'
-          '${local.year}';
+    return '${twoDigits(local.hour)}:'
+        '${twoDigits(local.minute)} '
+        '${twoDigits(local.day)}/'
+        '${twoDigits(local.month)}/'
+        '${local.year}';
   }
 
-
   @override
-  Widget build(
-      BuildContext context,
-      ) {
-
+  Widget build(BuildContext context) {
     return SafeArea(
       child: RefreshIndicator(
         onRefresh: loadMessages,
 
         child: loading
-
             ? ListView(
-          children: const [
-            SizedBox(
-              height: 300,
-            ),
+                children: const [
+                  SizedBox(height: 300),
 
-            Center(
-              child:
-              CircularProgressIndicator(),
-            ),
-          ],
-        )
-
+                  Center(child: CircularProgressIndicator()),
+                ],
+              )
             : ListView(
-          padding:
-          const EdgeInsets
-              .all(20),
+                padding: const EdgeInsets.all(20),
 
-          children: [
+                children: [
+                  const Text(
+                    'Lịch sử',
+                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
+                  ),
 
-            const Text(
-              'Lịch sử',
-              style: TextStyle(
-                fontSize: 30,
-                fontWeight:
-                FontWeight.bold,
-              ),
-            ),
+                  const SizedBox(height: 8),
 
+                  Text('${messages.length} cuốc đã lưu'),
 
-            const SizedBox(
-              height: 8,
-            ),
+                  const SizedBox(height: 20),
 
+                  if (messages.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 120),
 
-            Text(
-              '${messages.length} cuốc đã lưu',
-            ),
+                      child: Center(
+                        child: Column(
+                          children: [
+                            Icon(Icons.history, size: 70),
 
+                            SizedBox(height: 16),
 
-            const SizedBox(
-              height: 20,
-            ),
-
-
-            if (messages.isEmpty)
-              const Padding(
-                padding:
-                EdgeInsets.only(
-                  top: 120,
-                ),
-
-                child: Center(
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons
-                            .history,
-                        size: 70,
-                      ),
-
-                      SizedBox(
-                        height: 16,
-                      ),
-
-                      Text(
-                        'Chưa có lịch sử cuốc',
-                        style:
-                        TextStyle(
-                          fontSize:
-                          18,
+                            Text(
+                              'Chưa có lịch sử cuốc',
+                              style: TextStyle(fontSize: 18),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              )
+                    )
+                  else
+                    ...messages.map((message) {
+                      final status = message['status']?.toString() ?? 'new';
 
+                      final id = message['id']?.toString();
 
-            else
-              ...messages.map(
-                    (message) {
+                      final busy = id != null && processing.contains(id);
 
-                  final status =
-                      message[
-                      'status']
-                          ?.toString() ??
-                          'new';
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
 
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
 
-                  final id =
-                  message['id']
-                      ?.toString();
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
 
-
-                  final busy =
-                      id != null &&
-                          processing
-                              .contains(
-                            id,
-                          );
-
-
-                  return Card(
-                    margin:
-                    const EdgeInsets
-                        .only(
-                      bottom: 12,
-                    ),
-
-                    child:
-                    Padding(
-                      padding:
-                      const EdgeInsets
-                          .all(16),
-
-                      child: Column(
-                        crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
-
-                        children: [
-
-                          Row(
                             children: [
+                              Row(
+                                children: [
+                                  Icon(statusIcon(status)),
 
-                              Icon(
-                                statusIcon(
-                                  status,
-                                ),
-                              ),
+                                  const SizedBox(width: 8),
 
-
-                              const SizedBox(
-                                width: 8,
-                              ),
-
-
-                              Text(
-                                statusText(
-                                  status,
-                                ),
-                                style:
-                                const TextStyle(
-                                  fontWeight:
-                                  FontWeight
-                                      .bold,
-                                ),
-                              ),
-
-
-                              const Spacer(),
-
-
-                              Text(
-                                formatTime(
-                                  message[
-                                  'receivedAt'],
-                                ),
-                                style:
-                                const TextStyle(
-                                  fontSize:
-                                  12,
-                                ),
-                              ),
-                            ],
-                          ),
-
-
-                          const SizedBox(
-                            height: 16,
-                          ),
-
-
-                          Text(
-                            message[
-                            'content']
-                                ?.toString() ??
-                                '',
-                            style:
-                            const TextStyle(
-                              fontSize: 18,
-                              fontWeight:
-                              FontWeight
-                                  .w600,
-                            ),
-                          ),
-
-
-                          const SizedBox(
-                            height: 10,
-                          ),
-
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.groups_outlined,
-                                size: 18,
-                              ),
-
-                              const SizedBox(
-                                width: 8,
-                              ),
-
-                              Expanded(
-                                child: Text(
-                                  message['groupName']
-                                      ?.toString() ??
-                                      'Nhóm Zalo',
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (
-                          message['senderName'] != null ||
-                              message['senderId'] != null
-                          ) ...[
-                            const SizedBox(
-                              height: 8,
-                            ),
-
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.person_outline,
-                                  size: 18,
-                                ),
-
-                                const SizedBox(
-                                  width: 8,
-                                ),
-
-                                Expanded(
-                                  child: Text(
-                                    message['senderName']
-                                        ?.toString() ??
-                                        message['senderId']
-                                            ?.toString() ??
-                                        '',
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-
-                          if (status ==
-                              'new') ...[
-
-                            const SizedBox(
-                              height: 18,
-                            ),
-
-
-                            Row(
-                              children: [
-
-                                Expanded(
-                                  child:
-                                  OutlinedButton
-                                      .icon(
-                                    onPressed:
-                                    busy
-                                        ? null
-                                        : () =>
-                                        ignore(
-                                          message,
-                                        ),
-
-                                    icon:
-                                    const Icon(
-                                      Icons.close,
-                                    ),
-
-                                    label:
-                                    const Text(
-                                      'BỎ QUA',
+                                  Text(
+                                    statusText(status),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
+
+                                  const Spacer(),
+
+                                  Text(
+                                    formatTime(message['receivedAt']),
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 16),
+
+                              Text(
+                                message['content']?.toString() ?? '',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
                                 ),
+                              ),
 
+                              const SizedBox(height: 10),
 
-                                const SizedBox(
-                                  width: 12,
-                                ),
+                              Row(
+                                children: [
+                                  const Icon(Icons.groups_outlined, size: 18),
 
+                                  const SizedBox(width: 8),
 
-                                Expanded(
-                                  child:
-                                  FilledButton
-                                      .icon(
-                                    onPressed:
-                                    busy
-                                        ? null
-                                        : () =>
-                                        accept(
-                                          message,
-                                        ),
+                                  Expanded(
+                                    child: Text(
+                                      message['groupName']?.toString() ??
+                                          'Nhóm Zalo',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (message['senderName'] != null ||
+                                  message['senderId'] != null) ...[
+                                const SizedBox(height: 8),
 
-                                    icon:
-                                    busy
-                                        ? const SizedBox(
-                                      width:
-                                      18,
-                                      height:
-                                      18,
-                                      child:
-                                      CircularProgressIndicator(
-                                        strokeWidth:
-                                        2,
+                                Row(
+                                  children: [
+                                    const Icon(Icons.person_outline, size: 18),
+
+                                    const SizedBox(width: 8),
+
+                                    Expanded(
+                                      child: Text(
+                                        message['senderName']?.toString() ??
+                                            message['senderId']?.toString() ??
+                                            '',
                                       ),
-                                    )
-                                        : const Icon(
-                                      Icons
-                                          .local_taxi,
                                     ),
-
-                                    label:
-                                    const Text(
-                                      'NHẬN',
-                                    ),
-                                  ),
+                                  ],
                                 ),
                               ],
-                            ),
-                          ],
 
+                              if (status == 'new') ...[
+                                const SizedBox(height: 18),
 
-                          if (status ==
-                              'accepted' &&
-                              message[
-                              'acceptedAt'] !=
-                                  null) ...[
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: busy
+                                            ? null
+                                            : () => ignore(message),
 
-                            const SizedBox(
-                              height: 10,
-                            ),
+                                        icon: const Icon(Icons.close),
 
-                            Text(
-                              'Nhận lúc: ${formatTime(message['acceptedAt'])}',
-                            ),
-                          ],
+                                        label: const Text('BỎ QUA'),
+                                      ),
+                                    ),
 
+                                    const SizedBox(width: 12),
 
-                          if (status ==
-                              'ignored' &&
-                              message[
-                              'ignoredAt'] !=
-                                  null) ...[
+                                    Expanded(
+                                      child: FilledButton.icon(
+                                        onPressed: busy
+                                            ? null
+                                            : () => accept(message),
 
-                            const SizedBox(
-                              height: 10,
-                            ),
+                                        icon: busy
+                                            ? const SizedBox(
+                                                width: 18,
+                                                height: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                              )
+                                            : const Icon(Icons.local_taxi),
 
-                            Text(
-                              'Bỏ qua lúc: ${formatTime(message['ignoredAt'])}',
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  );
-                },
+                                        label: const Text('NHẬN'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+
+                              if (status == 'accepted' &&
+                                  message['acceptedAt'] != null) ...[
+                                const SizedBox(height: 10),
+
+                                Text(
+                                  'Nhận lúc: ${formatTime(message['acceptedAt'])}',
+                                ),
+                              ],
+
+                              if (status == 'ignored' &&
+                                  message['ignoredAt'] != null) ...[
+                                const SizedBox(height: 10),
+
+                                Text(
+                                  'Bỏ qua lúc: ${formatTime(message['ignoredAt'])}',
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                ],
               ),
-          ],
-        ),
       ),
     );
   }

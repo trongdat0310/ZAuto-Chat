@@ -13,6 +13,8 @@ typedef PhotoHeroTagResolver = String Function(Map<String, dynamic> message);
 
 typedef PhotoTapCallback = void Function(Map<String, dynamic> message);
 
+typedef PhotoLongPressCallback = void Function(Map<String, dynamic> message);
+
 class PhotoMessageBubble extends StatelessWidget {
   final List<Map<String, dynamic>> album;
 
@@ -24,6 +26,8 @@ class PhotoMessageBubble extends StatelessWidget {
 
   final PhotoTapCallback onOpenPhoto;
 
+  final PhotoLongPressCallback onLongPressPhoto;
+
   const PhotoMessageBubble({
     super.key,
     required this.album,
@@ -31,6 +35,7 @@ class PhotoMessageBubble extends StatelessWidget {
     required this.resolvePhotoParams,
     required this.resolveHeroTag,
     required this.onOpenPhoto,
+    required this.onLongPressPhoto,
   });
 
   @override
@@ -100,6 +105,10 @@ class PhotoMessageBubble extends StatelessWidget {
         onOpenPhoto(message);
       },
 
+      onLongPress: () {
+        onLongPressPhoto(message);
+      },
+
       child: Hero(
         tag: heroTag,
 
@@ -153,6 +162,10 @@ class PhotoMessageBubble extends StatelessWidget {
 
       onTap: () {
         onOpenPhoto(message);
+      },
+
+      onLongPress: () {
+        onLongPressPhoto(message);
       },
 
       child: Hero(

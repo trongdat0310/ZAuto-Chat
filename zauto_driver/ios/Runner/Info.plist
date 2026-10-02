@@ -43,6 +43,10 @@
 					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
 					<key>UISceneStoryboardFile</key>
 					<string>Main</string>
+					<key>NSPhotoLibraryAddUsageDescription</key>
+                    <string>ZAUTO cần quyền để lưu ảnh và video vào thư viện.</string>
+                    <key>NSPhotoLibraryUsageDescription</key>
+                    <string>ZAUTO cần quyền truy cập thư viện ảnh và video.</string>
 				</dict>
 			</array>
 		</dict>

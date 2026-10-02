@@ -10,6 +10,7 @@ import '../../config/app_config.dart';
 import '../../services/backend_service.dart';
 import '../../services/chat_state_service.dart';
 import '../../services/app_realtime_service.dart';
+import '../../services/media_download_service.dart';
 
 import 'chat_date_separator.dart';
 import 'chat_sender_avatar.dart';
@@ -541,6 +542,11 @@ class _ChatPageState extends State<ChatPage> {
     final canUndo =
         isSelf && status == 'normal' && msgId.isNotEmpty && cliMsgId.isNotEmpty;
 
+    final canDownload =
+        status == 'normal' &&
+        (mediaController.isPhotoMessage(message) ||
+            mediaController.isVideoMessage(message));
+
     showModalBottomSheet<void>(
       context: context,
 
@@ -553,6 +559,14 @@ class _ChatPageState extends State<ChatPage> {
           canCopy: canCopy,
 
           canUndo: canUndo,
+
+          canDownload: canDownload,
+
+          onDownload: canDownload
+              ? () {
+                  return _downloadMessageMedia(message);
+                }
+              : null,
 
           onReply: () {
             _startReply(message);
@@ -2532,6 +2546,10 @@ class _ChatPageState extends State<ChatPage> {
       onOpenPhoto: (selectedMessage) {
         _openPhotoViewer(selectedMessage);
       },
+
+      onLongPressPhoto: (selectedMessage) {
+        _showMessageActions(selectedMessage);
+      },
     );
 
     // ========================================
@@ -2638,6 +2656,57 @@ class _ChatPageState extends State<ChatPage> {
         _showMessageActions(message);
       },
     );
+  }
+
+  Future<void> _downloadMessageMedia(Map<String, dynamic> message) async {
+    final isPhoto = mediaController.isPhotoMessage(message);
+
+    final isVideo = mediaController.isVideoMessage(message);
+
+    if (!isPhoto && !isVideo) {
+      return;
+    }
+
+    final url = isPhoto
+        ? mediaController.extractPhotoUrl(message)
+        : mediaController.messageMediaUrl(message);
+
+    if (url == null || url.isEmpty) {
+      _showTopNotice('Không tìm thấy đường dẫn media');
+
+      return;
+    }
+
+    _showTopNotice(isPhoto ? 'Đang tải ảnh...' : 'Đang tải video...');
+
+    try {
+      await MediaDownloadService.saveFromUrl(
+        url: url,
+
+        kind: isPhoto ? MediaDownloadKind.image : MediaDownloadKind.video,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      _showTopNotice(
+        isPhoto ? 'Đã lưu ảnh vào thư viện' : 'Đã lưu video vào thư viện',
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      final message = error.toString().replaceFirst('Exception: ', '');
+
+      _showTopNotice(message.isEmpty ? 'Tải xuống thất bại' : message);
+
+      debugPrint(
+        'MEDIA DOWNLOAD ERROR: '
+        '$error',
+      );
+    }
   }
 
   // ========================================
