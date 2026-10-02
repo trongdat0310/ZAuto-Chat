@@ -87,29 +87,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       return;
     }
 
-    showDialog<void>(
-      context: context,
-
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Chế độ Nâng cao'),
-
-          content: const Text(
-            'Chế độ nâng cao sẽ được hoàn thiện cùng logic bộ lọc mới.',
-          ),
-
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
+    _showAdvancedFilterHelp();
   }
 
   Future<void> _showBasicKeywordHelp() async {
@@ -146,26 +124,40 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
             child: Column(
               children: [
                 // ========================================
-                // SCROLL CONTENT
+                // FIXED HEADER
                 // ========================================
 
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(26, 26, 26, 20),
+
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+
+                    child: Text(
+                      'Cách viết từ khoá',
+
+                      style: TextStyle(
+                        fontSize: 25,
+                        fontWeight: FontWeight.w700,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ),
+
+                Divider(
+                  height: 1,
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.55),
+                ),
+
+                // ========================================
+                // ONLY THIS PART SCROLLS
+                // ========================================
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(26, 26, 26, 18),
+                    padding: const EdgeInsets.fromLTRB(26, 20, 26, 18),
 
                     children: [
-                      Text(
-                        'Cách viết từ khoá',
-
-                        style: TextStyle(
-                          fontSize: 25,
-                          fontWeight: FontWeight.w700,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-
-                      const SizedBox(height: 26),
-
                       Text(
                         'Mỗi ô nhận nhiều từ khoá, ngăn nhau bởi dấu phẩy. '
                         'Tin nhắn khớp MỘT từ khoá bất kỳ là đủ.',
@@ -322,6 +314,228 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     );
   }
 
+  Future<void> _showAdvancedFilterHelp() async {
+    await showDialog<void>(
+      context: context,
+
+      barrierDismissible: true,
+
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(dialogContext).colorScheme;
+
+        final screenHeight = MediaQuery.sizeOf(dialogContext).height;
+
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 34,
+          ),
+
+          backgroundColor: colorScheme.surface,
+
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
+
+          clipBehavior: Clip.antiAlias,
+
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 520,
+              maxHeight: screenHeight * 0.86,
+            ),
+
+            child: Column(
+              children: [
+                // ========================================
+                // FIXED HEADER
+                // ========================================
+
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(26, 26, 26, 20),
+
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+
+                    child: Text(
+                      'Hướng dẫn Lọc thông báo',
+
+                      style: TextStyle(
+                        fontSize: 25,
+                        fontWeight: FontWeight.w700,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ),
+
+                Divider(
+                  height: 1,
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.55),
+                ),
+
+                // ========================================
+                // ONLY CONTENT SCROLLS
+                // ========================================
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(26, 20, 26, 18),
+
+                    children: [
+                      _helpSectionTitle(
+                        context,
+                        'Hiện thông báo với các từ khoá',
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      _helpBullet(
+                        context,
+                        'Chỉ hiển thị thông báo chứa ít nhất 1 từ khoá',
+                      ),
+
+                      _helpBullet(
+                        context,
+                        'Nếu từ khoá trống = hiển thị tất cả thông báo',
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // ==================================
+                      // HIDE KEYWORDS
+                      // ==================================
+                      _helpSectionTitle(
+                        context,
+                        'Ẩn thông báo với các từ khoá',
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      _helpBullet(
+                        context,
+                        'Ẩn thông báo chứa bất kỳ từ khoá nào trong danh sách',
+                      ),
+
+                      _helpBullet(
+                        context,
+                        'Ưu tiên cao hơn "Hiện thông báo" - từ khoá ẩn sẽ ghi đè',
+                      ),
+
+                      const SizedBox(height: 26),
+
+                      // ==================================
+                      // WILDCARDS
+                      // ==================================
+                      _helpSectionTitle(context, 'Ký tự đại diện (Wildcards)'),
+
+                      const SizedBox(height: 14),
+
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+
+                        children: [
+                          _keywordExample(context, '*'),
+
+                          const SizedBox(width: 16),
+
+                          Expanded(
+                            child: _keywordDescription(
+                              context,
+                              'Đặt ở HAI ĐẦU cả cụm để khớp MỘT PHẦN — '
+                              'không dùng chèn giữa từ',
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      _helpBullet(
+                        context,
+                        'Ví dụ: "*cuoc*" → khớp "cuoc", "cuoc di", "nhan cuoc"',
+                      ),
+
+                      _helpBullet(context, 'Không phân biệt hoa thường'),
+
+                      const SizedBox(height: 28),
+
+                      // ==================================
+                      // TIPS
+                      // ==================================
+                      _helpSectionTitle(context, 'Mẹo sử dụng'),
+
+                      const SizedBox(height: 12),
+
+                      _helpBullet(
+                        context,
+                        'Từ khoá có cấu trúc:\n'
+                        '"*(từ khoá 1 | từ khoá 2)*"',
+                      ),
+
+                      _helpBullet(context, 'Giải thích:'),
+
+                      _helpSubBullet(
+                        context,
+                        '| là để phân tách giữa các từ khoá',
+                      ),
+
+                      _helpSubBullet(context, '*()* là CỤM chứa các từ khoá.'),
+
+                      const SizedBox(height: 8),
+
+                      _helpBullet(context, 'Từ khoá:'),
+
+                      _helpSubBullet(context, 'sẽ được hiểu ở dạng không dấu.'),
+
+                      _helpSubBullet(
+                        context,
+                        'không phân biệt viết hoa, viết thường.',
+                      ),
+                    ],
+                  ),
+                ),
+
+                // ========================================
+                // BUTTON CO DINH
+                // ========================================
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(26, 8, 26, 24),
+
+                  child: SizedBox(
+                    width: double.infinity,
+
+                    height: 58,
+
+                    child: FilledButton(
+                      onPressed: () {
+                        Navigator.of(dialogContext).pop();
+                      },
+
+                      style: FilledButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
+
+                      child: const Text(
+                        'Đã hiểu',
+
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _keywordExample(BuildContext context, String text) {
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -395,6 +609,98 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
               style: TextStyle(
                 fontSize: 16.5,
                 height: 1.45,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _helpSectionTitle(BuildContext context, String text) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Text(
+      text,
+
+      style: TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w700,
+        color: colorScheme.onSurface,
+      ),
+    );
+  }
+
+  Widget _helpBullet(BuildContext context, String text) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1, right: 9),
+
+            child: Text(
+              '•',
+
+              style: TextStyle(
+                fontSize: 18,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+
+          Expanded(
+            child: Text(
+              text,
+
+              style: TextStyle(
+                fontSize: 16.5,
+                height: 1.45,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _helpSubBullet(BuildContext context, String text) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 20, bottom: 8),
+
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+
+            child: Text(
+              '•',
+
+              style: TextStyle(
+                fontSize: 17,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+
+          Expanded(
+            child: Text(
+              text,
+
+              style: TextStyle(
+                fontSize: 16,
+                height: 1.4,
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
