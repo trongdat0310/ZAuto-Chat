@@ -714,24 +714,256 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     showDialog<void>(
       context: context,
 
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Khung giờ'),
+      barrierDismissible: true,
 
-          content: const Text(
-            'Bạn có thể nhập khung giờ hoặc dùng các lựa chọn nhanh bên dưới. '
-            'Cách diễn giải thời gian chính xác sẽ được xử lý ở phần logic sau.',
+      builder: (dialogContext) {
+        final colorScheme = Theme.of(dialogContext).colorScheme;
+
+        final screenHeight = MediaQuery.sizeOf(dialogContext).height;
+
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 34,
           ),
 
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
+          backgroundColor: colorScheme.surface,
 
-              child: const Text('OK'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
+
+          clipBehavior: Clip.antiAlias,
+
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: 520,
+              maxHeight: screenHeight * 0.86,
             ),
-          ],
+
+            child: Column(
+              children: [
+                // ========================================
+                // FIXED HEADER
+                // KHONG CUON
+                // ========================================
+
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(26, 26, 26, 20),
+
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+
+                    child: Text(
+                      'Cách viết Khung giờ',
+
+                      style: TextStyle(
+                        fontSize: 25,
+                        fontWeight: FontWeight.w700,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ),
+
+                Divider(
+                  height: 1,
+
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.55),
+                ),
+
+                // ========================================
+                // CHI NOI DUNG NAY DUOC CUON
+                // ========================================
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(26, 20, 26, 18),
+
+                    children: [
+                      Text(
+                        'Ô này nhận nhiều khung, ngăn nhau bởi dấu phẩy. '
+                        'Cuốc khớp MỘT khung bất kỳ là đủ, kể cả khi hai '
+                        'khung khác loại đứng cạnh nhau '
+                        '(VD "sáng, 0-30p").',
+
+                        style: TextStyle(
+                          fontSize: 17,
+                          height: 1.45,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+
+                      const SizedBox(height: 28),
+
+                      // ==================================
+                      // GIO TRONG NGAY
+                      // ==================================
+                      _helpSectionTitle(context, 'Giờ trong ngày'),
+
+                      const SizedBox(height: 16),
+
+                      _keywordExample(context, 'sáng, chiều, tối'),
+
+                      const SizedBox(height: 8),
+
+                      _keywordDescription(
+                        context,
+                        'Buổi trong ngày — sáng 05:00–11:00, '
+                        'trưa 11:00–13:00, chiều 13:00–18:00, '
+                        'tối 18:00–23:00, đêm/khuya 22:00–04:00 '
+                        '(qua đêm).',
+                      ),
+
+                      const SizedBox(height: 22),
+
+                      _keywordExample(context, '6h-8h'),
+
+                      const SizedBox(height: 8),
+
+                      _keywordDescription(
+                        context,
+                        'Khoảng giờ tường minh. Viết được cả '
+                        '"6-8", "06:00-08:00".',
+                      ),
+
+                      const SizedBox(height: 22),
+
+                      _keywordExample(context, 'sau 22h'),
+
+                      const SizedBox(height: 8),
+
+                      _keywordDescription(context, 'Từ mốc đó tới hết ngày.'),
+
+                      const SizedBox(height: 22),
+
+                      _keywordExample(context, 'trước 6h'),
+
+                      const SizedBox(height: 8),
+
+                      _keywordDescription(context, 'Từ đầu ngày tới mốc đó.'),
+
+                      const SizedBox(height: 20),
+
+                      _helpBullet(
+                        context,
+                        'So khớp GIAO NHAU với giờ tin nhắn nói ra, '
+                        'không cần khớp y hệt — tin "tối nay" '
+                        '(18h–23h) chạm khung "sau 20h" là đủ.',
+                      ),
+
+                      _helpBullet(
+                        context,
+                        'Tin không ghi giờ thì KHÔNG khớp nếu ô này '
+                        'có điền gì — để trống ô mới nhận cả loại tin '
+                        'không ghi giờ.',
+                      ),
+
+                      const SizedBox(height: 26),
+
+                      // ==================================
+                      // SO PHUT NHAC TRONG TIN
+                      // ==================================
+                      _helpSectionTitle(
+                        context,
+                        'Số phút nhắc trong tin (cuốc gấp)',
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      _keywordExample(context, '0-30p'),
+
+                      const SizedBox(height: 8),
+
+                      _keywordDescription(
+                        context,
+                        'Khớp khi CHÍNH TIN NHẮN có ghi một số phút '
+                        'từ 0 đến 30 — VD "gấp 15p", "0-15", '
+                        '"15ph", "15 phút" — dùng để bắt cuốc gấp.',
+                      ),
+
+                      const SizedBox(height: 22),
+
+                      _keywordExample(context, '15p'),
+
+                      const SizedBox(height: 8),
+
+                      _keywordDescription(context, 'Viết tắt của "0-15p".'),
+
+                      const SizedBox(height: 18),
+
+                      _helpBullet(
+                        context,
+                        'Đọc THẲNG số phút mà tin nhắn tự viết ra, '
+                        'không tính theo giờ tin được gửi tới nhóm.',
+                      ),
+
+                      _helpBullet(
+                        context,
+                        'Tin ghi nhiều số phút thì khớp một số nằm '
+                        'trong khung là đủ.',
+                      ),
+
+                      const SizedBox(height: 26),
+
+                      // ==================================
+                      // TU KHOA TU DO
+                      // ==================================
+                      _helpSectionTitle(context, 'Từ khoá tự do'),
+
+                      const SizedBox(height: 16),
+
+                      _keywordExample(context, 'csct'),
+
+                      const SizedBox(height: 8),
+
+                      _keywordDescription(
+                        context,
+                        'Gõ gì mà không hiểu được thành khung giờ '
+                        'hay khung phút thì coi như một TỪ KHOÁ — '
+                        'tin chứa đúng chữ đó là khớp. '
+                        'VD "csct" = "càng sớm càng tốt".',
+                      ),
+                    ],
+                  ),
+                ),
+
+                // ========================================
+                // FIXED BOTTOM BUTTON
+                // KHONG CUON
+                // ========================================
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(26, 8, 26, 24),
+
+                  child: SizedBox(
+                    width: double.infinity,
+
+                    height: 58,
+
+                    child: FilledButton(
+                      onPressed: () {
+                        Navigator.of(dialogContext).pop();
+                      },
+
+                      style: FilledButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
+
+                      child: const Text(
+                        'Đã hiểu',
+
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
