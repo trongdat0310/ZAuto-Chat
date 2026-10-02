@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../services/media_download_service.dart';
+
 class PhotoViewerItem {
   final String url;
 
@@ -70,6 +72,8 @@ class PhotoViewerPageState extends State<PhotoViewerPage> {
   bool loadingOlderPhotos = false;
 
   late bool hasMoreOlder;
+
+  bool downloading = false;
 
   @override
   void initState() {
@@ -321,6 +325,49 @@ class PhotoViewerPageState extends State<PhotoViewerPage> {
     }
   }
 
+  Future<void> _downloadCurrentPhoto() async {
+    if (downloading || viewerItems.isEmpty) {
+      return;
+    }
+
+    final item = viewerItems[currentIndex];
+
+    setState(() {
+      downloading = true;
+    });
+
+    try {
+      await MediaDownloadService.saveFromUrl(
+        url: item.url,
+        kind: MediaDownloadKind.image,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Đã lưu ảnh vào thư viện')));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          downloading = false;
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
     pageController.dispose();
@@ -476,6 +523,48 @@ class PhotoViewerPageState extends State<PhotoViewerPage> {
 
                         size: 28,
                       ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            Positioned(
+              top: 8,
+              right: 8,
+
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 160),
+
+                opacity: controlsVisible && !draggingToDismiss ? 1 : 0,
+
+                child: IgnorePointer(
+                  ignoring: !controlsVisible || draggingToDismiss,
+
+                  child: Material(
+                    color: const Color(0x66000000),
+
+                    shape: const CircleBorder(),
+
+                    child: IconButton(
+                      tooltip: 'Tải xuống',
+
+                      onPressed: downloading ? null : _downloadCurrentPhoto,
+
+                      icon: downloading
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.download_rounded,
+                              color: Colors.white,
+                              size: 28,
+                            ),
                     ),
                   ),
                 ),

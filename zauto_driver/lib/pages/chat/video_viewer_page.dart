@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../services/media_download_service.dart';
+
 class VideoViewerPage extends StatefulWidget {
   final String videoUrl;
 
@@ -22,6 +24,8 @@ class _VideoViewerPageState extends State<VideoViewerPage> {
   bool controlsVisible = true;
 
   Timer? hideControlsTimer;
+
+  bool downloading = false;
 
   @override
   void initState() {
@@ -175,6 +179,51 @@ class _VideoViewerPageState extends State<VideoViewerPage> {
     _scheduleHideControls();
   }
 
+  Future<void> _downloadVideo() async {
+    if (downloading) {
+      return;
+    }
+
+    setState(() {
+      downloading = true;
+
+      controlsVisible = true;
+    });
+
+    try {
+      await MediaDownloadService.saveFromUrl(
+        url: widget.videoUrl,
+        kind: MediaDownloadKind.video,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đã lưu video vào thư viện')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          downloading = false;
+        });
+
+        _scheduleHideControls();
+      }
+    }
+  }
+
   @override
   void dispose() {
     hideControlsTimer?.cancel();
@@ -292,6 +341,40 @@ class _VideoViewerPageState extends State<VideoViewerPage> {
 
                                       size: 28,
                                     ),
+                                  ),
+                                ),
+                              ),
+
+                              Positioned(
+                                top: 8,
+                                right: 8,
+
+                                child: Material(
+                                  color: const Color(0x66000000),
+
+                                  shape: const CircleBorder(),
+
+                                  child: IconButton(
+                                    tooltip: 'Tải xuống',
+
+                                    onPressed: downloading
+                                        ? null
+                                        : _downloadVideo,
+
+                                    icon: downloading
+                                        ? const SizedBox(
+                                            width: 22,
+                                            height: 22,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : const Icon(
+                                            Icons.download_rounded,
+                                            color: Colors.white,
+                                            size: 28,
+                                          ),
                                   ),
                                 ),
                               ),

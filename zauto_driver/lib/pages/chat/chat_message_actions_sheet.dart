@@ -15,6 +15,10 @@ class ChatMessageActionsSheet extends StatelessWidget {
 
   final VoidCallback onDelete;
 
+  final bool canDownload;
+
+  final Future<void> Function()? onDownload;
+
   const ChatMessageActionsSheet({
     super.key,
     required this.canReply,
@@ -24,6 +28,8 @@ class ChatMessageActionsSheet extends StatelessWidget {
     required this.onCopy,
     required this.onUndo,
     required this.onDelete,
+    this.canDownload = false,
+    this.onDownload,
   });
 
   @override
@@ -53,6 +59,19 @@ class ChatMessageActionsSheet extends StatelessWidget {
                 Navigator.of(context).pop();
 
                 await onCopy();
+              },
+            ),
+
+          if (canDownload && onDownload != null)
+            ListTile(
+              leading: const Icon(Icons.download_rounded),
+
+              title: const Text('Tải xuống'),
+
+              onTap: () async {
+                Navigator.of(context).pop();
+
+                await onDownload!();
               },
             ),
 

@@ -12,9 +12,7 @@ import '../../services/chat_state_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/speech_service.dart';
 
-
 class HomeNotificationHandler {
-
   final SettingsController settingsController;
 
   final BackendService backend;
@@ -23,7 +21,6 @@ class HomeNotificationHandler {
 
   final SpeechService speechService;
 
-
   HomeNotificationHandler({
     required this.settingsController,
     required this.backend,
@@ -31,272 +28,130 @@ class HomeNotificationHandler {
     required this.speechService,
   });
 
-  Future<void> initialize(
-      BuildContext context,
-      ) async {
-
-    await setupLocalNotifications(
-      context,
-    );
+  Future<void> initialize(BuildContext context) async {
+    await setupLocalNotifications(context);
 
     await setupPushNotifications();
   }
 
-  Future<void> handleTripNotificationSpeech(
-      Map<String, dynamic> data,
-      ) async {
+  Future<void> handleTripNotificationSpeech(Map<String, dynamic> data) async {
+    final settings = settingsController.settings;
 
-    final settings =
-            settingsController
-            .settings;
-
-    final groupId =
-    data['groupId']
-        ?.toString();
-
+    final groupId = data['groupId']?.toString();
 
     final isOpeningChat =
-        groupId != null &&
-            ChatStateService
-                .instance
-                .isOpeningGroup(
-              groupId,
-            );
+        groupId != null && ChatStateService.instance.isOpeningGroup(groupId);
 
+    final content = data['content']?.toString() ?? '';
 
-    final content =
-        data['content']
-            ?.toString()
-            ??
-            '';
+    final groupName = data['groupName']?.toString() ?? '';
 
-
-    final groupName =
-        data['groupName']
-            ?.toString()
-            ??
-            '';
-
-
-    final senderName =
-        data['senderName']
-            ?.toString()
-            ??
-            '';
-
-
+    final senderName = data['senderName']?.toString() ?? '';
 
     // ========================================
     // PHAT AM THANH
     // ========================================
 
-    if (
-        settings.playTripSound &&
-        !isOpeningChat
-    ) {
-
-      await audioService
-          .playTripSound();
-
+    if (settings.playTripSound && !isOpeningChat) {
+      await audioService.playTripSound();
     }
-
-
 
     // ========================================
     // DOC NOI DUNG CUOC
     // ========================================
 
-    if (
-    settings.readTripNotification &&
-        !isOpeningChat
-    ) {
-
-
+    if (settings.readTripNotification && !isOpeningChat) {
       final text =
           'Cuốc mới: $content. '
           'Người gửi: $senderName. '
           'Nhóm: $groupName. ';
 
-      await speechService.speak(
-        text,
-
-        rate:
-        settings.speechRate,
-      );
+      await speechService.speak(text, rate: settings.speechRate);
     }
   }
 
   Future<void> setupPushNotifications() async {
-
     // ========================================
     // APP DANG MO
     // ========================================
 
-    FirebaseMessaging
-        .onMessage
-        .listen(
-          (
-          RemoteMessage remoteMessage,
-          ) async {
+    FirebaseMessaging.onMessage.listen((RemoteMessage remoteMessage) async {
+      final data = remoteMessage.data;
 
-        final data =
-            remoteMessage.data;
+      if (data['type'] != 'new_trip') {
+        return;
+      }
 
+      await NotificationService.instance.showTrip(
+        messageId: data['messageId'] ?? '',
 
-        if (
-        data['type'] !=
-            'new_trip'
-        ) {
-          return;
-        }
+        groupId: data['groupId'] ?? '',
 
+        groupName: data['groupName'],
 
-        await NotificationService
-            .instance
-            .showTrip(
-          messageId:
-          data['messageId'] ??
-              '',
+        senderName: data['senderName'],
 
-          groupId:
-          data['groupId'] ?? '',
-
-          groupName:
-          data['groupName'],
-
-          senderName:
-          data['senderName'],
-
-          content:
-          data['content'] ??
-              '',
-        );
-      },
-    );
+        content: data['content'] ?? '',
+      );
+    });
   }
 
-  Future<void> setupLocalNotifications(
-      BuildContext context,
-      ) async {
-
-    await NotificationService
-        .instance
-        .initialize(
-
-      onAction:
-          (response) {
-
-        handleNotificationAction(
-          context,
-          response,
-        );
+  Future<void> setupLocalNotifications(BuildContext context) async {
+    await NotificationService.instance.initialize(
+      onAction: (response) {
+        handleNotificationAction(context, response);
       },
     );
   }
 
   Future<void> handleNotificationAction(
-      BuildContext context,
-      NotificationResponse response,
-      ) async {
-
-
-    final payload =
-        response.payload;
-
+    BuildContext context,
+    NotificationResponse response,
+  ) async {
+    final payload = response.payload;
 
     if (payload == null) {
       return;
     }
 
+    final decoded = jsonDecode(payload);
 
-    final decoded =
-    jsonDecode(payload);
+    final messageId = decoded['messageId']?.toString();
 
-
-    final messageId =
-    decoded['messageId']
-        ?.toString();
-
-
-    if (
-    messageId == null ||
-        messageId.isEmpty
-    ) {
+    if (messageId == null || messageId.isEmpty) {
       return;
     }
 
-
     try {
-
-      if (
-      response.actionId ==
-          NotificationService
-              .acceptAction
-      ) {
-
-        await backend
-            .acceptMessage(
+      if (response.actionId == NotificationService.acceptAction) {
+        await backend.acceptMessage(
           messageId,
 
-          replyText:
-              settingsController
-              .settings
-              .acceptReplyText,
+          replyText: settingsController.settings.acceptReplyText,
         );
-
 
         if (!context.mounted) {
           return;
         }
 
-
-        ScaffoldMessenger
-            .of(context)
-            .showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Đã nhận cuốc',
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Đã nhận cuốc')));
 
         return;
       }
 
-
-      if (
-      response.actionId ==
-          NotificationService
-              .ignoreAction
-      ) {
-
-        await backend
-            .ignoreMessage(
-          messageId,
-        );
-
+      if (response.actionId == NotificationService.ignoreAction) {
+        await backend.ignoreMessage(messageId);
 
         if (!context.mounted) {
           return;
         }
 
-
-        ScaffoldMessenger
-            .of(context)
-            .showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Đã bỏ qua cuốc',
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Đã bỏ qua cuốc')));
       }
-
     } catch (error) {
-
-      debugPrint(
-          'Notification action error: $error'
-      );
+      debugPrint('Notification action error: $error');
     }
   }
 }

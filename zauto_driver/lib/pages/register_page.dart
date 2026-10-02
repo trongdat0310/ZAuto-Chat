@@ -2,37 +2,23 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
 
-
-class RegisterPage
-    extends StatefulWidget {
-  const RegisterPage({
-    super.key,
-  });
+class RegisterPage extends StatefulWidget {
+  const RegisterPage({super.key});
 
   @override
-  State<RegisterPage>
-  createState() =>
-      _RegisterPageState();
+  State<RegisterPage> createState() => _RegisterPageState();
 }
 
+class _RegisterPageState extends State<RegisterPage> {
+  final AuthService auth = AuthService();
 
-class _RegisterPageState
-    extends State<RegisterPage> {
+  final nameController = TextEditingController();
 
-  final AuthService auth =
-  AuthService();
+  final phoneController = TextEditingController();
 
-  final nameController =
-  TextEditingController();
+  final passwordController = TextEditingController();
 
-  final phoneController =
-  TextEditingController();
-
-  final passwordController =
-  TextEditingController();
-
-  final confirmPasswordController =
-  TextEditingController();
+  final confirmPasswordController = TextEditingController();
   String? nameError;
   String? phoneError;
   String? passwordError;
@@ -46,47 +32,28 @@ class _RegisterPageState
 
   bool loading = false;
 
-  Widget passwordRule(
-      String text,
-      bool passed,
-      ) {
-
+  Widget passwordRule(String text, bool passed) {
     return Row(
-      mainAxisSize:
-      MainAxisSize.min,
+      mainAxisSize: MainAxisSize.min,
 
       children: [
-
         Icon(
-          passed
-              ? Icons.check_circle
-              : Icons.radio_button_unchecked,
+          passed ? Icons.check_circle : Icons.radio_button_unchecked,
 
           size: 17,
 
-          color:
-          passed
-              ? Colors.green
-              : Colors.grey,
+          color: passed ? Colors.green : Colors.grey,
         ),
 
-
-        const SizedBox(
-          width: 5,
-        ),
-
+        const SizedBox(width: 5),
 
         Text(
           text,
 
-          style:
-          TextStyle(
+          style: TextStyle(
             fontSize: 12,
 
-            color:
-            passed
-                ? Colors.green
-                : Colors.grey.shade700,
+            color: passed ? Colors.green : Colors.grey.shade700,
           ),
         ),
       ],
@@ -94,24 +61,17 @@ class _RegisterPageState
   }
 
   Future<void> register() async {
-
     if (submitting) {
       return;
     }
 
+    final name = nameController.text.trim();
 
-    final name =
-    nameController.text.trim();
+    final phone = phoneController.text.trim();
 
-    final phone =
-    phoneController.text.trim();
+    final password = passwordController.text;
 
-    final password =
-        passwordController.text;
-
-    final confirmPassword =
-        confirmPasswordController.text;
-
+    final confirmPassword = confirmPasswordController.text;
 
     setState(() {
       nameError = null;
@@ -121,96 +81,63 @@ class _RegisterPageState
       generalError = null;
     });
 
-
     bool valid = true;
-
 
     // ========================================
     // NAME
     // ========================================
 
     if (name.length < 2) {
-
-      nameError =
-      'Vui lòng nhập họ và tên';
+      nameError = 'Vui lòng nhập họ và tên';
 
       valid = false;
     }
-
 
     // ========================================
     // PHONE
     // ========================================
 
     if (phone.isEmpty) {
-
-      phoneError =
-      'Vui lòng nhập số điện thoại';
+      phoneError = 'Vui lòng nhập số điện thoại';
 
       valid = false;
-
-    } else if (
-    !RegExp(
-      r'^[0-9]{9,15}$',
-    ).hasMatch(phone)
-    ) {
-
-      phoneError =
-      'Số điện thoại không hợp lệ';
+    } else if (!RegExp(r'^[0-9]{9,15}$').hasMatch(phone)) {
+      phoneError = 'Số điện thoại không hợp lệ';
 
       valid = false;
     }
-
 
     // ========================================
     // PASSWORD
     // ========================================
 
-    final policyError =
-    validateRegisterPassword(
-      password,
-    );
-
+    final policyError = validateRegisterPassword(password);
 
     if (policyError != null) {
-
-      passwordError =
-          policyError;
+      passwordError = policyError;
 
       valid = false;
     }
-
 
     // ========================================
     // CONFIRM PASSWORD
     // ========================================
 
     if (confirmPassword.isEmpty) {
-
-      confirmPasswordError =
-      'Vui lòng nhập lại mật khẩu';
+      confirmPasswordError = 'Vui lòng nhập lại mật khẩu';
 
       valid = false;
-
-    } else if (
-    confirmPassword !=
-        password
-    ) {
-
-      confirmPasswordError =
-      'Mật khẩu nhập lại không khớp';
+    } else if (confirmPassword != password) {
+      confirmPasswordError = 'Mật khẩu nhập lại không khớp';
 
       valid = false;
     }
 
-
     if (!valid) {
-
       setState(() {});
 
       return;
     }
-
 
     // ========================================
     // CALL API
@@ -220,95 +147,51 @@ class _RegisterPageState
       submitting = true;
     });
 
-
     try {
-
-      await auth.register(
-        name: name,
-        phone: phone,
-        password: password,
-      );
-
+      await auth.register(name: name, phone: phone, password: password);
 
       if (!mounted) {
         return;
       }
-
 
       // Đăng ký thành công.
       // Đóng RegisterPage và báo cho LoginPage.
       Navigator.of(context).pop(true);
-
     } catch (error) {
-
       if (!mounted) {
         return;
       }
 
+      var message = error.toString().replaceFirst('Exception: ', '');
 
-      var message =
-      error.toString()
-          .replaceFirst(
-        'Exception: ',
-        '',
-      );
-
-
-      final lower =
-      message.toLowerCase();
-
+      final lower = message.toLowerCase();
 
       setState(() {
         submitting = false;
 
-
         // So dien thoai da ton tai
-        if (
-        lower.contains(
-          'phone',
-        ) ||
-            lower.contains(
-              'so dien thoai',
-            ) ||
-            lower.contains(
-              'điện thoại',
-            ) ||
-            lower.contains(
-              'da ton tai',
-            )
-        ) {
-
-          phoneError =
-          'Số điện thoại này đã được đăng ký';
+        if (lower.contains('phone') ||
+            lower.contains('so dien thoai') ||
+            lower.contains('điện thoại') ||
+            lower.contains('da ton tai')) {
+          phoneError = 'Số điện thoại này đã được đăng ký';
 
           return;
         }
-
 
         // Backend password policy
-        if (
-        lower.contains(
-          'mat khau',
-        )
-        ) {
-
-          passwordError =
-          'Mật khẩu chưa đáp ứng yêu cầu';
+        if (lower.contains('mat khau')) {
+          passwordError = 'Mật khẩu chưa đáp ứng yêu cầu';
 
           return;
         }
 
-
-        generalError =
-            message;
+        generalError = message;
       });
     }
   }
 
-  String? validateRegisterPassword(
-      String password,
-      ) {
-
+  String? validateRegisterPassword(String password) {
     if (password.isEmpty) {
       return 'Vui lòng nhập mật khẩu';
     }
@@ -317,50 +200,28 @@ class _RegisterPageState
       return 'Mật khẩu phải có ít nhất 8 ký tự';
     }
 
-    if (
-    !RegExp(r'[A-Z]')
-        .hasMatch(password)
-    ) {
+    if (!RegExp(r'[A-Z]').hasMatch(password)) {
       return 'Cần ít nhất 1 chữ hoa A-Z';
     }
 
-    if (
-    !RegExp(r'[a-z]')
-        .hasMatch(password)
-    ) {
+    if (!RegExp(r'[a-z]').hasMatch(password)) {
       return 'Cần ít nhất 1 chữ thường a-z';
     }
 
-    if (
-    !RegExp(r'[0-9]')
-        .hasMatch(password)
-    ) {
+    if (!RegExp(r'[0-9]').hasMatch(password)) {
       return 'Cần ít nhất 1 chữ số 0-9';
     }
 
-    if (
-    !RegExp(
-      r'[^A-Za-z0-9\s]',
-    ).hasMatch(password)
-    ) {
+    if (!RegExp(r'[^A-Za-z0-9\s]').hasMatch(password)) {
       return 'Cần ít nhất 1 ký tự đặc biệt';
     }
 
     return null;
   }
 
-
-  void showError(
-      String text,
-      ) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content: Text(text),
-      ),
-    );
+  void showError(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
-
 
   @override
   void dispose() {
@@ -372,222 +233,129 @@ class _RegisterPageState
     super.dispose();
   }
 
-
   @override
-  Widget build(
-      BuildContext context,
-      ) {
-    final password =
-        passwordController.text;
+  Widget build(BuildContext context) {
+    final password = passwordController.text;
 
+    final hasLength = password.length >= 8;
 
-    final hasLength =
-        password.length >= 8;
+    final hasUppercase = RegExp(r'[A-Z]').hasMatch(password);
 
+    final hasLowercase = RegExp(r'[a-z]').hasMatch(password);
 
-    final hasUppercase =
-    RegExp(
-      r'[A-Z]',
-    ).hasMatch(
-      password,
-    );
+    final hasNumber = RegExp(r'[0-9]').hasMatch(password);
 
-
-    final hasLowercase =
-    RegExp(
-      r'[a-z]',
-    ).hasMatch(
-      password,
-    );
-
-
-    final hasNumber =
-    RegExp(
-      r'[0-9]',
-    ).hasMatch(
-      password,
-    );
-
-
-    final hasSpecial =
-    RegExp(
-      r'[^A-Za-z0-9\s]',
-    ).hasMatch(
-      password,
-    );
+    final hasSpecial = RegExp(r'[^A-Za-z0-9\s]').hasMatch(password);
 
     return Scaffold(
-      appBar: AppBar(
-        title:
-        const Text(
-          'Đăng ký',
-        ),
-      ),
+      appBar: AppBar(title: const Text('Đăng ký')),
 
       body: SafeArea(
         child: ListView(
-          padding:
-          const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
 
           children: [
-            const SizedBox(
-              height: 20,
-            ),
+            const SizedBox(height: 20),
 
-            const Icon(
-              Icons.person_add_alt_1,
-              size: 72,
-            ),
+            const Icon(Icons.person_add_alt_1, size: 72),
 
-            const SizedBox(
-              height: 24,
-            ),
+            const SizedBox(height: 24),
 
             const Text(
               'Tạo tài khoản',
-              textAlign:
-              TextAlign.center,
+              textAlign: TextAlign.center,
 
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight:
-                FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
             ),
 
-            const SizedBox(
-              height: 8,
-            ),
+            const SizedBox(height: 8),
 
             const Text(
               'Sau khi đăng ký bạn sẽ có thể liên kết tài khoản Zalo.',
-              textAlign:
-              TextAlign.center,
+              textAlign: TextAlign.center,
             ),
 
-            const SizedBox(
-              height: 32,
-            ),
-
+            const SizedBox(height: 32),
 
             TextFormField(
-              controller:
-              nameController,
+              controller: nameController,
 
               onChanged: (_) {
-
                 if (nameError != null) {
-
                   setState(() {
                     nameError = null;
                   });
                 }
               },
 
-              decoration:
-              InputDecoration(
-                labelText:
-                'Họ và tên',
+              decoration: InputDecoration(
+                labelText: 'Họ và tên',
 
-                border:
-                const OutlineInputBorder(),
+                border: const OutlineInputBorder(),
 
-                errorText:
-                nameError,
+                errorText: nameError,
               ),
             ),
 
-
-            const SizedBox(
-              height: 16,
-            ),
-
+            const SizedBox(height: 16),
 
             TextFormField(
-              controller:
-              phoneController,
+              controller: phoneController,
 
-              keyboardType:
-              TextInputType.phone,
+              keyboardType: TextInputType.phone,
 
               onChanged: (_) {
-
                 if (phoneError != null) {
-
                   setState(() {
                     phoneError = null;
                   });
                 }
               },
 
-              decoration:
-              InputDecoration(
-                labelText:
-                'Số điện thoại',
+              decoration: InputDecoration(
+                labelText: 'Số điện thoại',
 
-                border:
-                const OutlineInputBorder(),
+                border: const OutlineInputBorder(),
 
-                errorText:
-                phoneError,
+                errorText: phoneError,
               ),
             ),
 
-
-            const SizedBox(
-              height: 16,
-            ),
-
+            const SizedBox(height: 16),
 
             TextFormField(
-              controller:
-              passwordController,
+              controller: passwordController,
 
-              obscureText:
-              hidePassword,
+              obscureText: hidePassword,
 
-              enabled:
-              !submitting,
+              enabled: !submitting,
 
-              textInputAction:
-              TextInputAction.next,
+              textInputAction: TextInputAction.next,
 
               onChanged: (value) {
-
                 setState(() {
                   passwordError = null;
                   generalError = null;
                 });
               },
 
-              decoration:
-              InputDecoration(
+              decoration: InputDecoration(
+                labelText: 'Mật khẩu',
 
-                labelText:
-                'Mật khẩu',
+                border: const OutlineInputBorder(),
 
-                border:
-                const OutlineInputBorder(),
+                errorText: passwordError,
 
-                errorText:
-                passwordError,
-
-                suffixIcon:
-                IconButton(
-
-                  onPressed:
-                  submitting
+                suffixIcon: IconButton(
+                  onPressed: submitting
                       ? null
                       : () {
+                          setState(() {
+                            hidePassword = !hidePassword;
+                          });
+                        },
 
-                    setState(() {
-                      hidePassword =
-                      !hidePassword;
-                    });
-                  },
-
-                  icon:
-                  Icon(
+                  icon: Icon(
                     hidePassword
                         ? Icons.visibility_outlined
                         : Icons.visibility_off_outlined,
@@ -596,102 +364,61 @@ class _RegisterPageState
               ),
             ),
 
-            const SizedBox(
-              height: 10,
-            ),
-
+            const SizedBox(height: 10),
 
             Wrap(
               spacing: 14,
               runSpacing: 8,
 
               children: [
+                passwordRule('8+ ký tự', hasLength),
 
-                passwordRule(
-                  '8+ ký tự',
-                  hasLength,
-                ),
+                passwordRule('Chữ hoa A-Z', hasUppercase),
 
-                passwordRule(
-                  'Chữ hoa A-Z',
-                  hasUppercase,
-                ),
+                passwordRule('Chữ thường a-z', hasLowercase),
 
-                passwordRule(
-                  'Chữ thường a-z',
-                  hasLowercase,
-                ),
+                passwordRule('Số 0-9', hasNumber),
 
-                passwordRule(
-                  'Số 0-9',
-                  hasNumber,
-                ),
-
-                passwordRule(
-                  'Ký tự đặc biệt',
-                  hasSpecial,
-                ),
+                passwordRule('Ký tự đặc biệt', hasSpecial),
               ],
             ),
 
-
-            const SizedBox(
-              height: 16,
-            ),
-
+            const SizedBox(height: 16),
 
             TextFormField(
-              controller:
-              confirmPasswordController,
+              controller: confirmPasswordController,
 
-              obscureText:
-              hideConfirmPassword,
+              obscureText: hideConfirmPassword,
 
-              enabled:
-              !submitting,
+              enabled: !submitting,
 
-              textInputAction:
-              TextInputAction.done,
+              textInputAction: TextInputAction.done,
 
               onChanged: (value) {
-
                 setState(() {
-                  confirmPasswordError =
-                  null;
+                  confirmPasswordError = null;
 
-                  generalError =
-                  null;
+                  generalError = null;
                 });
               },
 
-              decoration:
-              InputDecoration(
+              decoration: InputDecoration(
+                labelText: 'Nhập lại mật khẩu',
 
-                labelText:
-                'Nhập lại mật khẩu',
+                border: const OutlineInputBorder(),
 
-                border:
-                const OutlineInputBorder(),
+                errorText: confirmPasswordError,
 
-                errorText:
-                confirmPasswordError,
-
-                suffixIcon:
-                IconButton(
-
-                  onPressed:
-                  submitting
+                suffixIcon: IconButton(
+                  onPressed: submitting
                       ? null
                       : () {
+                          setState(() {
+                            hideConfirmPassword = !hideConfirmPassword;
+                          });
+                        },
 
-                    setState(() {
-                      hideConfirmPassword =
-                      !hideConfirmPassword;
-                    });
-                  },
-
-                  icon:
-                  Icon(
+                  icon: Icon(
                     hideConfirmPassword
                         ? Icons.visibility_outlined
                         : Icons.visibility_off_outlined,
@@ -700,70 +427,39 @@ class _RegisterPageState
               ),
             ),
 
-
-// ========================================
-// GENERAL ERROR
-// ========================================
-
+            // ========================================
+            // GENERAL ERROR
+            // ========================================
             if (generalError != null) ...[
-
-              const SizedBox(
-                height: 16,
-              ),
-
+              const SizedBox(height: 16),
 
               Container(
-                padding:
-                const EdgeInsets.all(
-                  12,
+                padding: const EdgeInsets.all(12),
+
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.errorContainer,
+
+                  borderRadius: BorderRadius.circular(10),
                 ),
 
-                decoration:
-                BoxDecoration(
-                  color:
-                  Theme.of(context)
-                      .colorScheme
-                      .errorContainer,
-
-                  borderRadius:
-                  BorderRadius.circular(
-                    10,
-                  ),
-                ),
-
-                child:
-                Row(
-                  crossAxisAlignment:
-                  CrossAxisAlignment.start,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
 
                   children: [
-
                     Icon(
                       Icons.error_outline,
 
-                      color:
-                      Theme.of(context)
-                          .colorScheme
-                          .onErrorContainer,
+                      color: Theme.of(context).colorScheme.onErrorContainer,
                     ),
 
-
-                    const SizedBox(
-                      width: 10,
-                    ),
-
+                    const SizedBox(width: 10),
 
                     Expanded(
-                      child:
-                      Text(
+                      child: Text(
                         generalError!,
 
-                        style:
-                        TextStyle(
-                          color:
-                          Theme.of(context)
-                              .colorScheme
-                              .onErrorContainer,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onErrorContainer,
                         ),
                       ),
                     ),
@@ -772,47 +468,32 @@ class _RegisterPageState
               ),
             ],
 
+            const SizedBox(height: 28),
 
-            const SizedBox(
-              height: 28,
-            ),
-
-
-// ========================================
-// REGISTER BUTTON
-// ========================================
-
+            // ========================================
+            // REGISTER BUTTON
+            // ========================================
             SizedBox(
               height: 56,
 
-              child:
-              FilledButton(
-                onPressed:
-                submitting
-                    ? null
-                    : register,
+              child: FilledButton(
+                onPressed: submitting ? null : register,
 
-                child:
-                submitting
+                child: submitting
                     ? const SizedBox(
-                  width: 22,
-                  height: 22,
+                        width: 22,
+                        height: 22,
 
-                  child:
-                  CircularProgressIndicator(
-                    strokeWidth: 2,
-                  ),
-                )
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : const Text(
-                  'ĐĂNG KÝ',
+                        'ĐĂNG KÝ',
 
-                  style:
-                  TextStyle(
-                    fontSize: 17,
-                    fontWeight:
-                    FontWeight.bold,
-                  ),
-                ),
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
           ],
