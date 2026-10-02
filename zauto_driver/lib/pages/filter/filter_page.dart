@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'add_notification_filter_page.dart';
+
 class FilterPage extends StatefulWidget {
   // Giu lai de khong anh huong MainScreen hien tai.
   // Logic tab/filter moi se xu ly o buoc sau.
@@ -23,12 +25,18 @@ class _FilterPageState extends State<FilterPage> {
 
   int filterCount = 0;
 
-  void _addFilter() {
-    // ========================================
-    // TODO:
-    // Logic tao filter se duoc them
-    // khi chot cau truc bo loc moi.
-    // ========================================
+  Future<void> _addFilter() async {
+    if (filterCount >= maxFilters) {
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) {
+          return const AddNotificationFilterPage();
+        },
+      ),
+    );
   }
 
   @override
