@@ -1,62 +1,36 @@
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-
-const __filename =
-  fileURLToPath(import.meta.url);
-
-const __dirname =
-  path.dirname(__filename);
-
-
-const rootPath =
-  path.resolve(
-    __dirname,
-    "../../data/user-data"
-  );
+import {
+  LEGACY_FILTER_ID,
+  getUserFilterDocument,
+  getLegacyUserFilterSettings,
+  saveLegacyUserFilterSettings,
+} from "./user-filter-store.js";
 
 
 // ========================================
-// PATH
+// RUNTIME CACHE
+//
+// userId -> {
+//   document,
+//   enabled,
+//   includeKeywords,
+//   excludeKeywords
+// }
+//
+// document reference doi moi lan save.
+// Vi vay khong can timestamp check.
 // ========================================
 
-function getUserDir(userId) {
-  return path.join(
-    rootPath,
-    String(userId)
-  );
-}
-
-
-function getFilterPath(userId) {
-  return path.join(
-    getUserDir(userId),
-    "filter-settings.json"
-  );
-}
-
-
-// ========================================
-// DEFAULT
-// ========================================
-
-function defaultSettings() {
-  return {
-    enabled: true,
-
-    includeKeywords: [],
-
-    excludeKeywords: [],
-  };
-}
+const runtimeCache =
+  new Map();
 
 
 // ========================================
 // NORMALIZE
 // ========================================
 
-function normalizeText(value = "") {
+function normalizeText(
+  value = ""
+) {
   return String(value)
     .normalize("NFD")
     .replace(
@@ -66,198 +40,160 @@ function normalizeText(value = "") {
     .replace(/đ/g, "d")
     .replace(/Đ/g, "D")
     .toLowerCase()
+    .replace(
+      /\s+/g,
+      " "
+    )
     .trim();
 }
 
 
 // ========================================
-// SANITIZE KEYWORDS
+// LEGACY RUNTIME
+//
+// Buoc nay van giu dung logic cu.
+//
+// Sau buoc tiep theo function nay se
+// duoc thay boi compiled Basic/Advanced plan.
 // ========================================
 
-function sanitizeKeywords(
-  values
+function getLegacyRuntime(
+  userId
 ) {
-  if (!Array.isArray(values)) {
-    return [];
+  const key =
+    String(userId);
+
+
+  const document =
+    getUserFilterDocument(
+      key
+    );
+
+
+  const cached =
+    runtimeCache.get(
+      key
+    );
+
+
+  if (
+    cached &&
+    cached.document ===
+      document
+  ) {
+    return cached;
   }
 
 
-  const cleaned =
-    values
-      .map(
-        value =>
-          String(value)
-            .trim()
-      )
-      .filter(Boolean);
+  const legacy =
+    document.filters.find(
+      item =>
+        item.id ===
+        LEGACY_FILTER_ID
+    );
 
 
-  return [
-    ...new Set(cleaned),
-  ];
+  const runtime = {
+    document,
+
+    enabled:
+      legacy
+        ? legacy.enabled !==
+          false
+        : true,
+
+    includeKeywords:
+      legacy
+        ? legacy
+            .advanced
+            .showKeywords
+            .map(
+              normalizeText
+            )
+            .filter(Boolean)
+        : [],
+
+    excludeKeywords:
+      legacy
+        ? legacy
+            .advanced
+            .hideKeywords
+            .map(
+              normalizeText
+            )
+            .filter(Boolean)
+        : [],
+  };
+
+
+  runtimeCache.set(
+    key,
+    runtime
+  );
+
+
+  return runtime;
 }
 
 
 // ========================================
-// READ
+// OLD API COMPATIBILITY
 // ========================================
 
 export function getUserFilterSettings(
   userId
 ) {
-  const filePath =
-    getFilterPath(userId);
-
-
-  if (!fs.existsSync(filePath)) {
-    return defaultSettings();
-  }
-
-
-  try {
-    const saved =
-      JSON.parse(
-        fs.readFileSync(
-          filePath,
-          "utf-8"
-        )
-      );
-
-
-    return {
-      ...defaultSettings(),
-      ...saved,
-
-      includeKeywords:
-        sanitizeKeywords(
-          saved?.includeKeywords
-        ),
-
-      excludeKeywords:
-        sanitizeKeywords(
-          saved?.excludeKeywords
-        ),
-
-      enabled:
-        saved?.enabled !== false,
-    };
-
-  } catch (error) {
-
-    console.error(
-      "[USER FILTER] READ ERROR:",
-      userId,
-      error
-    );
-
-
-    return defaultSettings();
-  }
+  return getLegacyUserFilterSettings(
+    userId
+  );
 }
 
-
-// ========================================
-// SAVE
-// ========================================
 
 export function saveUserFilterSettings(
   userId,
   updates
 ) {
-  const current =
-    getUserFilterSettings(
-      userId
+  const result =
+    saveLegacyUserFilterSettings(
+      userId,
+      updates
     );
 
 
-  const next = {
-    ...current,
-
-    ...(updates.enabled !== undefined
-      ? {
-          enabled:
-            updates.enabled === true,
-        }
-      : {}),
-
-    ...(updates.includeKeywords !==
-    undefined
-      ? {
-          includeKeywords:
-            sanitizeKeywords(
-              updates.includeKeywords
-            ),
-        }
-      : {}),
-
-    ...(updates.excludeKeywords !==
-    undefined
-      ? {
-          excludeKeywords:
-            sanitizeKeywords(
-              updates.excludeKeywords
-            ),
-        }
-      : {}),
-
-    updatedAt:
-      new Date().toISOString(),
-  };
-
-
-  const userDir =
-    getUserDir(userId);
-
-
-  fs.mkdirSync(
-    userDir,
-    {
-      recursive: true,
-    }
+  runtimeCache.delete(
+    String(userId)
   );
 
 
-  fs.writeFileSync(
-    getFilterPath(userId),
-
-    JSON.stringify(
-      next,
-      null,
-      2
-    ),
-
-    "utf-8"
-  );
-
-
-  console.log(
-    "[USER FILTER] SAVED:",
-    userId
-  );
-
-
-  return next;
+  return result;
 }
 
 
 // ========================================
 // EVALUATE
-// Dung cho worker per-user o buoc sau
+//
+// HIEN TAI:
+// giu behavior cu de khong pha production.
+//
+// KHAC BIET:
+// - khong doc JSON moi message
+// - keyword da normalize san trong RAM
 // ========================================
 
 export function evaluateUserMessage(
   userId,
   messageText
 ) {
-  const settings =
-    getUserFilterSettings(
+  const runtime =
+    getLegacyRuntime(
       userId
     );
 
 
-  if (!settings.enabled) {
+  if (!runtime.enabled) {
     return {
-      matched: true,
+      matched:
+        true,
 
       reason:
         "filter_disabled",
@@ -271,34 +207,25 @@ export function evaluateUserMessage(
     );
 
 
-  const includeKeywords =
-    settings.includeKeywords
-      .map(normalizeText)
-      .filter(Boolean);
-
-
-  const excludeKeywords =
-    settings.excludeKeywords
-      .map(normalizeText)
-      .filter(Boolean);
-
-
   // ========================================
-  // EXCLUDE UU TIEN CAO NHAT
+  // EXCLUDE
   // ========================================
 
   const matchedExclude =
-    excludeKeywords.find(
-      keyword =>
-        text.includes(
-          keyword
-        )
-    );
+    runtime
+      .excludeKeywords
+      .find(
+        keyword =>
+          text.includes(
+            keyword
+          )
+      );
 
 
   if (matchedExclude) {
     return {
-      matched: false,
+      matched:
+        false,
 
       reason:
         "excluded_keyword",
@@ -310,14 +237,18 @@ export function evaluateUserMessage(
 
 
   // ========================================
-  // KHONG CO INCLUDE
+  // NO INCLUDE
   // ========================================
 
   if (
-    includeKeywords.length === 0
+    runtime
+      .includeKeywords
+      .length ===
+    0
   ) {
     return {
-      matched: true,
+      matched:
+        true,
 
       reason:
         "no_include_keywords",
@@ -330,17 +261,20 @@ export function evaluateUserMessage(
   // ========================================
 
   const matchedInclude =
-    includeKeywords.find(
-      keyword =>
-        text.includes(
-          keyword
-        )
-    );
+    runtime
+      .includeKeywords
+      .find(
+        keyword =>
+          text.includes(
+            keyword
+          )
+      );
 
 
   if (matchedInclude) {
     return {
-      matched: true,
+      matched:
+        true,
 
       reason:
         "included_keyword",
@@ -352,9 +286,30 @@ export function evaluateUserMessage(
 
 
   return {
-    matched: false,
+    matched:
+      false,
 
     reason:
       "no_include_match",
   };
+}
+
+
+// ========================================
+// FUTURE V2 ENGINE HOOK
+//
+// Buoc tiep theo se dung document nay
+// de compile:
+// - Basic
+// - Advanced
+// - group index
+// - price/time lazy parser
+// ========================================
+
+export function getUserFilterDocumentForRuntime(
+  userId
+) {
+  return getUserFilterDocument(
+    userId
+  );
 }
