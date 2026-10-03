@@ -5,72 +5,13 @@ import {
 } from "./user-filter-store.js";
 
 import {
-  normalizeFilterText,
-  findFirstKeywordMatch,
-} from "./user-filter-matcher.js";
-
-import {
-  getUserFilterRuntime,
+  getUserFilterGroupPlan,
   warmUserFilterRuntime,
 } from "./user-filter-runtime.js";
 
-
-// ========================================
-// LEGACY RUNTIME VIEW
-//
-// Runtime chung da compile san tat ca
-// Basic / Advanced.
-//
-// Hien tai evaluator production van chi
-// dung legacy filter de khong thay doi
-// behavior cho toi khi V2 evaluator xong.
-// ========================================
-
-function getLegacyRuntime(
-  userId
-) {
-  const runtime =
-    getUserFilterRuntime(
-      userId
-    );
-
-
-  const legacy =
-    runtime.legacyFilter;
-
-
-  if (!legacy) {
-    return {
-      enabled:
-        true,
-
-      includeMatchers:
-        [],
-
-      excludeMatchers:
-        [],
-    };
-  }
-
-
-  return {
-    enabled:
-      legacy.enabled !==
-      false,
-
-    includeMatchers:
-      legacy
-        .advanced
-        ?.showMatchers ??
-      [],
-
-    excludeMatchers:
-      legacy
-        .advanced
-        ?.hideMatchers ??
-      [],
-  };
-}
+import {
+  evaluateCompiledGroupPlan,
+} from "./user-filter-evaluator.js";
 
 
 // ========================================
@@ -89,12 +30,11 @@ export function getUserFilterSettings(
 // ========================================
 // LEGACY SAVE
 //
-// Sau khi save:
-// - store tao document object moi
-// - warm runtime se compile ngay
+// Store tao document object moi.
 //
-// => message realtime tiep theo khong
-// bi ganh chi phi compile.
+// Warm runtime ngay trong request save
+// de message realtime sau do khong phai
+// compile filter.
 // ========================================
 
 export function saveUserFilterSettings(
@@ -118,12 +58,19 @@ export function saveUserFilterSettings(
 
 
 // ========================================
-// EVALUATE
+// EVALUATE USER MESSAGE
 //
-// HIEN TAI VAN GIU BEHAVIOR FILTER CU.
+// HOT PATH:
 //
-// groupId da duoc truyen vao san
-// de buoc tiep theo bat V2 evaluator.
+// 1. get cached group plan
+// 2. normalize message mot lan
+// 3. short-circuit filter OR
+//
+// KHONG:
+// - disk I/O
+// - JSON.parse
+// - compile keyword
+// - quet filter group khac
 // ========================================
 
 export function evaluateUserMessage(
@@ -133,121 +80,22 @@ export function evaluateUserMessage(
     groupId = null,
   } = {}
 ) {
-  // Tam thoi chua dung groupId.
-  // Buoc V2 evaluator se dung no de lay
-  // indexed group plan.
-  void groupId;
-
-
-  const runtime =
-    getLegacyRuntime(
-      userId
+  const plan =
+    getUserFilterGroupPlan(
+      userId,
+      groupId
     );
 
 
-  if (!runtime.enabled) {
-    return {
-      matched:
-        true,
-
-      reason:
-        "filter_disabled",
-    };
-  }
-
-
-  const text =
-    normalizeFilterText(
-      messageText
-    );
-
-
-  // ========================================
-  // EXCLUDE
-  // ========================================
-
-  const matchedExclude =
-    findFirstKeywordMatch(
-      runtime
-        .excludeMatchers,
-      text
-    );
-
-
-  if (matchedExclude) {
-    return {
-      matched:
-        false,
-
-      reason:
-        "excluded_keyword",
-
-      keyword:
-        matchedExclude.source,
-    };
-  }
-
-
-  // ========================================
-  // NO INCLUDE
-  // ========================================
-
-  if (
-    runtime
-      .includeMatchers
-      .length ===
-    0
-  ) {
-    return {
-      matched:
-        true,
-
-      reason:
-        "no_include_keywords",
-    };
-  }
-
-
-  // ========================================
-  // INCLUDE = OR
-  // ========================================
-
-  const matchedInclude =
-    findFirstKeywordMatch(
-      runtime
-        .includeMatchers,
-      text
-    );
-
-
-  if (matchedInclude) {
-    return {
-      matched:
-        true,
-
-      reason:
-        "included_keyword",
-
-      keyword:
-        matchedInclude.source,
-    };
-  }
-
-
-  return {
-    matched:
-      false,
-
-    reason:
-      "no_include_match",
-  };
+  return evaluateCompiledGroupPlan(
+    plan,
+    messageText
+  );
 }
 
 
 // ========================================
 // DOCUMENT ACCESS
-//
-// Giu lai cho cac buoc migrate / debug.
 // ========================================
 
 export function getUserFilterDocumentForRuntime(
