@@ -5,6 +5,12 @@ import {
   saveLegacyUserFilterSettings,
 } from "./user-filter-store.js";
 
+import {
+  normalizeFilterText,
+  compileLegacyContainsList,
+  findFirstKeywordMatch,
+} from "./user-filter-matcher.js";
+
 
 // ========================================
 // RUNTIME CACHE
@@ -22,30 +28,6 @@ import {
 
 const runtimeCache =
   new Map();
-
-
-// ========================================
-// NORMALIZE
-// ========================================
-
-function normalizeText(
-  value = ""
-) {
-  return String(value)
-    .normalize("NFD")
-    .replace(
-      /[\u0300-\u036f]/g,
-      ""
-    )
-    .replace(/đ/g, "d")
-    .replace(/Đ/g, "D")
-    .toLowerCase()
-    .replace(
-      /\s+/g,
-      " "
-    )
-    .trim();
-}
 
 
 // ========================================
@@ -102,26 +84,22 @@ function getLegacyRuntime(
           false
         : true,
 
-    includeKeywords:
+    includeMatchers:
       legacy
-        ? legacy
-            .advanced
-            .showKeywords
-            .map(
-              normalizeText
-            )
-            .filter(Boolean)
+        ? compileLegacyContainsList(
+            legacy
+              .advanced
+              .showKeywords
+          )
         : [],
 
-    excludeKeywords:
+    excludeMatchers:
       legacy
-        ? legacy
-            .advanced
-            .hideKeywords
-            .map(
-              normalizeText
-            )
-            .filter(Boolean)
+        ? compileLegacyContainsList(
+            legacy
+              .advanced
+              .hideKeywords
+          )
         : [],
   };
 
@@ -202,7 +180,7 @@ export function evaluateUserMessage(
 
 
   const text =
-    normalizeText(
+    normalizeFilterText(
       messageText
     );
 
@@ -212,14 +190,11 @@ export function evaluateUserMessage(
   // ========================================
 
   const matchedExclude =
-    runtime
-      .excludeKeywords
-      .find(
-        keyword =>
-          text.includes(
-            keyword
-          )
-      );
+    findFirstKeywordMatch(
+      runtime
+        .excludeMatchers,
+      text
+    );
 
 
   if (matchedExclude) {
@@ -231,7 +206,7 @@ export function evaluateUserMessage(
         "excluded_keyword",
 
       keyword:
-        matchedExclude,
+        matchedExclude.source,
     };
   }
 
@@ -242,7 +217,7 @@ export function evaluateUserMessage(
 
   if (
     runtime
-      .includeKeywords
+      .includeMatchers
       .length ===
     0
   ) {
@@ -261,14 +236,11 @@ export function evaluateUserMessage(
   // ========================================
 
   const matchedInclude =
-    runtime
-      .includeKeywords
-      .find(
-        keyword =>
-          text.includes(
-            keyword
-          )
-      );
+    findFirstKeywordMatch(
+      runtime
+        .includeMatchers,
+      text
+    );
 
 
   if (matchedInclude) {
@@ -280,7 +252,7 @@ export function evaluateUserMessage(
         "included_keyword",
 
       keyword:
-        matchedInclude,
+        matchedInclude.source,
     };
   }
 
