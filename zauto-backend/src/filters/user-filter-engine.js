@@ -1,5 +1,4 @@
 import {
-  LEGACY_FILTER_ID,
   getUserFilterDocument,
   getLegacyUserFilterSettings,
   saveLegacyUserFilterSettings,
@@ -7,110 +6,70 @@ import {
 
 import {
   normalizeFilterText,
-  compileLegacyContainsList,
   findFirstKeywordMatch,
 } from "./user-filter-matcher.js";
 
-
-// ========================================
-// RUNTIME CACHE
-//
-// userId -> {
-//   document,
-//   enabled,
-//   includeKeywords,
-//   excludeKeywords
-// }
-//
-// document reference doi moi lan save.
-// Vi vay khong can timestamp check.
-// ========================================
-
-const runtimeCache =
-  new Map();
+import {
+  getUserFilterRuntime,
+  warmUserFilterRuntime,
+} from "./user-filter-runtime.js";
 
 
 // ========================================
-// LEGACY RUNTIME
+// LEGACY RUNTIME VIEW
 //
-// Buoc nay van giu dung logic cu.
+// Runtime chung da compile san tat ca
+// Basic / Advanced.
 //
-// Sau buoc tiep theo function nay se
-// duoc thay boi compiled Basic/Advanced plan.
+// Hien tai evaluator production van chi
+// dung legacy filter de khong thay doi
+// behavior cho toi khi V2 evaluator xong.
 // ========================================
 
 function getLegacyRuntime(
   userId
 ) {
-  const key =
-    String(userId);
-
-
-  const document =
-    getUserFilterDocument(
-      key
+  const runtime =
+    getUserFilterRuntime(
+      userId
     );
-
-
-  const cached =
-    runtimeCache.get(
-      key
-    );
-
-
-  if (
-    cached &&
-    cached.document ===
-      document
-  ) {
-    return cached;
-  }
 
 
   const legacy =
-    document.filters.find(
-      item =>
-        item.id ===
-        LEGACY_FILTER_ID
-    );
+    runtime.legacyFilter;
 
 
-  const runtime = {
-    document,
+  if (!legacy) {
+    return {
+      enabled:
+        true,
 
+      includeMatchers:
+        [],
+
+      excludeMatchers:
+        [],
+    };
+  }
+
+
+  return {
     enabled:
-      legacy
-        ? legacy.enabled !==
-          false
-        : true,
+      legacy.enabled !==
+      false,
 
     includeMatchers:
       legacy
-        ? compileLegacyContainsList(
-            legacy
-              .advanced
-              .showKeywords
-          )
-        : [],
+        .advanced
+        ?.showMatchers ??
+      [],
 
     excludeMatchers:
       legacy
-        ? compileLegacyContainsList(
-            legacy
-              .advanced
-              .hideKeywords
-          )
-        : [],
+        .advanced
+        ?.hideMatchers ??
+      [],
   };
-
-
-  runtimeCache.set(
-    key,
-    runtime
-  );
-
-
-  return runtime;
 }
 
 
@@ -127,6 +86,17 @@ export function getUserFilterSettings(
 }
 
 
+// ========================================
+// LEGACY SAVE
+//
+// Sau khi save:
+// - store tao document object moi
+// - warm runtime se compile ngay
+//
+// => message realtime tiep theo khong
+// bi ganh chi phi compile.
+// ========================================
+
 export function saveUserFilterSettings(
   userId,
   updates
@@ -138,8 +108,8 @@ export function saveUserFilterSettings(
     );
 
 
-  runtimeCache.delete(
-    String(userId)
+  warmUserFilterRuntime(
+    userId
   );
 
 
@@ -150,18 +120,25 @@ export function saveUserFilterSettings(
 // ========================================
 // EVALUATE
 //
-// HIEN TAI:
-// giu behavior cu de khong pha production.
+// HIEN TAI VAN GIU BEHAVIOR FILTER CU.
 //
-// KHAC BIET:
-// - khong doc JSON moi message
-// - keyword da normalize san trong RAM
+// groupId da duoc truyen vao san
+// de buoc tiep theo bat V2 evaluator.
 // ========================================
 
 export function evaluateUserMessage(
   userId,
-  messageText
+  messageText,
+  {
+    groupId = null,
+  } = {}
 ) {
+  // Tam thoi chua dung groupId.
+  // Buoc V2 evaluator se dung no de lay
+  // indexed group plan.
+  void groupId;
+
+
   const runtime =
     getLegacyRuntime(
       userId
@@ -268,14 +245,9 @@ export function evaluateUserMessage(
 
 
 // ========================================
-// FUTURE V2 ENGINE HOOK
+// DOCUMENT ACCESS
 //
-// Buoc tiep theo se dung document nay
-// de compile:
-// - Basic
-// - Advanced
-// - group index
-// - price/time lazy parser
+// Giu lai cho cac buoc migrate / debug.
 // ========================================
 
 export function getUserFilterDocumentForRuntime(

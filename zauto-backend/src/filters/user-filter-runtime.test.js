@@ -1,0 +1,542 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  compileUserFilterDocument,
+  getCompiledGroupPlan,
+} from "./user-filter-runtime.js";
+
+import {
+  normalizeFilterText,
+} from "./user-filter-matcher.js";
+
+import {
+  LEGACY_FILTER_ID,
+} from "./user-filter-store.js";
+
+
+// ========================================
+// HELPERS
+// ========================================
+
+function advancedFilter({
+  id,
+  groups = [],
+  enabled = true,
+  show = [],
+  hide = [],
+}) {
+  return {
+    id,
+
+    name:
+      id,
+
+    mode:
+      "advanced",
+
+    enabled,
+
+    groupIds:
+      groups,
+
+    basic:
+      {},
+
+    advanced: {
+      showKeywords:
+        show,
+
+      hideKeywords:
+        hide,
+    },
+  };
+}
+
+
+function basicFilter({
+  id,
+  groups = [],
+  enabled = true,
+  price = null,
+  time = "",
+}) {
+  return {
+    id,
+
+    name:
+      id,
+
+    mode:
+      "basic",
+
+    enabled,
+
+    groupIds:
+      groups,
+
+    basic: {
+      pickup:
+        "",
+
+      dropoff:
+        "",
+
+      acceptBothDirections:
+        false,
+
+      includeKeywords:
+        "",
+
+      excludeKeywords:
+        "",
+
+      minimumPrice:
+        price,
+
+      timeRules:
+        time,
+    },
+
+    advanced: {
+      showKeywords:
+        [],
+
+      hideKeywords:
+        [],
+    },
+  };
+}
+
+
+// ========================================
+// ALL GROUP + SPECIFIC
+// ========================================
+
+test(
+  "group plan contains all-group and matching group filters only",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id:
+              "all",
+          }),
+
+          advancedFilter({
+            id:
+              "group-a",
+            groups: [
+              "a",
+            ],
+          }),
+
+          advancedFilter({
+            id:
+              "group-b",
+            groups: [
+              "b",
+            ],
+          }),
+
+          advancedFilter({
+            id:
+              "disabled-a",
+            groups: [
+              "a",
+            ],
+            enabled:
+              false,
+          }),
+        ],
+      });
+
+
+    const planA =
+      getCompiledGroupPlan(
+        runtime,
+        "a"
+      );
+
+
+    assert.deepEqual(
+      planA.filters.map(
+        item =>
+          item.id
+      ),
+      [
+        "all",
+        "group-a",
+      ]
+    );
+
+
+    const planB =
+      getCompiledGroupPlan(
+        runtime,
+        "b"
+      );
+
+
+    assert.deepEqual(
+      planB.filters.map(
+        item =>
+          item.id
+      ),
+      [
+        "all",
+        "group-b",
+      ]
+    );
+
+
+    const planC =
+      getCompiledGroupPlan(
+        runtime,
+        "c"
+      );
+
+
+    assert.deepEqual(
+      planC.filters.map(
+        item =>
+          item.id
+      ),
+      [
+        "all",
+      ]
+    );
+  }
+);
+
+
+// ========================================
+// NO APPLICABLE FILTER
+// ========================================
+
+test(
+  "unrelated group gets empty plan when there is no all-group filter",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id:
+              "only-a",
+            groups: [
+              "a",
+            ],
+          }),
+        ],
+      });
+
+
+    const plan =
+      getCompiledGroupPlan(
+        runtime,
+        "b"
+      );
+
+
+    assert.equal(
+      plan.count,
+      0
+    );
+
+    assert.equal(
+      plan.filters.length,
+      0
+    );
+  }
+);
+
+
+// ========================================
+// FEATURE FLAGS
+// ========================================
+
+test(
+  "group plan precomputes expensive parser requirements",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "price",
+            groups: [
+              "a",
+            ],
+            price:
+              500,
+          }),
+
+          basicFilter({
+            id:
+              "time",
+            groups: [
+              "a",
+            ],
+            time:
+              "sáng",
+          }),
+
+          advancedFilter({
+            id:
+              "advanced",
+            groups: [
+              "a",
+            ],
+          }),
+        ],
+      });
+
+
+    const plan =
+      getCompiledGroupPlan(
+        runtime,
+        "a"
+      );
+
+
+    assert.equal(
+      plan.needsBasic,
+      true
+    );
+
+    assert.equal(
+      plan.needsAdvanced,
+      true
+    );
+
+    assert.equal(
+      plan.needsPrice,
+      true
+    );
+
+    assert.equal(
+      plan.needsTime,
+      true
+    );
+  }
+);
+
+
+// ========================================
+// 50 FILTER SCALE
+//
+// Chung minh group index khong quet 50
+// candidate o message hot path.
+// ========================================
+
+test(
+  "50 configured filters are reduced to relevant group candidates",
+  () => {
+    const filters = [
+      advancedFilter({
+        id:
+          "all",
+      }),
+    ];
+
+
+    for (
+      let index = 1;
+      index < 50;
+      index += 1
+    ) {
+      filters.push(
+        advancedFilter({
+          id:
+            `filter-${index}`,
+
+          groups: [
+            `group-${index}`,
+          ],
+        })
+      );
+    }
+
+
+    const runtime =
+      compileUserFilterDocument({
+        filters,
+      });
+
+
+    assert.equal(
+      runtime.configuredCount,
+      50
+    );
+
+
+    const plan =
+      getCompiledGroupPlan(
+        runtime,
+        "group-25"
+      );
+
+
+    assert.equal(
+      plan.count,
+      2
+    );
+
+
+    assert.deepEqual(
+      plan.filters.map(
+        item =>
+          item.id
+      ),
+      [
+        "all",
+        "filter-25",
+      ]
+    );
+  }
+);
+
+
+// ========================================
+// GROUP PLAN CACHE
+// ========================================
+
+test(
+  "specific group plan is reused without allocating again",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id:
+              "all",
+          }),
+
+          advancedFilter({
+            id:
+              "a",
+            groups: [
+              "a",
+            ],
+          }),
+        ],
+      });
+
+
+    const first =
+      getCompiledGroupPlan(
+        runtime,
+        "a"
+      );
+
+
+    const second =
+      getCompiledGroupPlan(
+        runtime,
+        "a"
+      );
+
+
+    assert.equal(
+      first,
+      second
+    );
+  }
+);
+
+
+// ========================================
+// LEGACY BEHAVIOR
+// ========================================
+
+test(
+  "legacy filter keeps contains matching behavior",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id:
+              LEGACY_FILTER_ID,
+
+            show: [
+              "tan",
+            ],
+          }),
+        ],
+      });
+
+
+    const matcher =
+      runtime
+        .legacyFilter
+        .advanced
+        .showMatchers[0];
+
+
+    assert.equal(
+      matcher.matches(
+        normalizeFilterText(
+          "tang hang"
+        )
+      ),
+      true
+    );
+  }
+);
+
+
+// ========================================
+// NEW ADVANCED BEHAVIOR
+// ========================================
+
+test(
+  "new advanced plain keyword uses whole-word matching",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id:
+              "new-filter",
+
+            show: [
+              "tân",
+            ],
+          }),
+        ],
+      });
+
+
+    const filter =
+      runtime
+        .compiledFilters[0];
+
+
+    const matcher =
+      filter
+        .advanced
+        .showMatchers[0];
+
+
+    assert.equal(
+      matcher.matches(
+        normalizeFilterText(
+          "đi tân ngay"
+        )
+      ),
+      true
+    );
+
+
+    assert.equal(
+      matcher.matches(
+        normalizeFilterText(
+          "tặng hàng"
+        )
+      ),
+      false
+    );
+  }
+);

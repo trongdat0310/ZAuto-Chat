@@ -1309,7 +1309,10 @@ async function processMessage(
     const filter =
       evaluateUserMessage(
         userId,
-        content
+        content,
+        {
+          groupId,
+        }
       );
 
 
