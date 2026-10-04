@@ -332,14 +332,26 @@ class BackendService {
   }
 
   Future<Map<String, dynamic>> updateMessageSettings({
+    bool? showImages,
+
     bool? deduplicateMessages,
 
     int? dedupeWindowSeconds,
+
+    bool? showVoiceMessages,
+
+    bool? transcribeVoiceMessages,
   }) {
     return settingsApi.updateMessageSettings(
+      showImages: showImages,
+
       deduplicateMessages: deduplicateMessages,
 
       dedupeWindowSeconds: dedupeWindowSeconds,
+
+      showVoiceMessages: showVoiceMessages,
+
+      transcribeVoiceMessages: transcribeVoiceMessages,
     );
   }
 
