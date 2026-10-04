@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../controllers/settings_controller.dart';
+import '../../theme/app_typography.dart';
 import '../../services/backend_service.dart';
 
 class InterfaceSettingsSheet extends StatefulWidget {
@@ -93,7 +94,7 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
           const Text(
             'Giao diện và Tương tác',
 
-            style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold),
+            style: AppTypography.sheetTitle,
           ),
 
           const SizedBox(height: 22),
