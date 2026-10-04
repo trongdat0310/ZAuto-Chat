@@ -18,6 +18,10 @@ import {
   evaluateCompiledGroupPlan,
 } from "./user-filter-evaluator.js";
 
+import {
+  compileKeywordPattern,
+} from "./user-filter-matcher.js";
+
 
 // ========================================
 // OLD API COMPATIBILITY
@@ -112,6 +116,230 @@ export function getUserFilterDocumentForRuntime(
 }
 
 // ========================================
+// V2 INPUT VALIDATION
+//
+// Khong de sanitizer am tham bien input sai
+// thanh mot filter co y nghia khac.
+// ========================================
+
+function assertValidKeywordPattern(
+  value,
+  fieldName
+) {
+  const source =
+    String(
+      value ?? ""
+    ).trim();
+
+
+  if (!source) {
+    return;
+  }
+
+
+  if (
+    compileKeywordPattern(
+      source
+    )
+  ) {
+    return;
+  }
+
+
+  throw new Error(
+    `${fieldName}: tu khoa khong hop le "${source}". ` +
+    "Dau * phai nam o ca hai dau."
+  );
+}
+
+
+function assertValidCommaSeparatedKeywords(
+  value,
+  fieldName
+) {
+  const parts =
+    String(
+      value ?? ""
+    )
+      .split(",")
+      .map(
+        item => item.trim()
+      )
+      .filter(Boolean);
+
+
+  for (
+    const part of parts
+  ) {
+    assertValidKeywordPattern(
+      part,
+      fieldName
+    );
+  }
+}
+
+
+function assertValidKeywordList(
+  values,
+  fieldName
+) {
+  if (
+    values ===
+    null ||
+    values ===
+    undefined
+  ) {
+    return;
+  }
+
+
+  if (!Array.isArray(values)) {
+    throw new Error(
+      `${fieldName}: danh sach tu khoa khong hop le.`
+    );
+  }
+
+
+  for (
+    const value of values
+  ) {
+    assertValidKeywordPattern(
+      value,
+      fieldName
+    );
+  }
+}
+
+
+function validateUserFilterV2Input(
+  input
+) {
+  const source =
+    input &&
+    typeof input === "object"
+      ? input
+      : {};
+
+
+  if (
+    !String(
+      source.name ?? ""
+    ).trim()
+  ) {
+    throw new Error(
+      "Ten bo loc khong duoc de trong."
+    );
+  }
+
+
+  const mode =
+    source.mode === "advanced"
+      ? "advanced"
+      : "basic";
+
+
+  if (
+    source.groupIds !==
+      undefined &&
+    !Array.isArray(
+      source.groupIds
+    )
+  ) {
+    throw new Error(
+      "Danh sach nhom ap dung khong hop le."
+    );
+  }
+
+
+  if (
+    mode === "basic"
+  ) {
+    const basic =
+      source.basic &&
+      typeof source.basic === "object"
+        ? source.basic
+        : {};
+
+
+    assertValidCommaSeparatedKeywords(
+      basic.pickup,
+      "Diem don"
+    );
+
+    assertValidCommaSeparatedKeywords(
+      basic.dropoff,
+      "Diem tra"
+    );
+
+    assertValidCommaSeparatedKeywords(
+      basic.includeKeywords,
+      "Tu khoa nhan"
+    );
+
+    assertValidCommaSeparatedKeywords(
+      basic.excludeKeywords,
+      "Tu khoa bo qua"
+    );
+
+    assertValidCommaSeparatedKeywords(
+      basic.timeRules,
+      "Khung gio"
+    );
+
+
+    const rawPrice =
+      basic.minimumPrice;
+
+
+    if (
+      rawPrice !== null &&
+      rawPrice !== undefined &&
+      rawPrice !== ""
+    ) {
+      const parsed =
+        Number(
+          rawPrice
+        );
+
+
+      if (
+        !Number.isFinite(
+          parsed
+        ) ||
+        parsed < 0
+      ) {
+        throw new Error(
+          "Gia toi thieu phai la so lon hon hoac bang 0."
+        );
+      }
+    }
+
+  } else {
+
+    const advanced =
+      source.advanced &&
+      typeof source.advanced === "object"
+        ? source.advanced
+        : {};
+
+
+    assertValidKeywordList(
+      advanced.showKeywords,
+      "Tu khoa hien thi"
+    );
+
+    assertValidKeywordList(
+      advanced.hideKeywords,
+      "Tu khoa an"
+    );
+  }
+
+
+  return source;
+}
+
+
+// ========================================
 // V2 DOCUMENT API
 // ========================================
 
@@ -128,6 +356,11 @@ export function saveUserFilterV2(
   userId,
   input
 ) {
+  validateUserFilterV2Input(
+    input
+  );
+
+
   const filter =
     upsertUserFilter(
       userId,
@@ -181,6 +414,11 @@ export function previewUserFilterV2(
     groupId = null,
   } = {}
 ) {
+  validateUserFilterV2Input(
+    input
+  );
+
+
   const filter =
     sanitizeUserFilter({
       ...input,
