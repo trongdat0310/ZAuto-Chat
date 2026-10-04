@@ -2,9 +2,14 @@ import {
   getUserFilterDocument,
   getLegacyUserFilterSettings,
   saveLegacyUserFilterSettings,
+  sanitizeUserFilter,
+  upsertUserFilter,
+  deleteUserFilter,
 } from "./user-filter-store.js";
 
 import {
+  compileUserFilterDocument,
+  getCompiledGroupPlan,
   getUserFilterGroupPlan,
   warmUserFilterRuntime,
 } from "./user-filter-runtime.js";
@@ -103,5 +108,108 @@ export function getUserFilterDocumentForRuntime(
 ) {
   return getUserFilterDocument(
     userId
+  );
+}
+
+// ========================================
+// V2 DOCUMENT API
+// ========================================
+
+export function getUserFilterDocumentV2(
+  userId
+) {
+  return getUserFilterDocument(
+    userId
+  );
+}
+
+
+export function saveUserFilterV2(
+  userId,
+  input
+) {
+  const filter =
+    upsertUserFilter(
+      userId,
+      input
+    );
+
+
+  warmUserFilterRuntime(
+    userId
+  );
+
+
+  return filter;
+}
+
+
+export function deleteUserFilterV2(
+  userId,
+  filterId
+) {
+  const deleted =
+    deleteUserFilter(
+      userId,
+      filterId
+    );
+
+
+  if (deleted) {
+    warmUserFilterRuntime(
+      userId
+    );
+  }
+
+
+  return deleted;
+}
+
+
+// ========================================
+// PREVIEW ONE UNSAVED FILTER
+//
+// Khong ghi disk.
+// Khong dung cache.
+// Dung cung compiler/evaluator voi realtime.
+// ========================================
+
+export function previewUserFilterV2(
+  input,
+  messageText,
+  {
+    groupId = null,
+  } = {}
+) {
+  const filter =
+    sanitizeUserFilter({
+      ...input,
+
+      enabled:
+        true,
+  });
+
+
+  const runtime =
+    compileUserFilterDocument({
+      version:
+        2,
+
+      filters: [
+        filter,
+      ],
+    });
+
+
+  const plan =
+    getCompiledGroupPlan(
+      runtime,
+      groupId
+    );
+
+
+  return evaluateCompiledGroupPlan(
+    plan,
+    messageText
   );
 }
