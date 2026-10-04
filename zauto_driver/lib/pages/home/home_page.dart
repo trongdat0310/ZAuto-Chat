@@ -40,6 +40,12 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
+const bool _latencyTraceEnabled =
+    bool.fromEnvironment(
+      'ZAUTO_LATENCY_TRACE',
+      defaultValue: false,
+    );
+
 class _HomePageState extends State<HomePage> {
   // THAY IP NAY BANG IP MAY TINH CUA BAN
   final BackendService backend = BackendService(baseUrl: AppConfig.backendUrl);
@@ -421,6 +427,138 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
+  int? _traceInt(
+    Map<String, dynamic> trace,
+    String key,
+  ) {
+    final value = trace[key];
+
+    if (value is int) {
+      return value;
+    }
+
+    return int.tryParse(
+      value?.toString() ?? '',
+    );
+  }
+
+  void _logTripLatencyAfterRender(
+    Map<String, dynamic> trip,
+  ) {
+    if (!_latencyTraceEnabled) {
+      return;
+    }
+
+    final rawTrace =
+        trip['_latencyTrace'];
+
+    if (rawTrace is! Map) {
+      return;
+    }
+
+    final trace =
+        Map<String, dynamic>.from(
+      rawTrace,
+    );
+
+    final traceId =
+        trace['traceId']?.toString() ?? '';
+
+    final listener =
+        _traceInt(
+      trace,
+      'listenerReceivedAtMs',
+    );
+
+    final filterDone =
+        _traceInt(
+      trace,
+      'filterDoneAtMs',
+    );
+
+    final tripCreated =
+        _traceInt(
+      trace,
+      'tripCreatedAtMs',
+    );
+
+    final wsBroadcast =
+        _traceInt(
+      trace,
+      'wsBroadcastAtMs',
+    );
+
+    final flutterReceived =
+        _traceInt(
+      trace,
+      'flutterReceivedAtMs',
+    );
+
+    final renderedAt =
+        DateTime.now()
+            .millisecondsSinceEpoch;
+
+    int? diff(
+      int? end,
+      int? start,
+    ) {
+      if (
+        end == null ||
+        start == null
+      ) {
+        return null;
+      }
+
+      return end - start;
+    }
+
+    final listenerToFilter =
+        diff(
+      filterDone,
+      listener,
+    );
+
+    final filterToTrip =
+        diff(
+      tripCreated,
+      filterDone,
+    );
+
+    final tripToWs =
+        diff(
+      wsBroadcast,
+      tripCreated,
+    );
+
+    final flutterToRender =
+        diff(
+      renderedAt,
+      flutterReceived,
+    );
+
+    final transportApprox =
+        diff(
+      flutterReceived,
+      wsBroadcast,
+    );
+
+    final totalApprox =
+        diff(
+      renderedAt,
+      listener,
+    );
+
+    debugPrint(
+      '[LATENCY] '
+      'trace=$traceId '
+      'backend.filter=${listenerToFilter ?? '-'}ms '
+      'backend.trip=${filterToTrip ?? '-'}ms '
+      'backend.ws=${tripToWs ?? '-'}ms '
+      'network~=${transportApprox ?? '-'}ms '
+      'flutter.render=${flutterToRender ?? '-'}ms '
+      'total~=${totalApprox ?? '-'}ms',
+    );
+  }
   void addTrip(Map<String, dynamic> trip) {
     final tripId = trip['id']?.toString();
 
@@ -454,6 +592,18 @@ class _HomePageState extends State<HomePage> {
       // → cuoc moi nam ben duoi
       activeTrips.add(newTrip);
     });
+
+    if (_latencyTraceEnabled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+
+        _logTripLatencyAfterRender(
+          newTrip,
+        );
+      });
+    }
 
     _ensureTripCountdownTimer();
   }
