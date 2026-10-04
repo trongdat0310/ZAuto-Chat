@@ -228,6 +228,55 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                           await widget.onFontSizeChanged(value);
                         },
                       ),
+
+                      const SizedBox(height: 8),
+
+                      Container(
+                        width: double.infinity,
+
+                        padding: const EdgeInsets.all(14),
+
+                        decoration: BoxDecoration(
+                          color:
+                              colorScheme.surfaceContainerHighest,
+
+                          borderRadius:
+                              BorderRadius.circular(12),
+                        ),
+
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+
+                          children: [
+                            Text(
+                              'Xem trước thông báo',
+
+                              style:
+                                  AppTypography.caption.copyWith(
+                                color:
+                                    colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+
+                            const SizedBox(height: 6),
+
+                            Text(
+                              'Có cuốc Thái Bình đi Nội Bài giá 650k',
+
+                              style: TextStyle(
+                                fontSize:
+                                    notificationFontSize,
+
+                                fontWeight:
+                                    FontWeight.w600,
+
+                                height: 1.25,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
