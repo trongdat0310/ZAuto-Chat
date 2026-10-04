@@ -141,7 +141,18 @@ class _SettingsPageState extends State<SettingsPage> {
       final savedSeconds = rawWindow is num ? rawWindow.toInt() : null;
 
       setState(() {
-        deduplicateMessages = settings['deduplicateMessages'] != false;
+        showImages =
+            settings['showImages'] != false;
+
+        deduplicateMessages =
+            settings['deduplicateMessages'] != false;
+
+        showVoiceMessages =
+            settings['showVoiceMessages'] != false;
+
+        transcribeVoiceMessages =
+            showVoiceMessages &&
+            settings['transcribeVoiceMessages'] == true;
 
         if (savedSeconds == 5 || savedSeconds == 10 || savedSeconds == 15) {
           currentTripDisplaySeconds = savedSeconds!;
