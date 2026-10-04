@@ -9,6 +9,11 @@ import {
   extractMessagePriceThousands,
 } from "./user-filter-price.js";
 
+import {
+  extractMessageTemporalMentions,
+  matchesCompiledTimeRules,
+} from "./user-filter-time.js";
+
 
 // ========================================
 // MESSAGE CONTEXT
@@ -48,10 +53,7 @@ export function createFilterMessageContext(
     price:
       undefined,
 
-    mentionedTimeRanges:
-      undefined,
-
-    mentionedMinuteValues:
+    temporalMentions:
       undefined,
   };
 }
@@ -90,6 +92,31 @@ function getContextPrice(
 
 
   return context.price;
+}
+
+
+// ========================================
+// LAZY TIME
+// ========================================
+
+function getContextTemporalMentions(
+  context
+) {
+  if (
+    context.temporalMentions !==
+    undefined
+  ) {
+    return context.temporalMentions;
+  }
+
+
+  context.temporalMentions =
+    extractMessageTemporalMentions(
+      context.text
+    );
+
+
+  return context.temporalMentions;
 }
 
 
@@ -534,18 +561,29 @@ export function evaluateBasicFilter(
 
   // ========================================
   // 7. TIME
-  //
-  // Price da hoan chinh.
-  // Chi time con pending.
   // ========================================
 
   if (
     basic.needsTime
   ) {
-    return pending(
-      filter,
-      "basic_time_pending"
-    );
+    const temporalMentions =
+      getContextTemporalMentions(
+        context
+      );
+
+
+    if (
+      !matchesCompiledTimeRules(
+        basic.compiledTimeRules,
+        temporalMentions,
+        context.text
+      )
+    ) {
+      return rejected(
+        filter,
+        "basic_time_no_match"
+      );
+    }
   }
 
 
@@ -558,15 +596,6 @@ export function evaluateBasicFilter(
     "basic_conditions_match"
   );
 
-
-  // ========================================
-  // ALL BASIC CONDITIONS PASSED
-  // ========================================
-
-  return accepted(
-    filter,
-    "basic_conditions_match"
-  );
 }
 
 // ========================================
@@ -672,10 +701,6 @@ export function evaluateCompiledGroupPlan(
   let evaluatedFilters =
     0;
 
-  let hasPendingBasic =
-    false;
-
-
   // ========================================
   // OR BETWEEN FILTERS
   //
@@ -706,47 +731,6 @@ export function evaluateCompiledGroupPlan(
         evaluatedFilters,
       };
     }
-
-
-    if (
-      result.state ===
-      "pending"
-    ) {
-      hasPendingBasic =
-        true;
-    }
-  }
-
-
-  // ========================================
-  // BASIC CHUA IMPLEMENT
-  //
-  // Khong reject message co kha nang
-  // Basic filter se accept.
-  // ========================================
-
-  if (hasPendingBasic) {
-    return {
-      matched:
-        true,
-
-      reason:
-        "basic_time_pending_fail_open",
-
-      filterId:
-        null,
-
-      filterName:
-        null,
-
-      mode:
-        "basic",
-
-      keyword:
-        null,
-
-      evaluatedFilters,
-    };
   }
 
 
