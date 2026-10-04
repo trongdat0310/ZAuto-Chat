@@ -441,6 +441,20 @@ class _HomePageState extends State<HomePage> {
       value?.toString() ?? '',
     );
   }
+  double? _traceDouble(
+    Map<String, dynamic> trace,
+    String key,
+  ) {
+    final value = trace[key];
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(
+      value?.toString() ?? '',
+    );
+  }
 
   void _logTripLatencyAfterRender(
     Map<String, dynamic> trip,
@@ -470,22 +484,34 @@ class _HomePageState extends State<HomePage> {
       'listenerReceivedAtMs',
     );
 
-    final filterDone =
-        _traceInt(
-      trace,
-      'filterDoneAtMs',
-    );
-
-    final tripCreated =
-        _traceInt(
-      trace,
-      'tripCreatedAtMs',
-    );
-
     final wsBroadcast =
         _traceInt(
       trace,
       'wsBroadcastAtMs',
+    );
+
+    final listenerPerf =
+        _traceDouble(
+      trace,
+      'listenerPerfMs',
+    );
+
+    final filterPerf =
+        _traceDouble(
+      trace,
+      'filterPerfMs',
+    );
+
+    final tripPerf =
+        _traceDouble(
+      trace,
+      'tripPerfMs',
+    );
+
+    final wsPerf =
+        _traceDouble(
+      trace,
+      'wsBroadcastPerfMs',
     );
 
     final flutterReceived =
@@ -512,22 +538,39 @@ class _HomePageState extends State<HomePage> {
       return end - start;
     }
 
-    final listenerToFilter =
-        diff(
-      filterDone,
-      listener,
+    String backendUs(
+      double? end,
+      double? start,
+    ) {
+      if (
+        end == null ||
+        start == null
+      ) {
+        return '-';
+      }
+
+      return (
+        (end - start) *
+        1000
+      ).toStringAsFixed(1);
+    }
+
+    final listenerToFilterUs =
+        backendUs(
+      filterPerf,
+      listenerPerf,
     );
 
-    final filterToTrip =
-        diff(
-      tripCreated,
-      filterDone,
+    final filterToTripUs =
+        backendUs(
+      tripPerf,
+      filterPerf,
     );
 
-    final tripToWs =
-        diff(
-      wsBroadcast,
-      tripCreated,
+    final tripToWsUs =
+        backendUs(
+      wsPerf,
+      tripPerf,
     );
 
     final flutterToRender =
@@ -548,15 +591,27 @@ class _HomePageState extends State<HomePage> {
       listener,
     );
 
+    final networkText =
+        transportApprox != null &&
+                transportApprox >= 0
+            ? '${transportApprox}ms'
+            : 'clock-skew';
+
+    final totalText =
+        totalApprox != null &&
+                totalApprox >= 0
+            ? '${totalApprox}ms'
+            : 'clock-skew';
+
     debugPrint(
       '[LATENCY] '
       'trace=$traceId '
-      'backend.filter=${listenerToFilter ?? '-'}ms '
-      'backend.trip=${filterToTrip ?? '-'}ms '
-      'backend.ws=${tripToWs ?? '-'}ms '
-      'network~=${transportApprox ?? '-'}ms '
+      'backend.filter=${listenerToFilterUs}us '
+      'backend.trip=${filterToTripUs}us '
+      'backend.ws=${tripToWsUs}us '
+      'network~=$networkText '
       'flutter.render=${flutterToRender ?? '-'}ms '
-      'total~=${totalApprox ?? '-'}ms',
+      'total~=$totalText',
     );
   }
   void addTrip(Map<String, dynamic> trip) {
