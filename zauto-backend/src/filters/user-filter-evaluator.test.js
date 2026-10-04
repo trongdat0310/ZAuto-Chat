@@ -773,9 +773,8 @@ test(
   }
 );
 
-
 test(
-  "basic price or time remains fail open until parser step",
+  "basic minimum price accepts sufficient price",
   () => {
     const runtime =
       compileUserFilterDocument({
@@ -801,7 +800,7 @@ test(
           "any"
         ),
 
-        "Q1 đi Nội Bài giá 300k"
+        "Q1 đi Nội Bài giá 650k"
       );
 
 
@@ -810,9 +809,160 @@ test(
       true
     );
 
+
+    assert.equal(
+      result.filterId,
+      "priced"
+    );
+  }
+);
+
+
+test(
+  "basic minimum price rejects lower price",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "priced",
+
+            price:
+              500,
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "cuốc giá 450k"
+      );
+
+
+    assert.equal(
+      result.matched,
+      false
+    );
+  }
+);
+
+
+test(
+  "basic minimum price rejects message without price",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "priced",
+
+            price:
+              500,
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Q1 đi Nội Bài"
+      );
+
+
+    assert.equal(
+      result.matched,
+      false
+    );
+  }
+);
+
+
+test(
+  "basic minimum price supports Vietnamese million shorthand",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "priced",
+
+            price:
+              1100,
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Q1 đi Nội Bài 1tr2"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+  }
+);
+
+
+test(
+  "basic time is still temporarily fail open",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "timed",
+
+            time:
+              "sáng",
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "cuốc tối nay"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+
     assert.equal(
       result.reason,
-      "basic_price_time_pending_fail_open"
+      "basic_time_pending_fail_open"
     );
   }
 );

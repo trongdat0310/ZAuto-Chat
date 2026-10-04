@@ -5,6 +5,10 @@ import {
   findOrderedKeywordPair,
 } from "./user-filter-matcher.js";
 
+import {
+  extractMessagePriceThousands,
+} from "./user-filter-price.js";
+
 
 // ========================================
 // MESSAGE CONTEXT
@@ -50,6 +54,42 @@ export function createFilterMessageContext(
     mentionedMinuteValues:
       undefined,
   };
+}
+
+// ========================================
+// LAZY PRICE
+//
+// undefined:
+// chua parse.
+//
+// null:
+// da parse, tin khong co gia.
+//
+// number:
+// nghin dong.
+//
+// Nhieu Basic filter cung message
+// van chi parse MOT LAN.
+// ========================================
+
+function getContextPrice(
+  context
+) {
+  if (
+    context.price !==
+    undefined
+  ) {
+    return context.price;
+  }
+
+
+  context.price =
+    extractMessagePriceThousands(
+      context.text
+    );
+
+
+  return context.price;
 }
 
 
@@ -454,15 +494,69 @@ export function evaluateBasicFilter(
   // buoc ke tiep xong.
   // ========================================
 
+  // ========================================
+  // 6. MINIMUM PRICE
+  // ========================================
+
   if (
-    basic.needsPrice ||
+    basic.needsPrice
+  ) {
+    const price =
+      getContextPrice(
+        context
+      );
+
+
+    // UI da quy dinh:
+    // co minimumPrice nhung tin khong ghi gia
+    // => KHONG MATCH.
+    if (
+      price === null
+    ) {
+      return rejected(
+        filter,
+        "basic_price_missing"
+      );
+    }
+
+
+    if (
+      price <
+      basic.minimumPrice
+    ) {
+      return rejected(
+        filter,
+        "basic_price_below_minimum"
+      );
+    }
+  }
+
+
+  // ========================================
+  // 7. TIME
+  //
+  // Price da hoan chinh.
+  // Chi time con pending.
+  // ========================================
+
+  if (
     basic.needsTime
   ) {
     return pending(
       filter,
-      "basic_price_time_pending"
+      "basic_time_pending"
     );
   }
+
+
+  // ========================================
+  // ALL BASIC CONDITIONS PASSED
+  // ========================================
+
+  return accepted(
+    filter,
+    "basic_conditions_match"
+  );
 
 
   // ========================================
@@ -637,7 +731,7 @@ export function evaluateCompiledGroupPlan(
         true,
 
       reason:
-        "basic_price_time_pending_fail_open",
+        "basic_time_pending_fail_open",
 
       filterId:
         null,
