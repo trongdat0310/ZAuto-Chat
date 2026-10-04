@@ -1,0 +1,125 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  previewUserFilterV2,
+} from "./user-filter-engine.js";
+
+
+function advancedFilter({
+  groups = [],
+  enabled = true,
+  show = [],
+  hide = [],
+} = {}) {
+  return {
+    id: "preview-advanced",
+    name: "Preview advanced",
+    mode: "advanced",
+    enabled,
+    groupIds: groups,
+    basic: {},
+    advanced: {
+      showKeywords: show,
+      hideKeywords: hide,
+    },
+  };
+}
+
+
+function basicFilter({
+  groups = [],
+  enabled = true,
+  pickup = "",
+  dropoff = "",
+  include = "",
+  exclude = "",
+  price = null,
+  time = "",
+} = {}) {
+  return {
+    id: "preview-basic",
+    name: "Preview basic",
+    mode: "basic",
+    enabled,
+    groupIds: groups,
+    basic: {
+      pickup,
+      dropoff,
+      acceptBothDirections: false,
+      includeKeywords: include,
+      excludeKeywords: exclude,
+      minimumPrice: price,
+      timeRules: time,
+    },
+    advanced: {
+      showKeywords: [],
+      hideKeywords: [],
+    },
+  };
+}
+
+
+test(
+  "preview ignores saved group scope and evaluates filter logic itself",
+  () => {
+    const result =
+      previewUserFilterV2(
+        advancedFilter({
+          groups: ["group-a"],
+          show: ["vip"],
+        }),
+        "VIP Bình Thạnh đi Thủ Đức",
+        {
+          groupId: "group-b",
+        }
+      );
+
+    assert.equal(result.matched, true);
+    assert.equal(result.filterId, "preview-advanced");
+  }
+);
+
+
+test(
+  "preview evaluates disabled draft as enabled",
+  () => {
+    const result =
+      previewUserFilterV2(
+        advancedFilter({
+          enabled: false,
+          show: ["vip"],
+        }),
+        "VIP"
+      );
+
+    assert.equal(result.matched, true);
+    assert.equal(result.filterId, "preview-advanced");
+  }
+);
+
+
+test(
+  "preview uses full basic route price and time evaluation",
+  () => {
+    const result =
+      previewUserFilterV2(
+        basicFilter({
+          groups: ["airport-group"],
+          pickup: "q1",
+          dropoff: "nội bài",
+          include: "4c",
+          exclude: "ghép",
+          price: 500,
+          time: "sáng",
+        }),
+        "sáng mai 7h30 Q1 đi Nội Bài xe 4c giá 650k",
+        {
+          groupId: "other-group",
+        }
+      );
+
+    assert.equal(result.matched, true);
+    assert.equal(result.filterId, "preview-basic");
+  }
+);
