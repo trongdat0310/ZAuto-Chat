@@ -19,6 +19,58 @@ const rootPath =
 
 
 // ========================================
+// TEST INSTRUMENTATION
+// ========================================
+
+let messageStoreTestMetrics =
+  null;
+
+
+export function resetUserMessageStoreTestMetrics() {
+  messageStoreTestMetrics = {
+    diskReadCalls:
+      0,
+
+    persistCalls:
+      0,
+  };
+
+
+  return {
+    ...messageStoreTestMetrics,
+  };
+}
+
+
+export function getUserMessageStoreTestMetrics() {
+  return messageStoreTestMetrics
+    ? {
+        ...messageStoreTestMetrics,
+      }
+    : null;
+}
+
+
+export function disableUserMessageStoreTestMetrics() {
+  messageStoreTestMetrics =
+    null;
+}
+
+
+function bumpMessageStoreMetric(
+  key
+) {
+  if (!messageStoreTestMetrics) {
+    return;
+  }
+
+
+  messageStoreTestMetrics[key] +=
+    1;
+}
+
+
+// ========================================
 // RAM CACHE + WRITE-BEHIND STATE
 //
 // Realtime hot path:
@@ -98,6 +150,11 @@ function readUserMessages(userId) {
       filePath
     )
   ) {
+    bumpMessageStoreMetric(
+      "diskReadCalls"
+    );
+
+
     try {
       const data =
         JSON.parse(
@@ -288,6 +345,11 @@ async function flushUserMessagesInternal(
 
       const tempPath =
         `${filePath}.tmp-${process.pid}-${Date.now()}`;
+
+
+      bumpMessageStoreMetric(
+        "persistCalls"
+      );
 
 
       await fs.promises.writeFile(
