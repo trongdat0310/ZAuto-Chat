@@ -6,7 +6,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test src/filters/*.test.js",
+    "test": "node --test src/filters/*.test.js src/messages/*.test.js",
     "benchmark:filters": "node src/filters/user-filter-benchmark.js"
   },
   "dependencies": {
