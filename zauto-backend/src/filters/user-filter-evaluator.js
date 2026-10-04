@@ -661,6 +661,347 @@ export function evaluateBasicFilter(
 }
 
 // ========================================
+// BASIC PREVIEW DIAGNOSTICS
+//
+// Chi dung cho thao tac Preview thu cong.
+// KHONG duoc goi tren realtime hot path.
+//
+// Moi dieu kien duoc danh gia doc lap de UI
+// co the hien toan bo PASS / FAIL / SKIP,
+// thay vi dung o loi dau tien.
+// ========================================
+
+export function evaluateBasicFilterDiagnostics(
+  filter,
+  messageText
+) {
+  const basic =
+    filter?.basic;
+
+
+  if (!basic) {
+    return [];
+  }
+
+
+  const context =
+    createFilterMessageContext(
+      messageText
+    );
+
+
+  const checks = [];
+
+
+  const addCheck = (
+    key,
+    status,
+    details = null
+  ) => {
+    checks.push({
+      key,
+      status,
+      details,
+    });
+  };
+
+
+  // ========================================
+  // EXCLUDE
+  // ========================================
+
+  if (
+    basic.excludeMatchers.length ===
+    0
+  ) {
+    addCheck(
+      "exclude",
+      "skipped"
+    );
+
+  } else {
+
+    const match =
+      findFirstKeywordMatch(
+        basic.excludeMatchers,
+        context.text
+      );
+
+
+    addCheck(
+      "exclude",
+      match
+        ? "fail"
+        : "pass",
+      {
+        keyword:
+          match?.source ??
+          null,
+
+        expected:
+          basic.excludeMatchers.map(
+            matcher => matcher.source
+          ),
+      }
+    );
+  }
+
+
+  // ========================================
+  // PICKUP
+  // ========================================
+
+  const hasPickup =
+    basic.pickupMatchers.length >
+    0;
+
+
+  const pickup =
+    hasPickup
+      ? findFirstKeywordOccurrence(
+          basic.pickupMatchers,
+          context.text
+        )
+      : null;
+
+
+  addCheck(
+    "pickup",
+    hasPickup
+      ? (
+          pickup
+            ? "pass"
+            : "fail"
+        )
+      : "skipped",
+    hasPickup
+      ? {
+          matched:
+            pickup?.matcher?.source ??
+            null,
+
+          expected:
+            basic.pickupMatchers.map(
+              matcher => matcher.source
+            ),
+        }
+      : null
+  );
+
+
+  // ========================================
+  // DROPOFF
+  // ========================================
+
+  const hasDropoff =
+    basic.dropoffMatchers.length >
+    0;
+
+
+  const dropoff =
+    hasDropoff
+      ? findFirstKeywordOccurrence(
+          basic.dropoffMatchers,
+          context.text
+        )
+      : null;
+
+
+  addCheck(
+    "dropoff",
+    hasDropoff
+      ? (
+          dropoff
+            ? "pass"
+            : "fail"
+        )
+      : "skipped",
+    hasDropoff
+      ? {
+          matched:
+            dropoff?.matcher?.source ??
+            null,
+
+          expected:
+            basic.dropoffMatchers.map(
+              matcher => matcher.source
+            ),
+        }
+      : null
+  );
+
+
+  // ========================================
+  // DIRECTION
+  // ========================================
+
+  if (!basic.needsDirection) {
+    addCheck(
+      "direction",
+      "skipped"
+    );
+
+  } else if (
+    !pickup ||
+    !dropoff
+  ) {
+    addCheck(
+      "direction",
+      "fail",
+      {
+        blockedByMissingRoute:
+          true,
+      }
+    );
+
+  } else {
+
+    const directionMatched =
+      pickup.index <
+        dropoff.index ||
+      findOrderedKeywordPair(
+        basic.pickupMatchers,
+        basic.dropoffMatchers,
+        context.text
+      ) !== null;
+
+
+    addCheck(
+      "direction",
+      directionMatched
+        ? "pass"
+        : "fail",
+      {
+        pickup:
+          pickup.matcher.source,
+
+        dropoff:
+          dropoff.matcher.source,
+      }
+    );
+  }
+
+
+  // ========================================
+  // INCLUDE
+  // ========================================
+
+  if (
+    basic.includeMatchers.length ===
+    0
+  ) {
+    addCheck(
+      "include",
+      "skipped"
+    );
+
+  } else {
+
+    const match =
+      findFirstKeywordMatch(
+        basic.includeMatchers,
+        context.text
+      );
+
+
+    addCheck(
+      "include",
+      match
+        ? "pass"
+        : "fail",
+      {
+        matched:
+          match?.source ??
+          null,
+
+        expected:
+          basic.includeMatchers.map(
+            matcher => matcher.source
+          ),
+      }
+    );
+  }
+
+
+  // ========================================
+  // PRICE
+  // ========================================
+
+  if (!basic.needsPrice) {
+    addCheck(
+      "price",
+      "skipped"
+    );
+
+  } else {
+
+    const price =
+      getContextPrice(
+        context
+      );
+
+
+    addCheck(
+      "price",
+      price !== null &&
+      price >= basic.minimumPrice
+        ? "pass"
+        : "fail",
+      {
+        messagePrice:
+          price,
+
+        minimumPrice:
+          basic.minimumPrice,
+      }
+    );
+  }
+
+
+  // ========================================
+  // TIME
+  // ========================================
+
+  if (!basic.needsTime) {
+    addCheck(
+      "time",
+      "skipped"
+    );
+
+  } else {
+
+    const temporalMentions =
+      getContextTemporalMentions(
+        context
+      );
+
+
+    const matched =
+      matchesCompiledTimeRules(
+        basic.compiledTimeRules,
+        temporalMentions,
+        context.text
+      );
+
+
+    addCheck(
+      "time",
+      matched
+        ? "pass"
+        : "fail",
+      {
+        timeRules:
+          basic.timeRules,
+      }
+    );
+  }
+
+
+  return checks;
+}
+
+
+// ========================================
 // ONE FILTER DISPATCH
 //
 // Basic tam thoi chua active.
