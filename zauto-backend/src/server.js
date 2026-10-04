@@ -90,6 +90,11 @@ import {
 } from "./filters/user-filter-engine.js";
 
 import {
+  getUserSavedFilterKeywords,
+  saveUserSavedFilterKeywords,
+} from "./filters/user-filter-keyword-store.js";
+
+import {
   getUserMessages,
   getUserMessageById,
 } from "./messages/user-message-store.js";
@@ -1205,6 +1210,73 @@ app.post(
     });
   }
 );
+
+// ========================================
+// CURRENT USER SAVED FILTER KEYWORDS
+// ========================================
+
+app.get(
+  "/api/me/notification-filter-keywords",
+
+  requireAuth,
+
+  (req, res) => {
+    const keywords =
+      getUserSavedFilterKeywords(
+        req.user.id
+      );
+
+
+    res.json({
+      success: true,
+
+      keywords,
+    });
+  }
+);
+
+
+app.put(
+  "/api/me/notification-filter-keywords",
+
+  requireAuth,
+
+  (req, res) => {
+    try {
+      const keywords =
+        saveUserSavedFilterKeywords(
+          req.user.id,
+          req.body?.keywords
+        );
+
+
+      res.json({
+        success: true,
+
+        keywords,
+      });
+
+    } catch (error) {
+
+      console.error(
+        "[ME NOTIFICATION FILTER KEYWORDS UPDATE] ERROR:",
+        error
+      );
+
+
+      res
+        .status(400)
+        .json({
+          success: false,
+
+          error:
+            error?.message ??
+            String(error),
+        });
+    }
+  }
+);
+
 
 // ========================================
 // CURRENT USER NOTIFICATION FILTERS V2
