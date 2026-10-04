@@ -1,9 +1,25 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import {
+  fileURLToPath,
+} from "node:url";
 
 import {
+  deleteUserFilterV2,
+  evaluateUserMessage,
   previewUserFilterV2,
+  reorderUserFiltersV2,
+  saveUserFilterV2,
 } from "./user-filter-engine.js";
+
+import {
+  disableUserFilterRuntimeTestMetrics,
+  getUserFilterRuntimeTestMetrics,
+  invalidateUserFilterRuntime,
+  resetUserFilterRuntimeTestMetrics,
+} from "./user-filter-runtime.js";
 
 
 function advancedFilter({
@@ -24,6 +40,38 @@ function advancedFilter({
       hideKeywords: hide,
     },
   };
+}
+
+
+const __filename =
+  fileURLToPath(
+    import.meta.url
+  );
+
+const __dirname =
+  path.dirname(
+    __filename
+  );
+
+
+function cleanupUserFilterTestData(
+  userId
+) {
+  invalidateUserFilterRuntime(
+    userId
+  );
+
+  fs.rmSync(
+    path.resolve(
+      __dirname,
+      "../../data/user-data",
+      String(userId)
+    ),
+    {
+      recursive: true,
+      force: true,
+    }
+  );
 }
 
 
@@ -687,5 +735,181 @@ test(
       checks.advanced_show.details.overriddenByHide,
       true
     );
+  }
+);
+
+
+
+// ========================================
+// MUTATION -> WARM RUNTIME LIFECYCLE
+// ========================================
+
+test(
+  "filter mutations warm runtime before the next message",
+  () => {
+    const userId =
+      `test-filter-runtime-${process.pid}`;
+
+    cleanupUserFilterTestData(
+      userId
+    );
+
+    resetUserFilterRuntimeTestMetrics();
+
+    try {
+      const first =
+        saveUserFilterV2(
+          userId,
+          advancedFilter({
+            show: ["vip"],
+          })
+        );
+
+      let metrics =
+        getUserFilterRuntimeTestMetrics();
+
+      assert.equal(
+        metrics.compileDocumentCalls,
+        1
+      );
+
+      const afterCreate =
+        evaluateUserMessage(
+          userId,
+          "VIP"
+        );
+
+      assert.equal(
+        afterCreate.matched,
+        true
+      );
+
+      metrics =
+        getUserFilterRuntimeTestMetrics();
+
+      assert.equal(
+        metrics.compileDocumentCalls,
+        1
+      );
+
+
+      saveUserFilterV2(
+        userId,
+        {
+          ...first,
+          enabled: false,
+        }
+      );
+
+      metrics =
+        getUserFilterRuntimeTestMetrics();
+
+      assert.equal(
+        metrics.compileDocumentCalls,
+        2
+      );
+
+      const afterToggle =
+        evaluateUserMessage(
+          userId,
+          "VIP"
+        );
+
+      assert.equal(
+        afterToggle.reason,
+        "no_applicable_filters"
+      );
+
+      metrics =
+        getUserFilterRuntimeTestMetrics();
+
+      assert.equal(
+        metrics.compileDocumentCalls,
+        2
+      );
+
+
+      const second =
+        saveUserFilterV2(
+          userId,
+          {
+            ...advancedFilter({
+              show: ["airport"],
+            }),
+            name: "second",
+          }
+        );
+
+      metrics =
+        getUserFilterRuntimeTestMetrics();
+
+      assert.equal(
+        metrics.compileDocumentCalls,
+        3
+      );
+
+
+      reorderUserFiltersV2(
+        userId,
+        [
+          second.id,
+          first.id,
+        ]
+      );
+
+      metrics =
+        getUserFilterRuntimeTestMetrics();
+
+      assert.equal(
+        metrics.compileDocumentCalls,
+        4
+      );
+
+      evaluateUserMessage(
+        userId,
+        "airport"
+      );
+
+      metrics =
+        getUserFilterRuntimeTestMetrics();
+
+      assert.equal(
+        metrics.compileDocumentCalls,
+        4
+      );
+
+
+      deleteUserFilterV2(
+        userId,
+        second.id
+      );
+
+      metrics =
+        getUserFilterRuntimeTestMetrics();
+
+      assert.equal(
+        metrics.compileDocumentCalls,
+        5
+      );
+
+      evaluateUserMessage(
+        userId,
+        "airport"
+      );
+
+      metrics =
+        getUserFilterRuntimeTestMetrics();
+
+      assert.equal(
+        metrics.compileDocumentCalls,
+        5
+      );
+    } finally {
+      disableUserFilterRuntimeTestMetrics();
+
+      cleanupUserFilterTestData(
+        userId
+      );
+    }
   }
 );
