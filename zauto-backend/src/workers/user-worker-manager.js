@@ -59,6 +59,12 @@ import {
   shouldSkipDuplicateUserMessage,
 } from "../messages/user-message-dedupe.js";
 
+import {
+  cloneRealtimeLatencyTrace,
+  createRealtimeLatencyTrace,
+  markRealtimeLatencyTrace,
+} from "../diagnostics/realtime-latency.js";
+
 const workers =
   new Map();
 
@@ -1220,7 +1226,8 @@ function requestMissedGroupMessages(
 async function processMessage(
   userId,
   worker,
-  message
+  message,
+  latencyTrace = null
 ) {
   try {
     const key =
@@ -1314,6 +1321,12 @@ async function processMessage(
           groupId,
         }
       );
+
+
+    markRealtimeLatencyTrace(
+      latencyTrace,
+      "filterDoneAtMs"
+    );
 
 
     if (!filter.matched) {
@@ -1477,11 +1490,31 @@ async function processMessage(
       return;
     }
 
+
+    markRealtimeLatencyTrace(
+      latencyTrace,
+      "tripCreatedAtMs"
+    );
+
+
+    const realtimeMessage =
+      latencyTrace
+        ? {
+            ...saved.message,
+
+            _latencyTrace:
+              cloneRealtimeLatencyTrace(
+                latencyTrace
+              ),
+          }
+        : saved.message;
+
+
     // Realtime chi cho user nay
     broadcastUserEvent(
       userId,
       "new_trip",
-      saved.message
+      realtimeMessage
     );
 
     console.log("");
@@ -1814,6 +1847,10 @@ export async function startUserWorker(
 
       async (message) => {
 
+        const latencyTrace =
+          createRealtimeLatencyTrace();
+
+
         await enrichStickerMessage(
           worker,
           message
@@ -1847,7 +1884,8 @@ export async function startUserWorker(
         processMessage(
           key,
           worker,
-          message
+          message,
+          latencyTrace
         );
       }
     );
