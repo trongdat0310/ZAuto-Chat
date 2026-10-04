@@ -2,6 +2,17 @@ import fs from "node:fs";
 import path from "node:path";
 
 
+
+// ========================================
+// RAM CACHE
+//
+// Message hot path khong doc file moi lan.
+// ========================================
+
+const settingsCache =
+  new Map();
+
+
 const DEFAULT_SETTINGS = {
 
   // Lọc trùng cuốc
@@ -66,16 +77,35 @@ function ensureUserDirectory(
 export function getUserMessageSettings(
   userId
 ) {
+  const key =
+    String(
+      userId
+    );
+
+
+  const cached =
+    settingsCache.get(
+      key
+    );
+
+
+  if (cached) {
+    return cached;
+  }
+
 
   ensureUserDirectory(
-    userId
+    key
   );
 
 
   const file =
     getSettingsFile(
-      userId
+      key
     );
+
+
+  let settings;
 
 
   if (
@@ -84,41 +114,51 @@ export function getUserMessageSettings(
     )
   ) {
 
-    return {
+    settings = {
       ...DEFAULT_SETTINGS,
     };
-  }
+
+  } else {
+
+    try {
+
+      const saved =
+        JSON.parse(
+          fs.readFileSync(
+            file,
+            "utf8"
+          )
+        );
 
 
-  try {
+      settings = {
+        ...DEFAULT_SETTINGS,
+        ...saved,
+      };
 
-    const saved =
-      JSON.parse(
-        fs.readFileSync(
-          file,
-          "utf8"
-        )
+    } catch (error) {
+
+      console.error(
+        "[MESSAGE SETTINGS] READ ERROR:",
+        key,
+        error
       );
 
 
-    return {
-      ...DEFAULT_SETTINGS,
-      ...saved,
-    };
-
-  } catch (error) {
-
-    console.error(
-      "[MESSAGE SETTINGS] READ ERROR:",
-      userId,
-      error
-    );
-
-
-    return {
-      ...DEFAULT_SETTINGS,
-    };
+      settings = {
+        ...DEFAULT_SETTINGS,
+      };
+    }
   }
+
+
+  settingsCache.set(
+    key,
+    settings
+  );
+
+
+  return settings;
 }
 
 
@@ -195,6 +235,14 @@ export function updateUserMessageSettings(
     ),
 
     "utf8"
+  );
+
+
+  settingsCache.set(
+    String(
+      userId
+    ),
+    next
   );
 
 
