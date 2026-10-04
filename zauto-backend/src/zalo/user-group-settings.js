@@ -18,6 +18,17 @@ const rootPath =
 
 
 // ========================================
+// RAM CACHE
+//
+// Group enabled check nam tren message hot path.
+// Chi doc file lan dau moi user.
+// ========================================
+
+const settingsCache =
+  new Map();
+
+
+// ========================================
 // FILE PATH
 // ========================================
 
@@ -44,44 +55,77 @@ function getSettingsPath(userId) {
 export function readUserGroupSettings(
   userId
 ) {
-  const filePath =
-    getSettingsPath(userId);
-
-
-  if (!fs.existsSync(filePath)) {
-    return {};
-  }
-
-
-  try {
-    const data =
-      JSON.parse(
-        fs.readFileSync(
-          filePath,
-          "utf-8"
-        )
-      );
-
-
-    return (
-      data &&
-      typeof data === "object" &&
-      !Array.isArray(data)
-    )
-      ? data
-      : {};
-
-  } catch (error) {
-
-    console.error(
-      "[USER GROUP SETTINGS] READ ERROR:",
-      userId,
-      error
+  const key =
+    String(
+      userId
     );
 
 
-    return {};
+  const cached =
+    settingsCache.get(
+      key
+    );
+
+
+  if (cached) {
+    return cached;
   }
+
+
+  const filePath =
+    getSettingsPath(
+      key
+    );
+
+
+  let settings =
+    {};
+
+
+  if (
+    fs.existsSync(
+      filePath
+    )
+  ) {
+    try {
+      const data =
+        JSON.parse(
+          fs.readFileSync(
+            filePath,
+            "utf-8"
+          )
+        );
+
+
+      if (
+        data &&
+        typeof data === "object" &&
+        !Array.isArray(
+          data
+        )
+      ) {
+        settings =
+          data;
+      }
+
+    } catch (error) {
+
+      console.error(
+        "[USER GROUP SETTINGS] READ ERROR:",
+        key,
+        error
+      );
+    }
+  }
+
+
+  settingsCache.set(
+    key,
+    settings
+  );
+
+
+  return settings;
 }
 
 
@@ -115,6 +159,14 @@ function writeUserGroupSettings(
     ),
 
     "utf-8"
+  );
+
+
+  settingsCache.set(
+    String(
+      userId
+    ),
+    settings
   );
 }
 
