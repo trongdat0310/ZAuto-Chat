@@ -23,7 +23,7 @@ class _FilterPageState extends State<FilterPage> {
 
   List<Map<String, dynamic>> filters = [];
 
-  final Set<String> updatingFilterIds = {};
+  final Set<String> mutatingFilterIds = {};
 
   bool loading = true;
 
@@ -176,6 +176,14 @@ class _FilterPageState extends State<FilterPage> {
       return;
     }
 
+    if (mutatingFilterIds.contains(filterId)) {
+      return;
+    }
+
+    setState(() {
+      mutatingFilterIds.add(filterId);
+    });
+
     try {
       await backend.deleteNotificationFilter(filterId);
 
@@ -196,6 +204,12 @@ class _FilterPageState extends State<FilterPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Không thể xóa bộ lọc: $error')),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          mutatingFilterIds.remove(filterId);
+        });
+      }
     }
   }
 
@@ -209,14 +223,14 @@ class _FilterPageState extends State<FilterPage> {
       return;
     }
 
-    if (updatingFilterIds.contains(filterId)) {
+    if (mutatingFilterIds.contains(filterId)) {
       return;
     }
 
     final previous = filter['enabled'] != false;
 
     setState(() {
-      updatingFilterIds.add(filterId);
+      mutatingFilterIds.add(filterId);
       filter['enabled'] = enabled;
     });
 
@@ -257,7 +271,7 @@ class _FilterPageState extends State<FilterPage> {
     } finally {
       if (mounted) {
         setState(() {
-          updatingFilterIds.remove(filterId);
+          mutatingFilterIds.remove(filterId);
         });
       }
     }
@@ -436,7 +450,7 @@ class _FilterPageState extends State<FilterPage> {
 
           final updating =
               filterId.isNotEmpty &&
-              updatingFilterIds.contains(filterId);
+              mutatingFilterIds.contains(filterId);
 
           final mode = filter['mode']?.toString() == 'advanced'
               ? 'Nâng cao'
@@ -497,6 +511,7 @@ class _FilterPageState extends State<FilterPage> {
                           },
                   ),
                   PopupMenuButton<String>(
+                    enabled: !updating,
                     onSelected: (value) {
                       if (value == 'edit') {
                         _editFilter(filter);
