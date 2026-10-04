@@ -185,7 +185,9 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                           const Spacer(),
 
                           Text(
-                            notificationFontSize.round().toString(),
+                            notificationFontSize % 1 == 0
+                                ? notificationFontSize.toInt().toString()
+                                : notificationFontSize.toStringAsFixed(1),
 
                             style: TextStyle(
                               fontSize: 16,
@@ -203,9 +205,12 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
 
                         max: 30,
 
-                        divisions: 20,
+                        divisions: 40,
 
                         value: notificationFontSize,
+
+                        label:
+                            notificationFontSize.toStringAsFixed(1),
 
                         onChanged: (value) {
                           setState(() {
