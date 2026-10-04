@@ -277,6 +277,221 @@ class _FilterPageState extends State<FilterPage> {
     }
   }
 
+  String _compactText(
+    dynamic value, {
+    int maxLength = 28,
+  }) {
+    final text =
+        value?.toString().trim() ?? '';
+
+    if (text.length <= maxLength) {
+      return text;
+    }
+
+    return '${text.substring(0, maxLength - 1)}…';
+  }
+
+  String _formatPriceSummary(dynamic value) {
+    final number =
+        value is num
+            ? value
+            : num.tryParse(
+                value?.toString() ?? '',
+              );
+
+    if (number == null) {
+      return '';
+    }
+
+    final rounded =
+        number.round();
+
+    if (rounded >= 1000) {
+      final millions =
+          rounded / 1000;
+
+      final text =
+          millions % 1 == 0
+              ? millions.toInt().toString()
+              : millions.toStringAsFixed(1);
+
+      return '≥${text}tr';
+    }
+
+    return '≥${rounded}k';
+  }
+
+  String _advancedKeywordSummary(
+    dynamic raw,
+    String prefix,
+  ) {
+    if (raw is! List || raw.isEmpty) {
+      return '';
+    }
+
+    final values =
+        raw
+            .map(
+              (item) =>
+                  item.toString().trim(),
+            )
+            .where(
+              (item) => item.isNotEmpty,
+            )
+            .toList();
+
+    if (values.isEmpty) {
+      return '';
+    }
+
+    final first =
+        _compactText(
+      values.first,
+      maxLength: 20,
+    );
+
+    final more =
+        values.length > 1
+            ? ' +${values.length - 1}'
+            : '';
+
+    return '$prefix: $first$more';
+  }
+
+  String _buildFilterSummary(
+    Map<String, dynamic> filter,
+  ) {
+    final mode =
+        filter['mode']?.toString() ==
+            'advanced'
+            ? 'advanced'
+            : 'basic';
+
+    if (mode == 'advanced') {
+      final rawAdvanced =
+          filter['advanced'];
+
+      final advanced =
+          rawAdvanced is Map
+              ? Map<String, dynamic>.from(
+                  rawAdvanced,
+                )
+              : <String, dynamic>{};
+
+      final parts =
+          <String>[];
+
+      final show =
+          _advancedKeywordSummary(
+        advanced['showKeywords'],
+        'Hiện',
+      );
+
+      final hide =
+          _advancedKeywordSummary(
+        advanced['hideKeywords'],
+        'Ẩn',
+      );
+
+      if (show.isNotEmpty) {
+        parts.add(show);
+      } else {
+        parts.add('Hiện: tất cả');
+      }
+
+      if (hide.isNotEmpty) {
+        parts.add(hide);
+      }
+
+      return parts.join(' · ');
+    }
+
+    final rawBasic =
+        filter['basic'];
+
+    final basic =
+        rawBasic is Map
+            ? Map<String, dynamic>.from(
+                rawBasic,
+              )
+            : <String, dynamic>{};
+
+    final parts =
+        <String>[];
+
+    final pickup =
+        _compactText(
+      basic['pickup'],
+      maxLength: 20,
+    );
+
+    final dropoff =
+        _compactText(
+      basic['dropoff'],
+      maxLength: 20,
+    );
+
+    if (
+      pickup.isNotEmpty &&
+      dropoff.isNotEmpty
+    ) {
+      parts.add(
+        basic['acceptBothDirections'] == true
+            ? '$pickup ↔ $dropoff'
+            : '$pickup → $dropoff',
+      );
+    } else if (pickup.isNotEmpty) {
+      parts.add('Đón: $pickup');
+    } else if (dropoff.isNotEmpty) {
+      parts.add('Trả: $dropoff');
+    }
+
+    final include =
+        _compactText(
+      basic['includeKeywords'],
+      maxLength: 22,
+    );
+
+    if (include.isNotEmpty) {
+      parts.add('Có: $include');
+    }
+
+    final exclude =
+        _compactText(
+      basic['excludeKeywords'],
+      maxLength: 22,
+    );
+
+    if (exclude.isNotEmpty) {
+      parts.add('Bỏ: $exclude');
+    }
+
+    final price =
+        _formatPriceSummary(
+      basic['minimumPrice'],
+    );
+
+    if (price.isNotEmpty) {
+      parts.add(price);
+    }
+
+    final time =
+        _compactText(
+      basic['timeRules'],
+      maxLength: 22,
+    );
+
+    if (time.isNotEmpty) {
+      parts.add(time);
+    }
+
+    if (parts.isEmpty) {
+      return 'Không đặt điều kiện cụ thể';
+    }
+
+    return parts.join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
