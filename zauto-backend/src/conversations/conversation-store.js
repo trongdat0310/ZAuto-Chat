@@ -3,6 +3,14 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
+import {
+  getUserMessageSettings,
+} from "../settings/user-message-settings-store.js";
+
+import {
+  shouldDisplayConversationEvent,
+} from "../settings/message-media-policy.js";
+
 
 const __filename =
   fileURLToPath(import.meta.url);
@@ -3355,6 +3363,30 @@ export function getUserConversationList(
 
 
 // ========================================
+// APPLY USER MEDIA DISPLAY SETTINGS
+// ========================================
+
+function visibleConversationMessages(
+  userId,
+  messages
+) {
+  const settings =
+    getUserMessageSettings(
+      userId
+    );
+
+
+  return messages.filter(
+    message =>
+      shouldDisplayConversationEvent(
+        settings,
+        message
+      )
+  );
+}
+
+
+// ========================================
 // READ MESSAGES
 // ========================================
 
@@ -3385,7 +3417,10 @@ export function getUserConversationMessages(
     );
 
 
-  return messages
+  return visibleConversationMessages(
+    userId,
+    messages
+  )
     .slice(
       -safeLimit
     )
@@ -3411,12 +3446,15 @@ export function getUserConversationMessagesPage(
 ) {
 
   const messages =
-    readJson(
-      groupMessageFile(
-        userId,
-        groupId
-      ),
-      []
+    visibleConversationMessages(
+      userId,
+      readJson(
+        groupMessageFile(
+          userId,
+          groupId
+        ),
+        []
+      )
     )
       .slice()
       .sort(
