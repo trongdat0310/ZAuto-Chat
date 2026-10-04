@@ -1801,14 +1801,17 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       return;
     }
 
-    final savedKeys =
-        nextSaved
+    final libraryKeys =
+        {
+          ...savedKeywords,
+          ...nextSaved,
+        }
             .map((item) => item.toLowerCase())
             .toSet();
 
     setState(() {
       target.removeWhere(
-        (item) => savedKeys.contains(item.toLowerCase()),
+        (item) => libraryKeys.contains(item.toLowerCase()),
       );
 
       for (final keyword in nextSelected) {
