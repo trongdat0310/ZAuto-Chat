@@ -107,6 +107,72 @@ class _FilterPageState extends State<FilterPage> {
     });
   }
 
+  Future<void> _duplicateFilter(
+    Map<String, dynamic> filter,
+  ) async {
+    if (filterCount >= maxFilters) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Đã đạt giới hạn 50 bộ lọc.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    final sourceId =
+        filter['id']?.toString() ?? '';
+
+    if (
+      sourceId.isNotEmpty &&
+      filterMutations.containsKey(sourceId)
+    ) {
+      return;
+    }
+
+    final saved =
+        await Navigator.of(context)
+            .push<Map<String, dynamic>>(
+      MaterialPageRoute<Map<String, dynamic>>(
+        builder: (_) {
+          return AddNotificationFilterPage(
+            initialTemplate:
+                Map<String, dynamic>.from(filter),
+          );
+        },
+      ),
+    );
+
+    if (!mounted || saved == null) {
+      return;
+    }
+
+    final savedId =
+        saved['id']?.toString() ?? '';
+
+    if (
+      savedId.isEmpty ||
+      filters.any(
+        (item) =>
+            item['id']?.toString() ==
+            savedId,
+      )
+    ) {
+      await _loadFilters();
+
+      return;
+    }
+
+    setState(() {
+      filters = [
+        ...filters,
+        saved,
+      ];
+    });
+  }
+
   Future<void> _editFilter(Map<String, dynamic> filter) async {
     final saved = await Navigator.of(context).push<Map<String, dynamic>>(
       MaterialPageRoute<Map<String, dynamic>>(
@@ -817,6 +883,11 @@ class _FilterPageState extends State<FilterPage> {
                         return;
                       }
 
+                      if (value == 'duplicate') {
+                        _duplicateFilter(filter);
+                        return;
+                      }
+
                       if (value == 'delete') {
                         _deleteFilter(filter);
                       }
@@ -829,6 +900,16 @@ class _FilterPageState extends State<FilterPage> {
                             Icon(Icons.edit_outlined),
                             SizedBox(width: 10),
                             Text('Sửa'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'duplicate',
+                        child: Row(
+                          children: [
+                            Icon(Icons.copy_rounded),
+                            SizedBox(width: 10),
+                            Text('Sao chép'),
                           ],
                         ),
                       ),
