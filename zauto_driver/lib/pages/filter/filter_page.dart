@@ -88,6 +88,42 @@ class _FilterPageState extends State<FilterPage> {
     await _loadFilters();
   }
 
+  Future<void> _editFilter(Map<String, dynamic> filter) async {
+    final saved = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute<Map<String, dynamic>>(
+        builder: (_) {
+          return AddNotificationFilterPage(
+            initialFilter: Map<String, dynamic>.from(filter),
+          );
+        },
+      ),
+    );
+
+    if (!mounted || saved == null) {
+      return;
+    }
+
+    final filterId = saved['id']?.toString() ?? '';
+
+    if (filterId.isEmpty) {
+      await _loadFilters();
+      return;
+    }
+
+    final index = filters.indexWhere(
+      (item) => item['id']?.toString() == filterId,
+    );
+
+    if (index < 0) {
+      await _loadFilters();
+      return;
+    }
+
+    setState(() {
+      filters[index] = saved;
+    });
+  }
+
   Future<void> _deleteFilter(Map<String, dynamic> filter) async {
     final filterId = filter['id']?.toString() ?? '';
 
@@ -424,11 +460,26 @@ class _FilterPageState extends State<FilterPage> {
                   ),
                   PopupMenuButton<String>(
                     onSelected: (value) {
+                      if (value == 'edit') {
+                        _editFilter(filter);
+                        return;
+                      }
+
                       if (value == 'delete') {
                         _deleteFilter(filter);
                       }
                     },
                     itemBuilder: (context) => const [
+                      PopupMenuItem<String>(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit_outlined),
+                            SizedBox(width: 10),
+                            Text('Sửa'),
+                          ],
+                        ),
+                      ),
                       PopupMenuItem<String>(
                         value: 'delete',
                         child: Row(
