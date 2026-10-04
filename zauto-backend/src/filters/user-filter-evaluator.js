@@ -321,6 +321,121 @@ export function evaluateAdvancedFilter(
 }
 
 // ========================================
+// ADVANCED PREVIEW DIAGNOSTICS
+//
+// Chi dung cho Preview thu cong.
+// Hai nhanh Hide / Show duoc danh gia doc lap
+// de UI co the giai thich ro:
+// HIDE co uu tien cao hon SHOW.
+// ========================================
+
+export function evaluateAdvancedFilterDiagnostics(
+  filter,
+  messageText
+) {
+  const advanced =
+    filter?.advanced;
+
+
+  if (!advanced) {
+    return [];
+  }
+
+
+  const context =
+    createFilterMessageContext(
+      messageText
+    );
+
+
+  const hideMatch =
+    findFirstKeywordMatch(
+      advanced.hideMatchers,
+      context.text
+    );
+
+
+  const hideCheck = {
+    key:
+      "advanced_hide",
+
+    status:
+      advanced.hideMatchers.length ===
+        0
+        ? "skipped"
+        : (
+            hideMatch
+              ? "fail"
+              : "pass"
+          ),
+
+    details: {
+      matched:
+        hideMatch?.source ??
+        null,
+
+      expected:
+        advanced.hideMatchers.map(
+          matcher => matcher.source
+        ),
+    },
+  };
+
+
+  const showMatch =
+    findFirstKeywordMatch(
+      advanced.showMatchers,
+      context.text
+    );
+
+
+  const showCheck = {
+    key:
+      "advanced_show",
+
+    status:
+      advanced.showMatchers.length ===
+        0
+        ? "skipped"
+        : (
+            showMatch
+              ? "pass"
+              : "fail"
+          ),
+
+    details: {
+      matched:
+        showMatch?.source ??
+        null,
+
+      expected:
+        advanced.showMatchers.map(
+          matcher => matcher.source
+        ),
+
+      catchAll:
+        advanced.showMatchers.length ===
+        0,
+
+      overriddenByHide:
+        hideMatch !== null &&
+        (
+          showMatch !== null ||
+          advanced.showMatchers.length ===
+            0
+        ),
+    },
+  };
+
+
+  return [
+    hideCheck,
+    showCheck,
+  ];
+}
+
+
+// ========================================
 // BASIC FILTER
 //
 // Thu tu:
