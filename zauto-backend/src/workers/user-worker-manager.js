@@ -56,6 +56,10 @@ import {
 } from "../settings/user-message-settings-store.js";
 
 import {
+  shouldDisplayConversationEvent,
+} from "../settings/message-media-policy.js";
+
+import {
   shouldSkipDuplicateUserMessage,
 } from "../messages/user-message-dedupe.js";
 
@@ -701,98 +705,6 @@ function isDisplayableConversationEvent(
 }
 
 // ========================================
-// MESSAGE MEDIA TYPE HELPERS
-// ========================================
-
-function isPhotoConversationEvent(
-  message
-) {
-  const raw =
-    message?.data?.msgType;
-
-  const type =
-    String(
-      raw ?? ""
-    )
-      .trim()
-      .toLowerCase();
-
-
-  return (
-    type ===
-      "chat.photo" ||
-    Number(raw) ===
-      32
-  );
-}
-
-
-function isVoiceConversationEvent(
-  message
-) {
-  const raw =
-    message?.data?.msgType;
-
-  const type =
-    String(
-      raw ?? ""
-    )
-      .trim()
-      .toLowerCase();
-
-
-  return (
-    type ===
-      "chat.voice" ||
-    type ===
-      "chat.voice.msg" ||
-    type ===
-      "chat.audio" ||
-    Number(raw) ===
-      31
-  );
-}
-
-
-function shouldStoreConversationEvent(
-  userId,
-  message
-) {
-  const settings =
-    getUserMessageSettings(
-      userId
-    );
-
-
-  if (
-    settings.showImages ===
-      false &&
-    isPhotoConversationEvent(
-      message
-    )
-  ) {
-
-    return false;
-  }
-
-
-  if (
-    settings.showVoiceMessages ===
-      false &&
-    isVoiceConversationEvent(
-      message
-    )
-  ) {
-
-    return false;
-  }
-
-
-  return true;
-}
-
-
-// ========================================
 // STORE ALL GROUP CONVERSATION MESSAGES
 // ========================================
 
@@ -839,9 +751,15 @@ async function storeConversationEvent(
   // Ap dung chung cho realtime va old_messages.
   // ========================================
 
+  const messageSettings =
+    getUserMessageSettings(
+      userId
+    );
+
+
   if (
-    !shouldStoreConversationEvent(
-      userId,
+    !shouldDisplayConversationEvent(
+      messageSettings,
       message
     )
   ) {
