@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/app_config.dart';
+import '../../controllers/settings_controller.dart';
 
 import '../../services/backend_service.dart';
 import '../../services/chat_state_service.dart';
@@ -53,10 +54,14 @@ class ChatPage extends StatefulWidget {
 
   final AppRealtimeService realtimeService;
 
+  final SettingsController settingsController;
+
   const ChatPage({
     super.key,
 
     required this.realtimeService,
+
+    required this.settingsController,
 
     required this.groupId,
     required this.groupName,
@@ -2860,6 +2865,9 @@ class _ChatPageState extends State<ChatPage> {
       senderName: senderName,
 
       content: content,
+
+      fontSize:
+          widget.settingsController.settings.chatFontSize,
 
       timeText: formatTime(message['timestamp']),
 
