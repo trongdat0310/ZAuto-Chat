@@ -51,7 +51,8 @@ class ZautoDriverApp extends StatelessWidget {
 
                 final appScale =
                     (fontSize / 15)
-                        .clamp(0.67, 2.0);
+                        .clamp(0.67, 2.0)
+                        .toDouble();
 
                 return MediaQuery(
                   data: mediaQuery.copyWith(
