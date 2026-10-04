@@ -67,6 +67,46 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     _populateInitialFilter();
 
     nameController.addListener(_handleNameChanged);
+
+    if (selectedGroupIds.isNotEmpty) {
+      _hydrateSelectedGroupNames();
+    }
+  }
+
+  Future<void> _hydrateSelectedGroupNames() async {
+    List<Map<String, dynamic>> groups;
+
+    try {
+      groups = await backend.getGroups();
+    } catch (_) {
+      // Ten group chi la du lieu hien thi.
+      // Khong duoc chan Edit Filter neu request nay loi.
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    final names = <String, String>{};
+
+    for (final group in groups) {
+      final groupId = group['groupId']?.toString() ?? '';
+
+      if (selectedGroupIds.contains(groupId)) {
+        names[groupId] = group['name']?.toString() ?? groupId;
+      }
+    }
+
+    if (names.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      selectedGroupNames
+        ..clear()
+        ..addAll(names);
+    });
   }
 
   void _populateInitialFilter() {
