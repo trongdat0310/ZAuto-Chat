@@ -7,7 +7,10 @@ import {
 } from "./user-filter-runtime.js";
 
 import {
+  disableUserFilterEvaluatorTestMetrics,
   evaluateCompiledGroupPlan,
+  getUserFilterEvaluatorTestMetrics,
+  resetUserFilterEvaluatorTestMetrics,
 } from "./user-filter-evaluator.js";
 
 
@@ -1312,5 +1315,147 @@ test(
       result.evaluatedFilters,
       1
     );
+  }
+);
+
+
+
+// ========================================
+// HOT PATH INSTRUMENTATION
+// ========================================
+
+test(
+  "message is normalized once even when several filters are evaluated",
+  () => {
+    resetUserFilterEvaluatorTestMetrics();
+
+    try {
+      const runtime =
+        compileUserFilterDocument({
+          filters: [
+            advancedFilter({
+              id: "first",
+              show: ["hải phòng"],
+            }),
+            advancedFilter({
+              id: "second",
+              show: ["nội bài"],
+            }),
+            advancedFilter({
+              id: "third",
+              show: ["vip"],
+            }),
+          ],
+        });
+
+      const result =
+        evaluateCompiledGroupPlan(
+          getCompiledGroupPlan(runtime, "any"),
+          "Q1 đi Nội Bài"
+        );
+
+      const metrics =
+        getUserFilterEvaluatorTestMetrics();
+
+      assert.equal(result.evaluatedFilters, 2);
+      assert.equal(metrics.normalizeCalls, 1);
+      assert.equal(metrics.filterEvaluationCalls, 2);
+      assert.equal(metrics.priceParseCalls, 0);
+      assert.equal(metrics.timeParseCalls, 0);
+    } finally {
+      disableUserFilterEvaluatorTestMetrics();
+    }
+  }
+);
+
+
+test(
+  "price parser runs once for several price filters on one message",
+  () => {
+    resetUserFilterEvaluatorTestMetrics();
+
+    try {
+      const runtime =
+        compileUserFilterDocument({
+          filters: [
+            basicFilter({
+              id: "price-700",
+              price: 700,
+            }),
+            basicFilter({
+              id: "price-600",
+              price: 600,
+            }),
+            basicFilter({
+              id: "price-500",
+              price: 500,
+            }),
+          ],
+        });
+
+      const result =
+        evaluateCompiledGroupPlan(
+          getCompiledGroupPlan(runtime, "any"),
+          "cuốc giá 550k"
+        );
+
+      const metrics =
+        getUserFilterEvaluatorTestMetrics();
+
+      assert.equal(result.matched, true);
+      assert.equal(result.filterId, "price-500");
+      assert.equal(result.evaluatedFilters, 3);
+      assert.equal(metrics.normalizeCalls, 1);
+      assert.equal(metrics.priceParseCalls, 1);
+      assert.equal(metrics.filterEvaluationCalls, 3);
+    } finally {
+      disableUserFilterEvaluatorTestMetrics();
+    }
+  }
+);
+
+
+test(
+  "time parser runs once for several time filters on one message",
+  () => {
+    resetUserFilterEvaluatorTestMetrics();
+
+    try {
+      const runtime =
+        compileUserFilterDocument({
+          filters: [
+            basicFilter({
+              id: "morning",
+              time: "sáng",
+            }),
+            basicFilter({
+              id: "afternoon",
+              time: "chiều",
+            }),
+            basicFilter({
+              id: "evening",
+              time: "tối",
+            }),
+          ],
+        });
+
+      const result =
+        evaluateCompiledGroupPlan(
+          getCompiledGroupPlan(runtime, "any"),
+          "cuốc tối nay 20h"
+        );
+
+      const metrics =
+        getUserFilterEvaluatorTestMetrics();
+
+      assert.equal(result.matched, true);
+      assert.equal(result.filterId, "evening");
+      assert.equal(result.evaluatedFilters, 3);
+      assert.equal(metrics.normalizeCalls, 1);
+      assert.equal(metrics.timeParseCalls, 1);
+      assert.equal(metrics.filterEvaluationCalls, 3);
+    } finally {
+      disableUserFilterEvaluatorTestMetrics();
+    }
   }
 );
