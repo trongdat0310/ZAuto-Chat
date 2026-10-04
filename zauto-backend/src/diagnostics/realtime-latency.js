@@ -1,4 +1,7 @@
 import crypto from "node:crypto";
+import {
+  performance,
+} from "node:perf_hooks";
 
 
 export const realtimeLatencyTraceEnabled =
@@ -19,13 +22,25 @@ export function createRealtimeLatencyTrace() {
     listenerReceivedAtMs:
       Date.now(),
 
+    listenerPerfMs:
+      performance.now(),
+
     filterDoneAtMs:
+      null,
+
+    filterPerfMs:
       null,
 
     tripCreatedAtMs:
       null,
 
+    tripPerfMs:
+      null,
+
     wsBroadcastAtMs:
+      null,
+
+    wsBroadcastPerfMs:
       null,
   };
 }
@@ -42,6 +57,20 @@ export function markRealtimeLatencyTrace(
 
   trace[key] =
     Date.now();
+
+
+  const perfKey =
+    key === "filterDoneAtMs"
+      ? "filterPerfMs"
+      : key === "tripCreatedAtMs"
+        ? "tripPerfMs"
+        : null;
+
+
+  if (perfKey) {
+    trace[perfKey] =
+      performance.now();
+  }
 }
 
 
