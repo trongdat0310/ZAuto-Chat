@@ -624,7 +624,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       'name': nameController.text.trim(),
       'mode': mode == _FilterMode.advanced ? 'advanced' : 'basic',
       'enabled': isEditing
-          ? widget.initialFilter?['enabled'] != false
+          ? widget.initialFilter!['enabled'] != false
           : true,
       'groupIds': selectedGroupIds.toList(),
       'basic': {
