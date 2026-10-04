@@ -685,18 +685,33 @@ class _FilterPageState extends State<FilterPage> {
           return Material(
             color: colorScheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(18),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
-              child: Row(
-                children: [
-                  Icon(
-                    enabled
-                        ? Icons.notifications_active_rounded
-                        : Icons.notifications_off_outlined,
-                    color: enabled
-                        ? colorScheme.primary
-                        : colorScheme.onSurfaceVariant,
-                  ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: updating
+                  ? null
+                  : () {
+                      _editFilter(filter);
+                    },
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: updating
+                          ? const CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                            )
+                          : Icon(
+                              enabled
+                                  ? Icons.notifications_active_rounded
+                                  : Icons.notifications_off_outlined,
+                              color: enabled
+                                  ? colorScheme.primary
+                                  : colorScheme.onSurfaceVariant,
+                            ),
+                    ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
@@ -807,7 +822,8 @@ class _FilterPageState extends State<FilterPage> {
                 ],
               ),
             ),
-          );
+          ),
+        );
         },
       ),
     );
