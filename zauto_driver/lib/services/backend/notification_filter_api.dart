@@ -20,6 +20,45 @@ class NotificationFilterApi extends BackendApiBase {
         .toList();
   }
 
+  Future<List<String>> getSavedKeywords() async {
+    final decoded = await getJson(
+      Uri.parse('$baseUrl/api/me/notification-filter-keywords'),
+    );
+
+    final raw = decoded['keywords'];
+
+    if (raw is! List) {
+      return [];
+    }
+
+    return raw
+        .map((item) => item.toString())
+        .where((item) => item.isNotEmpty)
+        .toList();
+  }
+
+  Future<List<String>> saveSavedKeywords(
+    List<String> keywords,
+  ) async {
+    final decoded = await putJson(
+      Uri.parse('$baseUrl/api/me/notification-filter-keywords'),
+      body: {
+        'keywords': keywords,
+      },
+    );
+
+    final raw = decoded['keywords'];
+
+    if (raw is! List) {
+      throw Exception('Dữ liệu từ khoá đã lưu không hợp lệ');
+    }
+
+    return raw
+        .map((item) => item.toString())
+        .where((item) => item.isNotEmpty)
+        .toList();
+  }
+
   Future<Map<String, dynamic>> createFilter(
     Map<String, dynamic> filter,
   ) async {
