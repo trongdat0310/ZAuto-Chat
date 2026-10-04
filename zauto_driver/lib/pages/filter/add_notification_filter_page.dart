@@ -38,6 +38,12 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
 
   bool saving = false;
 
+  bool allowPop = false;
+
+  bool discardDialogOpen = false;
+
+  late String initialDraftSignature;
+
   String? nameError;
   String? pickupError;
   String? dropoffError;
@@ -79,6 +85,9 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     super.initState();
 
     _populateInitialFilter();
+
+    initialDraftSignature =
+        _draftSignature();
 
     nameController.addListener(_handleNameChanged);
     pickupController.addListener(_handleBasicFieldChanged);
@@ -220,6 +229,141 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
         );
       }
     }
+  }
+
+  String _draftSignature() {
+    final groups =
+        selectedGroupIds.toList()
+          ..sort();
+
+    final showKeywords =
+        advancedShowKeywords
+            .map(
+              (item) => item.trim(),
+            )
+            .toList();
+
+    final hideKeywords =
+        advancedHideKeywords
+            .map(
+              (item) => item.trim(),
+            )
+            .toList();
+
+    final rawPrice =
+        minimumPriceController.text.trim();
+
+    final normalizedPrice =
+        rawPrice.isEmpty
+            ? ''
+            : (
+                num.tryParse(rawPrice)
+                    ?.toString() ??
+                rawPrice
+              );
+
+    return [
+      nameController.text.trim(),
+      mode.name,
+      groups.join('\u001f'),
+      pickupController.text.trim(),
+      dropoffController.text.trim(),
+      acceptBothDirections ? '1' : '0',
+      includeController.text.trim(),
+      excludeController.text.trim(),
+      normalizedPrice,
+      timeController.text.trim(),
+      showKeywords.join('\u001f'),
+      hideKeywords.join('\u001f'),
+    ].join('\u001e');
+  }
+
+  bool get hasUnsavedChanges =>
+      _draftSignature() !=
+      initialDraftSignature;
+
+  Future<bool> _confirmDiscardChanges() async {
+    if (
+      allowPop ||
+      !hasUnsavedChanges
+    ) {
+      return true;
+    }
+
+    if (discardDialogOpen) {
+      return false;
+    }
+
+    discardDialogOpen = true;
+
+    try {
+      final discard =
+          await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return AlertDialog(
+            icon: const Icon(
+              Icons.warning_amber_rounded,
+            ),
+            title: const Text(
+              'Hủy thay đổi?',
+            ),
+            content: Text(
+              isEditing
+                  ? 'Các thay đổi chưa lưu của bộ lọc này sẽ bị mất.'
+                  : 'Bộ lọc đang tạo chưa được lưu. Nội dung đã nhập sẽ bị mất.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(dialogContext)
+                      .pop(false);
+                },
+                child: const Text(
+                  'TIẾP TỤC CHỈNH',
+                ),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(dialogContext)
+                      .pop(true);
+                },
+                child: const Text(
+                  'HỦY THAY ĐỔI',
+                ),
+              ),
+            ],
+          );
+        },
+      );
+
+      return discard == true;
+    } finally {
+      discardDialogOpen = false;
+    }
+  }
+
+  Future<void> _handleBack() async {
+    if (saving) {
+      return;
+    }
+
+    final discard =
+        await _confirmDiscardChanges();
+
+    if (
+      !mounted ||
+      !discard
+    ) {
+      return;
+    }
+
+    setState(() {
+      allowPop = true;
+    });
+
+    Navigator.of(context).pop();
   }
 
   void _handleNameChanged() {
@@ -1128,6 +1272,12 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       if (!mounted) {
         return;
       }
+
+      setState(() {
+        allowPop = true;
+        initialDraftSignature =
+            _draftSignature();
+      });
 
       Navigator.of(context).pop(saved);
     } catch (error) {
