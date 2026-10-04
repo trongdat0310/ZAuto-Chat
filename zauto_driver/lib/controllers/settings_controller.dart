@@ -13,6 +13,11 @@ class SettingsController
   SettingsService();
 
 
+  final ValueNotifier<double>
+      notificationFontSize =
+      ValueNotifier<double>(15);
+
+
   AppSettings _settings =
   const AppSettings();
 
@@ -26,6 +31,10 @@ class SettingsController
 
     _settings =
     await service.load();
+
+
+    notificationFontSize.value =
+        _settings.chatFontSize;
 
 
     ThemeService
@@ -99,7 +108,8 @@ class SettingsController
         );
 
 
-    notifyListeners();
+    notificationFontSize.value =
+        value;
   }
 
 
@@ -114,6 +124,10 @@ class SettingsController
           chatFontSize:
           value,
         );
+
+
+    notificationFontSize.value =
+        value;
 
 
     notifyListeners();
