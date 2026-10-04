@@ -193,3 +193,121 @@ test(
     );
   }
 );
+
+
+
+test(
+  "daypart boundaries do not overlap",
+  () => {
+    const morning =
+      compileTimeRules("sáng");
+
+    const noon =
+      compileTimeRules("trưa");
+
+    const afternoon =
+      compileTimeRules("chiều");
+
+    const evening =
+      compileTimeRules("tối");
+
+    const night =
+      compileTimeRules("đêm");
+
+    const at1100 =
+      extractMessageTemporalMentions(
+        normalizeFilterText("11h")
+      );
+
+    const at1300 =
+      extractMessageTemporalMentions(
+        normalizeFilterText("13h")
+      );
+
+    const at1800 =
+      extractMessageTemporalMentions(
+        normalizeFilterText("18h")
+      );
+
+    const at2200 =
+      extractMessageTemporalMentions(
+        normalizeFilterText("22h")
+      );
+
+
+    assert.equal(
+      matchesCompiledTimeRules(
+        morning,
+        at1100,
+        normalizeFilterText("11h")
+      ),
+      false
+    );
+
+    assert.equal(
+      matchesCompiledTimeRules(
+        noon,
+        at1100,
+        normalizeFilterText("11h")
+      ),
+      true
+    );
+
+
+    assert.equal(
+      matchesCompiledTimeRules(
+        noon,
+        at1300,
+        normalizeFilterText("13h")
+      ),
+      false
+    );
+
+    assert.equal(
+      matchesCompiledTimeRules(
+        afternoon,
+        at1300,
+        normalizeFilterText("13h")
+      ),
+      true
+    );
+
+
+    assert.equal(
+      matchesCompiledTimeRules(
+        afternoon,
+        at1800,
+        normalizeFilterText("18h")
+      ),
+      false
+    );
+
+    assert.equal(
+      matchesCompiledTimeRules(
+        evening,
+        at1800,
+        normalizeFilterText("18h")
+      ),
+      true
+    );
+
+
+    assert.equal(
+      matchesCompiledTimeRules(
+        evening,
+        at2200,
+        normalizeFilterText("22h")
+      ),
+      false
+    );
+
+    assert.equal(
+      matchesCompiledTimeRules(
+        night,
+        at2200,
+        normalizeFilterText("22h")
+      ),
+      true
+    );
+  }
+);
