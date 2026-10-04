@@ -6,7 +6,12 @@ import '../../services/backend_service.dart';
 enum _FilterMode { basic, advanced }
 
 class AddNotificationFilterPage extends StatefulWidget {
-  const AddNotificationFilterPage({super.key});
+  final Map<String, dynamic>? initialFilter;
+
+  const AddNotificationFilterPage({
+    super.key,
+    this.initialFilter,
+  });
 
   @override
   State<AddNotificationFilterPage> createState() =>
@@ -15,6 +20,11 @@ class AddNotificationFilterPage extends StatefulWidget {
 
 class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
   static const int maxNameLength = 255;
+
+  bool get isEditing => widget.initialFilter != null;
+
+  String get editingFilterId =>
+      widget.initialFilter?['id']?.toString() ?? '';
 
   final BackendService backend = BackendService(baseUrl: AppConfig.backendUrl);
 
@@ -43,10 +53,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
   bool acceptBothDirections = false;
 
   // ========================================
-  // ADVANCED MODE - UI STATE ONLY
-  //
-  // Chua luu backend.
-  // Logic filter se lam sau.
+  // ADVANCED MODE STATE
   // ========================================
 
   final List<String> advancedShowKeywords = [];
@@ -57,7 +64,74 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
   void initState() {
     super.initState();
 
+    _populateInitialFilter();
+
     nameController.addListener(_handleNameChanged);
+  }
+
+  void _populateInitialFilter() {
+    final filter = widget.initialFilter;
+
+    if (filter == null) {
+      return;
+    }
+
+    nameController.text = filter['name']?.toString() ?? '';
+
+    mode = filter['mode']?.toString() == 'advanced'
+        ? _FilterMode.advanced
+        : _FilterMode.basic;
+
+    final groupIds = filter['groupIds'];
+
+    if (groupIds is List) {
+      selectedGroupIds.addAll(
+        groupIds
+            .map((item) => item.toString())
+            .where((item) => item.isNotEmpty),
+      );
+    }
+
+    final basic = filter['basic'];
+
+    if (basic is Map) {
+      pickupController.text = basic['pickup']?.toString() ?? '';
+      dropoffController.text = basic['dropoff']?.toString() ?? '';
+      includeController.text = basic['includeKeywords']?.toString() ?? '';
+      excludeController.text = basic['excludeKeywords']?.toString() ?? '';
+      timeController.text = basic['timeRules']?.toString() ?? '';
+
+      acceptBothDirections = basic['acceptBothDirections'] == true;
+
+      final minimumPrice = basic['minimumPrice'];
+
+      minimumPriceController.text =
+          minimumPrice == null ? '' : minimumPrice.toString();
+    }
+
+    final advanced = filter['advanced'];
+
+    if (advanced is Map) {
+      final showKeywords = advanced['showKeywords'];
+
+      if (showKeywords is List) {
+        advancedShowKeywords.addAll(
+          showKeywords
+              .map((item) => item.toString())
+              .where((item) => item.isNotEmpty),
+        );
+      }
+
+      final hideKeywords = advanced['hideKeywords'];
+
+      if (hideKeywords is List) {
+        advancedHideKeywords.addAll(
+          hideKeywords
+              .map((item) => item.toString())
+              .where((item) => item.isNotEmpty),
+        );
+      }
+    }
   }
 
   void _handleNameChanged() {
@@ -76,7 +150,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     return {
       'name': nameController.text.trim(),
       'mode': mode == _FilterMode.advanced ? 'advanced' : 'basic',
-      'enabled': true,
+      'enabled': widget.initialFilter?['enabled'] != false,
       'groupIds': selectedGroupIds.toList(),
       'basic': {
         'pickup': pickupController.text.trim(),
@@ -226,9 +300,22 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     });
 
     try {
-      final saved = await backend.createNotificationFilter(
-        _buildFilterPayload(),
-      );
+      late final Map<String, dynamic> saved;
+
+      if (isEditing) {
+        if (editingFilterId.isEmpty) {
+          throw Exception('Bộ lọc cần chỉnh sửa không có ID hợp lệ.');
+        }
+
+        saved = await backend.updateNotificationFilter(
+          editingFilterId,
+          _buildFilterPayload(),
+        );
+      } else {
+        saved = await backend.createNotificationFilter(
+          _buildFilterPayload(),
+        );
+      }
 
       if (!mounted) {
         return;
@@ -1640,19 +1727,22 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
           },
         ),
 
-        title: const Column(
+        title: Column(
           mainAxisSize: MainAxisSize.min,
 
           children: [
             Text(
-              'Thêm bộ lọc mới',
+              isEditing ? 'Chỉnh sửa bộ lọc' : 'Thêm bộ lọc mới',
 
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w400),
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w400,
+              ),
             ),
 
-            SizedBox(height: 2),
+            const SizedBox(height: 2),
 
-            Text(
+            const Text(
               'Lọc thông báo',
 
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
@@ -2105,10 +2195,10 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                           height: 22,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text(
-                          'Lưu và sử dụng',
+                      : Text(
+                          isEditing ? 'Lưu thay đổi' : 'Lưu và sử dụng',
 
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 15.5,
                             fontWeight: FontWeight.w400,
                           ),
