@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 
 import {
   compileUserFilterDocument,
+  disableUserFilterRuntimeTestMetrics,
   getCompiledGroupPlan,
+  getUserFilterRuntimeTestMetrics,
+  resetUserFilterRuntimeTestMetrics,
 } from "./user-filter-runtime.js";
 
 import {
@@ -706,5 +709,154 @@ test(
         "all-second",
       ]
     );
+  }
+);
+
+
+
+// ========================================
+// RUNTIME CACHE INSTRUMENTATION
+// ========================================
+
+test(
+  "specific group plan builds once then reuses cache",
+  () => {
+    resetUserFilterRuntimeTestMetrics();
+
+    try {
+      const runtime =
+        compileUserFilterDocument({
+          filters: [
+            advancedFilter({
+              id: "all",
+            }),
+            advancedFilter({
+              id: "specific",
+              groups: ["a"],
+            }),
+          ],
+        });
+
+      const before =
+        getUserFilterRuntimeTestMetrics();
+
+      assert.equal(
+        before.compileDocumentCalls,
+        1
+      );
+
+      assert.equal(
+        before.buildGroupPlanCalls,
+        1
+      );
+
+      const first =
+        getCompiledGroupPlan(
+          runtime,
+          "a"
+        );
+
+      const afterFirst =
+        getUserFilterRuntimeTestMetrics();
+
+      assert.equal(
+        afterFirst.groupPlanCacheMisses,
+        1
+      );
+
+      assert.equal(
+        afterFirst.groupPlanCacheHits,
+        0
+      );
+
+      assert.equal(
+        afterFirst.buildGroupPlanCalls,
+        2
+      );
+
+      const second =
+        getCompiledGroupPlan(
+          runtime,
+          "a"
+        );
+
+      const afterSecond =
+        getUserFilterRuntimeTestMetrics();
+
+      assert.equal(first, second);
+      assert.equal(
+        afterSecond.groupPlanCacheMisses,
+        1
+      );
+      assert.equal(
+        afterSecond.groupPlanCacheHits,
+        1
+      );
+      assert.equal(
+        afterSecond.buildGroupPlanCalls,
+        2
+      );
+    } finally {
+      disableUserFilterRuntimeTestMetrics();
+    }
+  }
+);
+
+
+test(
+  "unrelated group reuses all-group plan without cache allocation",
+  () => {
+    resetUserFilterRuntimeTestMetrics();
+
+    try {
+      const runtime =
+        compileUserFilterDocument({
+          filters: [
+            advancedFilter({
+              id: "all",
+            }),
+            advancedFilter({
+              id: "specific",
+              groups: ["a"],
+            }),
+          ],
+        });
+
+      const plan =
+        getCompiledGroupPlan(
+          runtime,
+          "other"
+        );
+
+      const metrics =
+        getUserFilterRuntimeTestMetrics();
+
+      assert.equal(
+        plan,
+        runtime.allGroupsPlan
+      );
+
+      assert.equal(
+        runtime.groupPlanCache.size,
+        0
+      );
+
+      assert.equal(
+        metrics.groupPlanCacheHits,
+        0
+      );
+
+      assert.equal(
+        metrics.groupPlanCacheMisses,
+        0
+      );
+
+      assert.equal(
+        metrics.buildGroupPlanCalls,
+        1
+      );
+    } finally {
+      disableUserFilterRuntimeTestMetrics();
+    }
   }
 );
