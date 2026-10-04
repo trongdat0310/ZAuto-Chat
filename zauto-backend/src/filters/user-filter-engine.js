@@ -185,6 +185,12 @@ export function previewUserFilterV2(
     sanitizeUserFilter({
       ...input,
 
+      // Preview kiem tra chinh logic filter dang soan.
+      // Group scope khong duoc lam preview thanh
+      // "no_applicable_filters".
+      groupIds:
+        [],
+
       enabled:
         true,
   });
