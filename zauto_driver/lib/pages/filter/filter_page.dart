@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../config/app_config.dart';
+import '../../services/backend_service.dart';
+
 import 'add_notification_filter_page.dart';
 
 class FilterPage extends StatefulWidget {
@@ -16,27 +19,182 @@ class FilterPage extends StatefulWidget {
 class _FilterPageState extends State<FilterPage> {
   static const int maxFilters = 50;
 
-  // ========================================
-  // UI ONLY
-  //
-  // Logic filter moi se them sau.
-  // Hien tai mac dinh chua co filter.
-  // ========================================
+  final BackendService backend = BackendService(baseUrl: AppConfig.backendUrl);
 
-  int filterCount = 0;
+  List<Map<String, dynamic>> filters = [];
+
+  bool loading = true;
+
+  int get filterCount => filters.length;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _loadFilters();
+  }
+
+  Future<void> _loadFilters() async {
+    if (mounted) {
+      setState(() {
+        loading = true;
+      });
+    }
+
+    try {
+      final result = await backend.getNotificationFilters();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        filters = result;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể tải bộ lọc: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
+    }
+  }
 
   Future<void> _addFilter() async {
     if (filterCount >= maxFilters) {
       return;
     }
 
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
+    final saved = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute<Map<String, dynamic>>(
         builder: (_) {
           return const AddNotificationFilterPage();
         },
       ),
     );
+
+    if (!mounted || saved == null) {
+      return;
+    }
+
+    await _loadFilters();
+  }
+
+  Future<void> _deleteFilter(Map<String, dynamic> filter) async {
+    final filterId = filter['id']?.toString() ?? '';
+
+    if (filterId.isEmpty) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Xóa bộ lọc?'),
+          content: Text(
+            'Bộ lọc "${filter['name'] ?? 'Bộ lọc'}" sẽ bị xóa.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('HỦY'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('XÓA'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await backend.deleteNotificationFilter(filterId);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        filters.removeWhere(
+          (item) => item['id']?.toString() == filterId,
+        );
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể xóa bộ lọc: $error')),
+      );
+    }
+  }
+
+  Future<void> _toggleFilter(
+    Map<String, dynamic> filter,
+    bool enabled,
+  ) async {
+    final filterId = filter['id']?.toString() ?? '';
+
+    if (filterId.isEmpty) {
+      return;
+    }
+
+    final previous = filter['enabled'] != false;
+
+    setState(() {
+      filter['enabled'] = enabled;
+    });
+
+    try {
+      final saved = await backend.updateNotificationFilter(
+        filterId,
+        {
+          ...filter,
+          'enabled': enabled,
+        },
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      final index = filters.indexWhere(
+        (item) => item['id']?.toString() == filterId,
+      );
+
+      if (index >= 0) {
+        setState(() {
+          filters[index] = saved;
+        });
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        filter['enabled'] = previous;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể cập nhật bộ lọc: $error')),
+      );
+    }
   }
 
   @override
@@ -77,9 +235,11 @@ class _FilterPageState extends State<FilterPage> {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: filterCount == 0
-                      ? _buildEmptyState(context)
-                      : _buildFilterListPlaceholder(context),
+                  child: loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : filterCount == 0
+                          ? _buildEmptyState(context)
+                          : _buildFilterList(context),
                 ),
 
                 // =================================
@@ -189,18 +349,104 @@ class _FilterPageState extends State<FilterPage> {
 
   // ========================================
   // FILTER LIST
-  //
-  // UI cua tung filter se lam sau khi
-  // ban gui logic moi.
   // ========================================
 
-  Widget _buildFilterListPlaceholder(BuildContext context) {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
+  Widget _buildFilterList(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
 
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
+    return RefreshIndicator(
+      onRefresh: _loadFilters,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
+        itemCount: filters.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final filter = filters[index];
 
-      children: const [],
+          final enabled = filter['enabled'] != false;
+
+          final mode = filter['mode']?.toString() == 'advanced'
+              ? 'Nâng cao'
+              : 'Cơ bản';
+
+          final groupIds = filter['groupIds'];
+
+          final groupCount = groupIds is List ? groupIds.length : 0;
+
+          final groupText = groupCount == 0
+              ? 'Tất cả các nhóm'
+              : '$groupCount nhóm';
+
+          return Material(
+            color: colorScheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(18),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
+              child: Row(
+                children: [
+                  Icon(
+                    enabled
+                        ? Icons.notifications_active_rounded
+                        : Icons.notifications_off_outlined,
+                    color: enabled
+                        ? colorScheme.primary
+                        : colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          filter['name']?.toString() ?? 'Bộ lọc',
+                          style: const TextStyle(
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$mode • $groupText',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: enabled,
+                    onChanged: (value) {
+                      _toggleFilter(filter, value);
+                    },
+                  ),
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'delete') {
+                        _deleteFilter(filter);
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_outline),
+                            SizedBox(width: 10),
+                            Text('Xóa'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
