@@ -540,3 +540,141 @@ test(
     );
   }
 );
+
+
+// ========================================
+// ENABLE / DISABLE AND GROUP PLAN MATRIX
+// ========================================
+
+test(
+  "all disabled filters produce an empty applicable plan",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id: "disabled-all",
+            enabled: false,
+          }),
+          basicFilter({
+            id: "disabled-group",
+            groups: ["a"],
+            enabled: false,
+          }),
+        ],
+      });
+
+    assert.equal(runtime.configuredCount, 2);
+    assert.equal(runtime.enabledCount, 0);
+
+    assert.equal(
+      getCompiledGroupPlan(runtime, "a").count,
+      0
+    );
+
+    assert.equal(
+      getCompiledGroupPlan(runtime, "other").count,
+      0
+    );
+  }
+);
+
+
+test(
+  "group plan keeps all-group filters before group-specific filters",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id: "all-first",
+          }),
+          advancedFilter({
+            id: "group-first",
+            groups: ["a"],
+          }),
+          advancedFilter({
+            id: "all-second",
+          }),
+          advancedFilter({
+            id: "group-second",
+            groups: ["a"],
+          }),
+        ],
+      });
+
+    assert.deepEqual(
+      getCompiledGroupPlan(runtime, "a")
+        .filters
+        .map((item) => item.id),
+      [
+        "all-first",
+        "all-second",
+        "group-first",
+        "group-second",
+      ]
+    );
+  }
+);
+
+
+test(
+  "missing group id only uses all-group filters",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id: "all",
+          }),
+          advancedFilter({
+            id: "specific",
+            groups: ["a"],
+          }),
+        ],
+      });
+
+    assert.deepEqual(
+      getCompiledGroupPlan(runtime, null)
+        .filters
+        .map((item) => item.id),
+      ["all"]
+    );
+  }
+);
+
+
+test(
+  "group plan feature flags ignore disabled expensive filters",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id: "disabled-price",
+            groups: ["a"],
+            price: 500,
+            enabled: false,
+          }),
+          basicFilter({
+            id: "disabled-time",
+            groups: ["a"],
+            time: "sáng",
+            enabled: false,
+          }),
+          advancedFilter({
+            id: "active",
+            groups: ["a"],
+          }),
+        ],
+      });
+
+    const plan =
+      getCompiledGroupPlan(runtime, "a");
+
+    assert.equal(plan.needsBasic, false);
+    assert.equal(plan.needsAdvanced, true);
+    assert.equal(plan.needsPrice, false);
+    assert.equal(plan.needsTime, false);
+  }
+);
