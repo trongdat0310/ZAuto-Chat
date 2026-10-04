@@ -3209,7 +3209,12 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return PopScope(
-      canPop: allowPop || !hasUnsavedChanges,
+      canPop:
+          !saving &&
+          (
+            allowPop ||
+            !hasUnsavedChanges
+          ),
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) {
           return;
