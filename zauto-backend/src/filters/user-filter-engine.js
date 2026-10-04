@@ -16,6 +16,7 @@ import {
 
 import {
   createFilterMessageContext,
+  evaluateBasicFilterDiagnostics,
   evaluateCompiledFilter,
   evaluateCompiledGroupPlan,
 } from "./user-filter-evaluator.js";
@@ -461,13 +462,30 @@ export function previewUserFilterV2(
     );
 
 
+  const compiledFilter =
+    runtime.compiledFilters[0];
+
+
+  const checks =
+    compiledFilter?.mode ===
+      "basic"
+      ? evaluateBasicFilterDiagnostics(
+          compiledFilter,
+          messageText
+        )
+      : null;
+
+
   if (summary.matched === true) {
-    return summary;
+    return {
+      ...summary,
+
+      checks,
+    };
   }
 
 
-  const compiledFilter =
-    runtime.compiledFilters[0];
+  
 
 
   if (!compiledFilter) {
@@ -505,5 +523,7 @@ export function previewUserFilterV2(
     details:
       detailed.details ??
       null,
+
+    checks,
   };
 }
