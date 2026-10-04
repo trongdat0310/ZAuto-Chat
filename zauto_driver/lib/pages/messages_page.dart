@@ -1564,7 +1564,18 @@ class _MessagesPageState extends State<MessagesPage>
 
             leading: const CircleAvatar(child: Icon(Icons.local_taxi)),
 
-            title: Text(content, maxLines: 2, overflow: TextOverflow.ellipsis),
+            title: Text(
+              content,
+
+              maxLines: 2,
+
+              overflow: TextOverflow.ellipsis,
+
+              style: TextStyle(
+                fontSize:
+                    widget.settingsController.settings.chatFontSize,
+              ),
+            ),
 
             subtitle: Text(
               '$groupName\n'
