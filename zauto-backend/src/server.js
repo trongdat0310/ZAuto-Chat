@@ -85,6 +85,7 @@ import {
   saveUserFilterSettings,
   getUserFilterDocumentV2,
   saveUserFilterV2,
+  reorderUserFiltersV2,
   deleteUserFilterV2,
   previewUserFilterV2,
 } from "./filters/user-filter-engine.js";
@@ -1382,6 +1383,53 @@ app.put(
 
       console.error(
         "[ME NOTIFICATION FILTER UPDATE] ERROR:",
+        error
+      );
+
+
+      res
+        .status(400)
+        .json({
+          success: false,
+
+          error:
+            error?.message ??
+            String(error),
+        });
+    }
+  }
+);
+
+
+app.put(
+  "/api/me/notification-filters-order",
+
+  requireAuth,
+
+  (req, res) => {
+
+    try {
+
+      const document =
+        reorderUserFiltersV2(
+          req.user.id,
+          req.body?.orderedIds
+        );
+
+
+      res.json({
+        success: true,
+
+        document,
+
+        filters:
+          document.filters,
+      });
+
+    } catch (error) {
+
+      console.error(
+        "[ME NOTIFICATION FILTER REORDER] ERROR:",
         error
       );
 
