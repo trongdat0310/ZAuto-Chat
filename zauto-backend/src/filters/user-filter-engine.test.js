@@ -836,6 +836,7 @@ test(
             ...advancedFilter({
               show: ["airport"],
             }),
+            id: undefined,
             name: "second",
           }
         );
