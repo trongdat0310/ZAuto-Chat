@@ -2,6 +2,13 @@ import 'dart:async';
 
 import '../../services/app_realtime_service.dart';
 
+const bool _latencyTraceEnabled =
+    bool.fromEnvironment(
+      'ZAUTO_LATENCY_TRACE',
+      defaultValue: false,
+    );
+
+
 class HomeRealtimeHandler {
   final AppRealtimeService realtimeService;
 
@@ -105,6 +112,18 @@ class HomeRealtimeHandler {
         }
 
         final data = Map<String, dynamic>.from(rawData);
+
+        if (_latencyTraceEnabled) {
+          final rawTrace = data['_latencyTrace'];
+
+          if (rawTrace is Map) {
+            data['_latencyTrace'] = <String, dynamic>{
+              ...Map<String, dynamic>.from(rawTrace),
+              'flutterReceivedAtMs':
+                  DateTime.now().millisecondsSinceEpoch,
+            };
+          }
+        }
 
         onNewTrip(data);
       },
