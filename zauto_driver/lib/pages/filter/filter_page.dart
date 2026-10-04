@@ -710,12 +710,38 @@ class _FilterPageState extends State<FilterPage> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          '$mode • $groupText',
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
+                        Wrap(
+                          spacing: 7,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              '$mode • $groupText',
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            if (!enabled)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  'Đang tắt',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                         const SizedBox(height: 7),
                         Text(
@@ -725,7 +751,11 @@ class _FilterPageState extends State<FilterPage> {
                           style: TextStyle(
                             fontSize: 13.2,
                             height: 1.35,
-                            color: colorScheme.onSurfaceVariant,
+                            color: enabled
+                                ? colorScheme.onSurfaceVariant
+                                : colorScheme.onSurfaceVariant.withValues(
+                                    alpha: 0.72,
+                                  ),
                           ),
                         ),
                       ],
