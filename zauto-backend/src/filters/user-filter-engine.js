@@ -5,6 +5,7 @@ import {
   sanitizeUserFilter,
   upsertUserFilter,
   deleteUserFilter,
+  reorderUserFilters,
 } from "./user-filter-store.js";
 
 import {
@@ -378,6 +379,26 @@ export function saveUserFilterV2(
 
 
   return filter;
+}
+
+
+export function reorderUserFiltersV2(
+  userId,
+  orderedIds
+) {
+  const document =
+    reorderUserFilters(
+      userId,
+      orderedIds
+    );
+
+
+  warmUserFilterRuntime(
+    userId
+  );
+
+
+  return document;
 }
 
 
