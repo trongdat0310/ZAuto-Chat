@@ -16,6 +16,7 @@ import {
 
 import {
   createFilterMessageContext,
+  evaluateAdvancedFilterDiagnostics,
   evaluateBasicFilterDiagnostics,
   evaluateCompiledFilter,
   evaluateCompiledGroupPlan,
@@ -473,7 +474,13 @@ export function previewUserFilterV2(
           compiledFilter,
           messageText
         )
-      : null;
+      : compiledFilter?.mode ===
+            "advanced"
+        ? evaluateAdvancedFilterDiagnostics(
+            compiledFilter,
+            messageText
+          )
+        : null;
 
 
   if (summary.matched === true) {
