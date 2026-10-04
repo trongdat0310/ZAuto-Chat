@@ -9,8 +9,6 @@ class TextMessageBubble extends StatelessWidget {
 
   final String content;
 
-  final double fontSize;
-
   final String timeText;
 
   // ========================================
@@ -31,7 +29,6 @@ class TextMessageBubble extends StatelessWidget {
     required this.isRecalled,
     required this.senderName,
     required this.content,
-    required this.fontSize,
     required this.timeText,
     required this.hasQuote,
     required this.quoteSender,
@@ -218,7 +215,7 @@ class TextMessageBubble extends StatelessWidget {
             content,
 
             style: TextStyle(
-              fontSize: fontSize,
+              fontSize: 15,
 
               height: 1.25,
 
