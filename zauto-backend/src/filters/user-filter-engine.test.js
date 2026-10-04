@@ -493,3 +493,199 @@ test(
     );
   }
 );
+
+
+
+test(
+  "advanced preview shows hide overriding show",
+  () => {
+    const result =
+      previewUserFilterV2(
+        advancedFilter({
+          show: ["vip"],
+          hide: ["ghép"],
+        }),
+        "VIP ghép khách"
+      );
+
+    assert.equal(
+      result.matched,
+      false
+    );
+
+    assert.equal(
+      result.checks.length,
+      2
+    );
+
+    const checks =
+      Object.fromEntries(
+        result.checks.map(
+          item => [
+            item.key,
+            item,
+          ]
+        )
+      );
+
+    assert.equal(
+      checks.advanced_hide.status,
+      "fail"
+    );
+
+    assert.equal(
+      checks.advanced_hide.details.matched,
+      "ghép"
+    );
+
+    assert.equal(
+      checks.advanced_show.status,
+      "pass"
+    );
+
+    assert.equal(
+      checks.advanced_show.details.matched,
+      "vip"
+    );
+
+    assert.equal(
+      checks.advanced_show.details.overriddenByHide,
+      true
+    );
+  }
+);
+
+
+test(
+  "advanced preview passes when show matches and hide does not",
+  () => {
+    const result =
+      previewUserFilterV2(
+        advancedFilter({
+          show: ["vip"],
+          hide: ["ghép"],
+        }),
+        "VIP khách riêng"
+      );
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+    const checks =
+      Object.fromEntries(
+        result.checks.map(
+          item => [
+            item.key,
+            item,
+          ]
+        )
+      );
+
+    assert.equal(
+      checks.advanced_hide.status,
+      "pass"
+    );
+
+    assert.equal(
+      checks.advanced_show.status,
+      "pass"
+    );
+
+    assert.equal(
+      checks.advanced_show.details.overriddenByHide,
+      false
+    );
+  }
+);
+
+
+test(
+  "advanced preview marks empty show as catch all",
+  () => {
+    const result =
+      previewUserFilterV2(
+        advancedFilter({
+          show: [],
+          hide: ["ghép"],
+        }),
+        "cuốc thường"
+      );
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+    const checks =
+      Object.fromEntries(
+        result.checks.map(
+          item => [
+            item.key,
+            item,
+          ]
+        )
+      );
+
+    assert.equal(
+      checks.advanced_hide.status,
+      "pass"
+    );
+
+    assert.equal(
+      checks.advanced_show.status,
+      "skipped"
+    );
+
+    assert.equal(
+      checks.advanced_show.details.catchAll,
+      true
+    );
+  }
+);
+
+
+test(
+  "advanced preview catch all is still blocked by hide",
+  () => {
+    const result =
+      previewUserFilterV2(
+        advancedFilter({
+          show: [],
+          hide: ["ghép"],
+        }),
+        "ghép khách"
+      );
+
+    assert.equal(
+      result.matched,
+      false
+    );
+
+    const checks =
+      Object.fromEntries(
+        result.checks.map(
+          item => [
+            item.key,
+            item,
+          ]
+        )
+      );
+
+    assert.equal(
+      checks.advanced_hide.status,
+      "fail"
+    );
+
+    assert.equal(
+      checks.advanced_show.status,
+      "skipped"
+    );
+
+    assert.equal(
+      checks.advanced_show.details.overriddenByHide,
+      true
+    );
+  }
+);
