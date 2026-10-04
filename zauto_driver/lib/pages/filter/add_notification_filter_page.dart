@@ -1760,6 +1760,17 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
 
     final keyword = value.trim();
 
+    final validationError =
+        _validateKeywordPattern(keyword);
+
+    if (validationError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(validationError)),
+      );
+
+      return;
+    }
+
     final target = showKeyword ? advancedShowKeywords : advancedHideKeywords;
 
     if (target.contains(keyword)) {
@@ -1839,6 +1850,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     final addController =
         TextEditingController();
 
+    String? libraryError;
+
     final result =
         await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
@@ -1855,6 +1868,17 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                 return;
               }
 
+              final validationError =
+                  _validateKeywordPattern(value);
+
+              if (validationError != null) {
+                setSheetState(() {
+                  libraryError = validationError;
+                });
+
+                return;
+              }
+
               final exists =
                   draftSaved.any(
                 (item) =>
@@ -1866,6 +1890,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                 setSheetState(() {
                   draftSaved.add(value);
                   selected.add(value);
+                  libraryError = null;
                 });
               }
 
@@ -1935,6 +1960,20 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                         ],
                       ),
                     ),
+                    if (libraryError != null) ...[
+                      Padding(
+                        padding:
+                            const EdgeInsets.fromLTRB(18, 0, 18, 12),
+                        child: Text(
+                          libraryError!,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            height: 1.3,
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    ],
                     const Divider(height: 1),
                     Expanded(
                       child: draftSaved.isEmpty
@@ -2116,6 +2155,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       text: target.join('\n'),
     );
 
+    String? listError;
+
     final result =
         await showModalBottomSheet<List<String>>(
       context: context,
@@ -2125,7 +2166,9 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
         final colorScheme =
             Theme.of(sheetContext).colorScheme;
 
-        return SafeArea(
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
           child: Padding(
             padding: EdgeInsets.only(
               left: 18,
@@ -2177,6 +2220,17 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                     ),
                   ),
                   const SizedBox(height: 14),
+                  if (listError != null) ...[
+                    Text(
+                      listError!,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.3,
+                        color: colorScheme.error,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   FilledButton(
                     onPressed: () {
                       final values =
@@ -2192,6 +2246,18 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
 
                         if (value.isEmpty) {
                           continue;
+                        }
+
+                        final validationError =
+                            _validateKeywordPattern(value);
+
+                        if (validationError != null) {
+                          setSheetState(() {
+                            listError =
+                                '“$value”: $validationError';
+                          });
+
+                          return;
                         }
 
                         final key =
@@ -2213,8 +2279,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                   ),
                 ],
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
