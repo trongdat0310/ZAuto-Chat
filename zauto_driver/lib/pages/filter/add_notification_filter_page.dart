@@ -635,6 +635,240 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     }
   }
 
+  String _previewCheckLabel(String key) {
+    switch (key) {
+      case 'exclude':
+        return 'Từ khoá loại trừ';
+      case 'pickup':
+        return 'Điểm đón';
+      case 'dropoff':
+        return 'Điểm trả';
+      case 'direction':
+        return 'Chiều di chuyển';
+      case 'include':
+        return 'Từ khoá bắt buộc';
+      case 'price':
+        return 'Giá tối thiểu';
+      case 'time':
+        return 'Khung giờ';
+      default:
+        return key;
+    }
+  }
+
+  String _previewCheckDetail(
+    Map<String, dynamic> check,
+  ) {
+    final key =
+        check['key']?.toString() ?? '';
+
+    final status =
+        check['status']?.toString() ?? '';
+
+    final rawDetails =
+        check['details'];
+
+    final details =
+        rawDetails is Map
+            ? Map<String, dynamic>.from(rawDetails)
+            : <String, dynamic>{};
+
+    String joined(dynamic value) {
+      if (value is! List) {
+        return '';
+      }
+
+      return value
+          .map((item) => item.toString())
+          .where((item) => item.isNotEmpty)
+          .join(', ');
+    }
+
+    if (status == 'skipped') {
+      return 'Không đặt điều kiện này.';
+    }
+
+    switch (key) {
+      case 'exclude':
+        final keyword =
+            details['keyword']?.toString() ?? '';
+
+        if (status == 'fail' && keyword.isNotEmpty) {
+          return 'Tìm thấy từ khoá bị loại “$keyword”.';
+        }
+
+        return 'Không có từ khoá bị loại.';
+
+      case 'pickup':
+      case 'dropoff':
+        final matched =
+            details['matched']?.toString() ?? '';
+
+        if (status == 'pass' && matched.isNotEmpty) {
+          return 'Khớp “$matched”.';
+        }
+
+        final expected =
+            joined(details['expected']);
+
+        return expected.isEmpty
+            ? 'Không tìm thấy giá trị phù hợp.'
+            : 'Đang chờ một trong: $expected.';
+
+      case 'direction':
+        if (details['blockedByMissingRoute'] == true) {
+          return 'Chưa thể kiểm tra vì thiếu điểm đón hoặc điểm trả.';
+        }
+
+        final pickup =
+            details['pickup']?.toString() ?? '';
+
+        final dropoff =
+            details['dropoff']?.toString() ?? '';
+
+        if (pickup.isNotEmpty && dropoff.isNotEmpty) {
+          return status == 'pass'
+              ? 'Đúng chiều $pickup → $dropoff.'
+              : 'Sai thứ tự $pickup → $dropoff.';
+        }
+
+        return status == 'pass'
+            ? 'Đúng chiều.'
+            : 'Sai chiều.';
+
+      case 'include':
+        final matched =
+            details['matched']?.toString() ?? '';
+
+        if (status == 'pass' && matched.isNotEmpty) {
+          return 'Khớp “$matched”.';
+        }
+
+        final expected =
+            joined(details['expected']);
+
+        return expected.isEmpty
+            ? 'Không khớp từ khoá bắt buộc.'
+            : 'Đang chờ một trong: $expected.';
+
+      case 'price':
+        final price =
+            _formatPriceThousands(
+          details['messagePrice'],
+        );
+
+        final minimum =
+            _formatPriceThousands(
+          details['minimumPrice'],
+        );
+
+        if (price.isEmpty) {
+          return minimum.isEmpty
+              ? 'Tin nhắn không ghi giá.'
+              : 'Không thấy giá trong tin. Tối thiểu: $minimum.';
+        }
+
+        return minimum.isEmpty
+            ? 'Đọc được giá $price.'
+            : 'Giá đọc được: $price · Tối thiểu: $minimum.';
+
+      case 'time':
+        final rules =
+            details['timeRules']?.toString() ?? '';
+
+        return rules.isEmpty
+            ? 'Không có quy tắc giờ.'
+            : status == 'pass'
+                ? 'Khớp quy tắc “$rules”.'
+                : 'Không khớp quy tắc “$rules”.';
+
+      default:
+        return '';
+    }
+  }
+
+  Widget _buildPreviewCheckRow(
+    BuildContext context,
+    Map<String, dynamic> check,
+  ) {
+    final colorScheme =
+        Theme.of(context).colorScheme;
+
+    final status =
+        check['status']?.toString() ?? '';
+
+    final passed =
+        status == 'pass';
+
+    final skipped =
+        status == 'skipped';
+
+    final icon =
+        passed
+            ? Icons.check_circle_rounded
+            : skipped
+                ? Icons.remove_circle_outline_rounded
+                : Icons.cancel_rounded;
+
+    final iconColor =
+        passed
+            ? colorScheme.primary
+            : skipped
+                ? colorScheme.onSurfaceVariant
+                : colorScheme.error;
+
+    final key =
+        check['key']?.toString() ?? '';
+
+    final detail =
+        _previewCheckDetail(check);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        vertical: 7,
+      ),
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 22,
+            color: iconColor,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _previewCheckLabel(key),
+                  style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (detail.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    detail,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.3,
+                      color:
+                          colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _checkFilter() async {
     if (!_validateForm()) {
       return;
@@ -727,11 +961,50 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                   ? 'Tin nhắn sẽ được nhận'
                   : 'Tin nhắn sẽ bị bỏ qua',
             ),
-            content: Text(
-              explanation,
-              style: const TextStyle(
-                fontSize: 15,
-                height: 1.4,
+            content: SizedBox(
+              width: 520,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.stretch,
+                  mainAxisSize:
+                      MainAxisSize.min,
+                  children: [
+                    Text(
+                      explanation,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        height: 1.4,
+                      ),
+                    ),
+                    if (result['checks'] is List) ...[
+                      const SizedBox(height: 18),
+                      Divider(
+                        height: 1,
+                        color: colorScheme.outlineVariant,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Chi tiết từng điều kiện',
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      ...(result['checks'] as List)
+                          .whereType<Map>()
+                          .map(
+                            (item) =>
+                                _buildPreviewCheckRow(
+                              dialogContext,
+                              Map<String, dynamic>.from(item),
+                            ),
+                          ),
+                    ],
+                  ],
+                ),
               ),
             ),
             actions: [
