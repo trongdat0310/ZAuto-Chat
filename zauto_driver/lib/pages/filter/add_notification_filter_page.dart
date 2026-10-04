@@ -688,7 +688,11 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
           .join(', ');
     }
 
-    if (status == 'skipped') {
+    if (
+      status == 'skipped' &&
+      key != 'advanced_hide' &&
+      key != 'advanced_show'
+    ) {
       return 'Không đặt điều kiện này.';
     }
 
