@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../config/app_config.dart';
+import '../../services/backend_service.dart';
+
 enum _FilterMode { basic, advanced }
 
 class AddNotificationFilterPage extends StatefulWidget {
@@ -12,6 +15,14 @@ class AddNotificationFilterPage extends StatefulWidget {
 
 class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
   static const int maxNameLength = 255;
+
+  final BackendService backend = BackendService(baseUrl: AppConfig.backendUrl);
+
+  final Set<String> selectedGroupIds = {};
+
+  final Map<String, String> selectedGroupNames = {};
+
+  bool saving = false;
 
   final TextEditingController nameController = TextEditingController();
 
@@ -57,19 +68,139 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     setState(() {});
   }
 
-  // ========================================
-  // UI ONLY
-  //
-  // Logic filter/backend se lam sau.
-  // ========================================
+  Map<String, dynamic> _buildFilterPayload() {
+    final rawPrice = minimumPriceController.text.trim();
 
-  void _checkFilter() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Logic kiểm tra bộ lọc sẽ được thêm sau.')),
-    );
+    final minimumPrice = rawPrice.isEmpty ? null : num.tryParse(rawPrice);
+
+    return {
+      'name': nameController.text.trim(),
+      'mode': mode == _FilterMode.advanced ? 'advanced' : 'basic',
+      'enabled': true,
+      'groupIds': selectedGroupIds.toList(),
+      'basic': {
+        'pickup': pickupController.text.trim(),
+        'dropoff': dropoffController.text.trim(),
+        'acceptBothDirections': acceptBothDirections,
+        'includeKeywords': includeController.text.trim(),
+        'excludeKeywords': excludeController.text.trim(),
+        'minimumPrice': minimumPrice,
+        'timeRules': timeController.text.trim(),
+      },
+      'advanced': {
+        'showKeywords': List<String>.from(advancedShowKeywords),
+        'hideKeywords': List<String>.from(advancedHideKeywords),
+      },
+    };
   }
 
-  void _saveFilter() {
+  Future<void> _checkFilter() async {
+    final messageController = TextEditingController();
+
+    final message = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Kiểm tra bộ lọc'),
+          content: TextField(
+            controller: messageController,
+            autofocus: true,
+            minLines: 2,
+            maxLines: 5,
+            decoration: const InputDecoration(
+              hintText: 'Dán một tin nhắn cuốc để kiểm tra...',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('HỦY'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(
+                  messageController.text.trim(),
+                );
+              },
+              child: const Text('KIỂM TRA'),
+            ),
+          ],
+        );
+      },
+    );
+
+    messageController.dispose();
+
+    if (!mounted || message == null || message.isEmpty) {
+      return;
+    }
+
+    try {
+      final result = await backend.previewNotificationFilter(
+        filter: _buildFilterPayload(),
+        messageText: message,
+        groupId: selectedGroupIds.length == 1
+            ? selectedGroupIds.first
+            : null,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      final matched = result['matched'] == true;
+
+      final reason = result['reason']?.toString() ?? '';
+
+      showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          final colorScheme = Theme.of(dialogContext).colorScheme;
+
+          return AlertDialog(
+            icon: Icon(
+              matched
+                  ? Icons.check_circle_rounded
+                  : Icons.cancel_rounded,
+              color: matched
+                  ? colorScheme.primary
+                  : colorScheme.error,
+              size: 44,
+            ),
+            title: Text(
+              matched
+                  ? 'Tin nhắn sẽ được nhận'
+                  : 'Tin nhắn sẽ bị bỏ qua',
+            ),
+            content: reason.isEmpty
+                ? null
+                : Text('Kết quả: $reason'),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('ĐÓNG'),
+              ),
+            ],
+          );
+        },
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể kiểm tra bộ lọc: $error')),
+      );
+    }
+  }
+
+  Future<void> _saveFilter() async {
+    if (saving) {
+      return;
+    }
+
     if (nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vui lòng nhập tên bộ lọc.')),
@@ -78,17 +209,183 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Logic lưu bộ lọc sẽ được thêm sau.')),
-    );
+    final rawPrice = minimumPriceController.text.trim();
+
+    if (rawPrice.isNotEmpty && num.tryParse(rawPrice) == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Giá tối thiểu phải là một số hợp lệ.'),
+        ),
+      );
+
+      return;
+    }
+
+    setState(() {
+      saving = true;
+    });
+
+    try {
+      final saved = await backend.createNotificationFilter(
+        _buildFilterPayload(),
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      Navigator.of(context).pop(saved);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể lưu bộ lọc: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          saving = false;
+        });
+      }
+    }
   }
 
-  void _openGroupSelector() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Chọn nhóm áp dụng sẽ được thêm cùng logic bộ lọc.'),
-      ),
+  Future<void> _openGroupSelector() async {
+    List<Map<String, dynamic>> groups;
+
+    try {
+      groups = await backend.getGroups();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể tải danh sách nhóm: $error')),
+      );
+
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    final draft = Set<String>.from(selectedGroupIds);
+
+    final selected = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SafeArea(
+              child: SizedBox(
+                height: MediaQuery.sizeOf(context).height * 0.78,
+                child: Column(
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(20, 4, 20, 12),
+                      child: Text(
+                        'Chọn nhóm áp dụng',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    CheckboxListTile(
+                      value: draft.isEmpty,
+                      title: const Text('Tất cả các nhóm'),
+                      subtitle: const Text(
+                        'Bộ lọc áp dụng cho mọi nhóm đang bật theo dõi.',
+                      ),
+                      onChanged: (_) {
+                        setSheetState(() {
+                          draft.clear();
+                        });
+                      },
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: groups.length,
+                        itemBuilder: (context, index) {
+                          final group = groups[index];
+
+                          final groupId =
+                              group['groupId']?.toString() ?? '';
+
+                          final name =
+                              group['name']?.toString() ?? groupId;
+
+                          if (groupId.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+
+                          return CheckboxListTile(
+                            value: draft.contains(groupId),
+                            title: Text(name),
+                            onChanged: (value) {
+                              setSheetState(() {
+                                if (value == true) {
+                                  draft.add(groupId);
+                                } else {
+                                  draft.remove(groupId);
+                                }
+                              });
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: () {
+                            Navigator.of(sheetContext).pop(draft);
+                          },
+                          child: const Text('XONG'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
+
+    if (!mounted || selected == null) {
+      return;
+    }
+
+    final names = <String, String>{};
+
+    for (final group in groups) {
+      final groupId = group['groupId']?.toString() ?? '';
+
+      if (selected.contains(groupId)) {
+        names[groupId] = group['name']?.toString() ?? groupId;
+      }
+    }
+
+    setState(() {
+      selectedGroupIds
+        ..clear()
+        ..addAll(selected);
+
+      selectedGroupNames
+        ..clear()
+        ..addAll(names);
+    });
   }
 
   void _showModeInfo(_FilterMode targetMode) {
@@ -981,10 +1278,17 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
   }
 
   void _addQuickTime(String value) {
+    final rule = switch (value) {
+      'cả ngày 6h-22h' => '6h-22h',
+      'gấp — trong 15p' => '15p',
+      'trong 30p' => '0-30p',
+      _ => value,
+    };
+
     final current = timeController.text.trim();
 
     if (current.isEmpty) {
-      timeController.text = value;
+      timeController.text = rule;
     } else {
       final values = current
           .split(',')
@@ -992,8 +1296,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
           .where((item) => item.isNotEmpty)
           .toList();
 
-      if (!values.contains(value)) {
-        values.add(value);
+      if (!values.contains(rule)) {
+        values.add(rule);
       }
 
       timeController.text = values.join(', ');
@@ -1686,11 +1990,18 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
 
                         const SizedBox(width: 16),
 
-                        const Expanded(
+                        Expanded(
                           child: Text(
-                            'Tất cả các nhóm',
+                            selectedGroupIds.isEmpty
+                                ? 'Tất cả các nhóm'
+                                : selectedGroupIds.length == 1
+                                    ? (selectedGroupNames[
+                                            selectedGroupIds.first
+                                          ] ??
+                                        '1 nhóm đã chọn')
+                                    : '${selectedGroupIds.length} nhóm đã chọn',
 
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w400,
                             ),
@@ -1751,7 +2062,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: _checkFilter,
+                  onPressed: saving ? null : _checkFilter,
 
                   icon: Icon(Icons.tune_rounded, color: colorScheme.primary),
 
@@ -1778,7 +2089,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
 
               Expanded(
                 child: FilledButton(
-                  onPressed: _saveFilter,
+                  onPressed: saving ? null : _saveFilter,
 
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(58),
@@ -1788,14 +2099,20 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                     ),
                   ),
 
-                  child: const Text(
-                    'Lưu và sử dụng',
+                  child: saving
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text(
+                          'Lưu và sử dụng',
 
-                    style: TextStyle(
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
+                          style: TextStyle(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
                 ),
               ),
             ],
