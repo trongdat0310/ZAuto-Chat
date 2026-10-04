@@ -49,6 +49,10 @@ class _MessagesPageState extends State<MessagesPage>
 
   Timer? realtimeRefreshTimer;
 
+  Timer? realtimeConversationRefreshTimer;
+
+  Timer? realtimeAcceptedRefreshTimer;
+
   bool realtimeStarted = false;
 
   bool realtimeDisposed = false;
@@ -133,8 +137,22 @@ class _MessagesPageState extends State<MessagesPage>
         // ========================================
 
         if (type == 'trip_accepted') {
-          scheduleRealtimeRefresh();
+          scheduleAcceptedTripsRefresh();
 
+          return;
+        }
+
+        // ========================================
+        // NEW TRIP
+        //
+        // HomePage da nhan payload realtime truc tiep.
+        // MessagesPage khong can reload 3 API.
+        //
+        // Conversation store se phat rieng
+        // "conversation_message" de cap nhat danh sach chat.
+        // ========================================
+
+        if (type == 'new_trip') {
           return;
         }
 
@@ -142,17 +160,16 @@ class _MessagesPageState extends State<MessagesPage>
         // CONVERSATION STATE THAY DOI
         // ========================================
 
-        if (type != 'conversation_message' &&
-            type != 'conversation_message_updated' &&
-            type != 'conversation_read' &&
-            type != 'conversation_pinned' &&
-            type != 'conversation_deleted' &&
-            type != 'new_trip' &&
-            type != 'conversation_history_synced') {
+        if (type == 'conversation_message' ||
+            type == 'conversation_message_updated' ||
+            type == 'conversation_read' ||
+            type == 'conversation_pinned' ||
+            type == 'conversation_deleted' ||
+            type == 'conversation_history_synced') {
+          scheduleConversationRefresh();
+
           return;
         }
-
-        scheduleRealtimeRefresh();
       },
 
       onError: (Object error) {
@@ -181,6 +198,76 @@ class _MessagesPageState extends State<MessagesPage>
         debugPrint('MESSAGES REALTIME STREAM DONE');
       },
     );
+  }
+
+  void scheduleConversationRefresh() {
+    if (realtimeDisposed) {
+      return;
+    }
+
+    realtimeConversationRefreshTimer?.cancel();
+
+    realtimeConversationRefreshTimer =
+        Timer(const Duration(milliseconds: 100), () async {
+      realtimeConversationRefreshTimer = null;
+
+      if (realtimeDisposed || !mounted) {
+        return;
+      }
+
+      try {
+        final result =
+            await backend.getConversations();
+
+        if (realtimeDisposed || !mounted) {
+          return;
+        }
+
+        setState(() {
+          conversations = result;
+        });
+      } catch (error) {
+        debugPrint(
+          'MESSAGES CONVERSATION '
+          'REFRESH ERROR: $error',
+        );
+      }
+    });
+  }
+
+  void scheduleAcceptedTripsRefresh() {
+    if (realtimeDisposed) {
+      return;
+    }
+
+    realtimeAcceptedRefreshTimer?.cancel();
+
+    realtimeAcceptedRefreshTimer =
+        Timer(const Duration(milliseconds: 100), () async {
+      realtimeAcceptedRefreshTimer = null;
+
+      if (realtimeDisposed || !mounted) {
+        return;
+      }
+
+      try {
+        final result =
+            await backend.getAcceptedTrips();
+
+        if (realtimeDisposed || !mounted) {
+          return;
+        }
+
+        setState(() {
+          acceptedTrips = result;
+        });
+      } catch (error) {
+        debugPrint(
+          'MESSAGES ACCEPTED TRIPS '
+          'REFRESH ERROR: $error',
+        );
+      }
+    });
   }
 
   void scheduleRealtimeRefresh() {
@@ -1534,6 +1621,8 @@ class _MessagesPageState extends State<MessagesPage>
     }
 
     realtimeRefreshTimer?.cancel();
+    realtimeConversationRefreshTimer?.cancel();
+    realtimeAcceptedRefreshTimer?.cancel();
     realtimeRefreshTimer = null;
 
     tabController.dispose();
