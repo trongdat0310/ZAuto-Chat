@@ -1313,9 +1313,6 @@ class _MessagesPageState extends State<MessagesPage>
                     overflow: TextOverflow.ellipsis,
 
                     style: TextStyle(
-                      fontSize:
-                          widget.settingsController.settings.chatFontSize,
-
                       color: hasUnread
                           ? colorScheme.onSurface
                           : colorScheme.onSurfaceVariant,
@@ -1571,10 +1568,6 @@ class _MessagesPageState extends State<MessagesPage>
 
               overflow: TextOverflow.ellipsis,
 
-              style: TextStyle(
-                fontSize:
-                    widget.settingsController.settings.chatFontSize,
-              ),
             ),
 
             subtitle: Text(
