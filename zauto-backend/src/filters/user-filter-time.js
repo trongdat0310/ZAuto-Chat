@@ -592,6 +592,19 @@ function collectExplicitClockRanges(
         pattern.exec(text)
     ) !== null
   ) {
+    // "0-15" theo UI la khoang PHUT gap,
+    // khong phai 00:00-15:00.
+    if (
+      match[1] === "0" &&
+      match[2] === undefined &&
+      match[3] === undefined &&
+      match[5] === undefined &&
+      match[6] === undefined
+    ) {
+      continue;
+    }
+
+
     const start =
       parseClockParts(
         match[1],
