@@ -280,3 +280,216 @@ test(
     );
   }
 );
+
+
+
+test(
+  "basic preview returns all per-condition checks when matched",
+  () => {
+    const result =
+      previewUserFilterV2(
+        basicFilter({
+          pickup: "q1",
+          dropoff: "nội bài",
+          include: "4c",
+          exclude: "ghép",
+          price: 500,
+          time: "sáng",
+        }),
+        "sáng mai 7h Q1 đi Nội Bài xe 4c giá 650k"
+      );
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+    assert.equal(
+      result.checks.length,
+      7
+    );
+
+    const statuses =
+      Object.fromEntries(
+        result.checks.map(
+          item => [
+            item.key,
+            item.status,
+          ]
+        )
+      );
+
+    assert.equal(
+      statuses.exclude,
+      "pass"
+    );
+
+    assert.equal(
+      statuses.pickup,
+      "pass"
+    );
+
+    assert.equal(
+      statuses.dropoff,
+      "pass"
+    );
+
+    assert.equal(
+      statuses.direction,
+      "pass"
+    );
+
+    assert.equal(
+      statuses.include,
+      "pass"
+    );
+
+    assert.equal(
+      statuses.price,
+      "pass"
+    );
+
+    assert.equal(
+      statuses.time,
+      "pass"
+    );
+  }
+);
+
+
+test(
+  "basic preview diagnostics show multiple failures at once",
+  () => {
+    const result =
+      previewUserFilterV2(
+        basicFilter({
+          pickup: "q1",
+          dropoff: "nội bài",
+          include: "4c",
+          exclude: "ghép",
+          price: 500,
+          time: "sáng",
+        }),
+        "tối nay Bình Thạnh đi Thủ Đức xe 7c giá 450k ghép khách"
+      );
+
+    assert.equal(
+      result.matched,
+      false
+    );
+
+    const checks =
+      Object.fromEntries(
+        result.checks.map(
+          item => [
+            item.key,
+            item,
+          ]
+        )
+      );
+
+    assert.equal(
+      checks.exclude.status,
+      "fail"
+    );
+
+    assert.equal(
+      checks.exclude.details.keyword,
+      "ghép"
+    );
+
+    assert.equal(
+      checks.pickup.status,
+      "fail"
+    );
+
+    assert.equal(
+      checks.dropoff.status,
+      "fail"
+    );
+
+    assert.equal(
+      checks.direction.status,
+      "fail"
+    );
+
+    assert.equal(
+      checks.include.status,
+      "fail"
+    );
+
+    assert.equal(
+      checks.price.status,
+      "fail"
+    );
+
+    assert.equal(
+      checks.price.details.messagePrice,
+      450
+    );
+
+    assert.equal(
+      checks.time.status,
+      "fail"
+    );
+  }
+);
+
+
+test(
+  "basic preview marks unused conditions as skipped",
+  () => {
+    const result =
+      previewUserFilterV2(
+        basicFilter({
+          include: "vip",
+        }),
+        "VIP"
+      );
+
+    const statuses =
+      Object.fromEntries(
+        result.checks.map(
+          item => [
+            item.key,
+            item.status,
+          ]
+        )
+      );
+
+    assert.equal(
+      statuses.exclude,
+      "skipped"
+    );
+
+    assert.equal(
+      statuses.pickup,
+      "skipped"
+    );
+
+    assert.equal(
+      statuses.dropoff,
+      "skipped"
+    );
+
+    assert.equal(
+      statuses.direction,
+      "skipped"
+    );
+
+    assert.equal(
+      statuses.include,
+      "pass"
+    );
+
+    assert.equal(
+      statuses.price,
+      "skipped"
+    );
+
+    assert.equal(
+      statuses.time,
+      "skipped"
+    );
+  }
+);
