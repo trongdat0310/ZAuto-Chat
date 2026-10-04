@@ -833,12 +833,13 @@ class _FilterPageState extends State<FilterPage> {
 
           final filterId = filter['id']?.toString() ?? '';
 
-          final updating =
+          final mutating =
+              filterId.isNotEmpty &&
+              filterMutations.containsKey(filterId);
+
+          final interactionLocked =
               reorderingFilters ||
-              (
-                filterId.isNotEmpty &&
-                filterMutations.containsKey(filterId)
-              );
+              mutating;
 
           final mutationLabel =
               filterId.isEmpty
@@ -865,7 +866,7 @@ class _FilterPageState extends State<FilterPage> {
             borderRadius: BorderRadius.circular(18),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
-              onTap: updating
+              onTap: interactionLocked
                   ? null
                   : () {
                       _editFilter(filter);
@@ -877,7 +878,7 @@ class _FilterPageState extends State<FilterPage> {
                     SizedBox(
                       width: 24,
                       height: 24,
-                      child: updating
+                      child: mutating
                           ? const CircularProgressIndicator(
                               strokeWidth: 2.2,
                             )
@@ -909,7 +910,7 @@ class _FilterPageState extends State<FilterPage> {
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             Text(
-                              '$mode • $groupText',
+                              'Ưu tiên ${index + 1} • $mode • $groupText',
                               style: TextStyle(
                                 fontSize: 13.5,
                                 color: colorScheme.onSurfaceVariant,
@@ -975,14 +976,14 @@ class _FilterPageState extends State<FilterPage> {
                   ),
                   Switch(
                     value: enabled,
-                    onChanged: updating
+                    onChanged: interactionLocked
                         ? null
                         : (value) {
                             _toggleFilter(filter, value);
                           },
                   ),
                   PopupMenuButton<String>(
-                    enabled: !updating,
+                    enabled: !interactionLocked,
                     onSelected: (value) {
                       if (value == 'move_up') {
                         _moveFilter(index, -1);
