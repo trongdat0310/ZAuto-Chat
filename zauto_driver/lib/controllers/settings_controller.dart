@@ -79,6 +79,31 @@ class SettingsController
 
 
 
+  void previewFontSize(
+      double value,
+      ) {
+
+
+    if (
+      _settings.chatFontSize ==
+      value
+    ) {
+      return;
+    }
+
+
+    _settings =
+        _settings.copyWith(
+          chatFontSize:
+          value,
+        );
+
+
+    notifyListeners();
+  }
+
+
+
   Future<void> updateFontSize(
       double value,
       ) async {
