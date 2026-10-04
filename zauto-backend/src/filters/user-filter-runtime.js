@@ -9,6 +9,10 @@ import {
   compileLegacyContainsList,
 } from "./user-filter-matcher.js";
 
+import {
+  compileTimeRules,
+} from "./user-filter-time.js";
+
 
 // ========================================
 // RUNTIME CACHE
@@ -116,6 +120,12 @@ function compileBasicFilter(
     ).trim();
 
 
+  const compiledTimeRules =
+    compileTimeRules(
+      timeRules
+    );
+
+
   return {
     pickupMatchers,
 
@@ -133,6 +143,8 @@ function compileBasicFilter(
 
     timeRules,
 
+    compiledTimeRules,
+
     // ========================================
     // FEATURE FLAGS
     //
@@ -144,7 +156,7 @@ function compileBasicFilter(
       minimumPrice !== null,
 
     needsTime:
-      timeRules.length > 0,
+      compiledTimeRules.hasRules,
 
     needsDirection:
       pickupMatchers.length > 0 &&
