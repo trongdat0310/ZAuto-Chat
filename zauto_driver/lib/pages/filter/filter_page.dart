@@ -23,6 +23,8 @@ class _FilterPageState extends State<FilterPage> {
 
   List<Map<String, dynamic>> filters = [];
 
+  final Set<String> updatingFilterIds = {};
+
   bool loading = true;
 
   int get filterCount => filters.length;
@@ -85,7 +87,24 @@ class _FilterPageState extends State<FilterPage> {
       return;
     }
 
-    await _loadFilters();
+    final savedId = saved['id']?.toString() ?? '';
+
+    if (
+      savedId.isEmpty ||
+      filters.any(
+        (item) => item['id']?.toString() == savedId,
+      )
+    ) {
+      await _loadFilters();
+      return;
+    }
+
+    setState(() {
+      filters = [
+        ...filters,
+        saved,
+      ];
+    });
   }
 
   Future<void> _editFilter(Map<String, dynamic> filter) async {
@@ -190,9 +209,14 @@ class _FilterPageState extends State<FilterPage> {
       return;
     }
 
+    if (updatingFilterIds.contains(filterId)) {
+      return;
+    }
+
     final previous = filter['enabled'] != false;
 
     setState(() {
+      updatingFilterIds.add(filterId);
       filter['enabled'] = enabled;
     });
 
@@ -230,6 +254,12 @@ class _FilterPageState extends State<FilterPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Không thể cập nhật bộ lọc: $error')),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          updatingFilterIds.remove(filterId);
+        });
+      }
     }
   }
 
@@ -402,6 +432,12 @@ class _FilterPageState extends State<FilterPage> {
 
           final enabled = filter['enabled'] != false;
 
+          final filterId = filter['id']?.toString() ?? '';
+
+          final updating =
+              filterId.isNotEmpty &&
+              updatingFilterIds.contains(filterId);
+
           final mode = filter['mode']?.toString() == 'advanced'
               ? 'Nâng cao'
               : 'Cơ bản';
@@ -454,9 +490,11 @@ class _FilterPageState extends State<FilterPage> {
                   ),
                   Switch(
                     value: enabled,
-                    onChanged: (value) {
-                      _toggleFilter(filter, value);
-                    },
+                    onChanged: updating
+                        ? null
+                        : (value) {
+                            _toggleFilter(filter, value);
+                          },
                   ),
                   PopupMenuButton<String>(
                     onSelected: (value) {
