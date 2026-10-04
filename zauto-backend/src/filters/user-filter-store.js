@@ -914,6 +914,117 @@ saved.filters.length -
 
 
 // ========================================
+// REORDER FILTERS
+//
+// Thu tu trong document = priority.
+// Chi ghi disk khi user doi thu tu.
+// ========================================
+
+export function reorderUserFilters(
+userId,
+orderedIds
+) {
+const current =
+getUserFilterDocument(
+userId
+);
+
+
+if (
+!Array.isArray(
+orderedIds
+)
+) {
+throw new Error(
+"Danh sach thu tu bo loc khong hop le."
+);
+}
+
+
+const ids =
+orderedIds
+    .map(
+value =>
+sanitizeText(
+value,
+128
+)
+)
+    .filter(Boolean);
+
+
+if (
+ids.length !==
+current.filters.length
+) {
+throw new Error(
+"Danh sach thu tu phai chua day du tat ca bo loc."
+);
+}
+
+
+const seen =
+new Set(
+ids
+);
+
+
+if (
+seen.size !==
+ids.length
+) {
+throw new Error(
+"Danh sach thu tu co bo loc bi trung."
+);
+}
+
+
+const byId =
+new Map(
+current.filters.map(
+filter => [
+filter.id,
+filter,
+]
+)
+);
+
+
+for (
+const id of ids
+) {
+if (
+!byId.has(
+id
+)
+) {
+throw new Error(
+"Khong tim thay bo loc trong danh sach thu tu."
+);
+}
+}
+
+
+const filters =
+ids.map(
+id =>
+byId.get(
+id
+)
+);
+
+
+return persistDocument(
+userId,
+{
+...current,
+filters,
+}
+);
+}
+
+
+// ========================================
 // DELETE ONE FILTER
 // ========================================
 
