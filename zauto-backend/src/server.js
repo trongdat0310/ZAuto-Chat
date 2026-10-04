@@ -83,6 +83,10 @@ import {
 import {
   getUserFilterSettings,
   saveUserFilterSettings,
+  getUserFilterDocumentV2,
+  saveUserFilterV2,
+  deleteUserFilterV2,
+  previewUserFilterV2,
 } from "./filters/user-filter-engine.js";
 
 import {
@@ -1201,6 +1205,248 @@ app.post(
     });
   }
 );
+
+// ========================================
+// CURRENT USER NOTIFICATION FILTERS V2
+// ========================================
+
+app.get(
+  "/api/me/notification-filters",
+
+  requireAuth,
+
+  (req, res) => {
+
+    const document =
+      getUserFilterDocumentV2(
+        req.user.id
+      );
+
+
+    res.json({
+      success: true,
+
+      document,
+
+      filters:
+        document.filters,
+    });
+  }
+);
+
+
+app.post(
+  "/api/me/notification-filters",
+
+  requireAuth,
+
+  (req, res) => {
+
+    try {
+
+      const filter =
+        saveUserFilterV2(
+          req.user.id,
+          req.body
+        );
+
+
+      res.json({
+        success: true,
+
+        filter,
+      });
+
+    } catch (error) {
+
+      console.error(
+        "[ME NOTIFICATION FILTER CREATE] ERROR:",
+        error
+      );
+
+
+      res
+        .status(400)
+        .json({
+          success: false,
+
+          error:
+            error?.message ??
+            String(error),
+        });
+    }
+  }
+);
+
+
+app.put(
+  "/api/me/notification-filters/:filterId",
+
+  requireAuth,
+
+  (req, res) => {
+
+    try {
+
+      const filter =
+        saveUserFilterV2(
+          req.user.id,
+          {
+            ...req.body,
+
+            id:
+              req.params.filterId,
+          }
+        );
+
+
+      res.json({
+        success: true,
+
+        filter,
+      });
+
+    } catch (error) {
+
+      console.error(
+        "[ME NOTIFICATION FILTER UPDATE] ERROR:",
+        error
+      );
+
+
+      res
+        .status(400)
+        .json({
+          success: false,
+
+          error:
+            error?.message ??
+            String(error),
+        });
+    }
+  }
+);
+
+
+app.delete(
+  "/api/me/notification-filters/:filterId",
+
+  requireAuth,
+
+  (req, res) => {
+
+    try {
+
+      const deleted =
+        deleteUserFilterV2(
+          req.user.id,
+          req.params.filterId
+        );
+
+
+      if (!deleted) {
+        return res
+          .status(404)
+          .json({
+            success: false,
+
+            error:
+              "Khong tim thay bo loc.",
+          });
+      }
+
+
+      res.json({
+        success: true,
+
+        deleted: true,
+      });
+
+    } catch (error) {
+
+      console.error(
+        "[ME NOTIFICATION FILTER DELETE] ERROR:",
+        error
+      );
+
+
+      res
+        .status(500)
+        .json({
+          success: false,
+
+          error:
+            error?.message ??
+            String(error),
+        });
+    }
+  }
+);
+
+
+app.post(
+  "/api/me/notification-filters/preview",
+
+  requireAuth,
+
+  (req, res) => {
+
+    try {
+
+      const messageText =
+        String(
+          req.body?.messageText ??
+          ""
+        );
+
+
+      const filter =
+        req.body?.filter ??
+        {};
+
+
+      const groupId =
+        req.body?.groupId ??
+        null;
+
+
+      const result =
+        previewUserFilterV2(
+          filter,
+          messageText,
+          {
+            groupId,
+          }
+        );
+
+
+      res.json({
+        success: true,
+
+        result,
+      });
+
+    } catch (error) {
+
+      console.error(
+        "[ME NOTIFICATION FILTER PREVIEW] ERROR:",
+        error
+      );
+
+
+      res
+        .status(400)
+        .json({
+          success: false,
+
+          error:
+            error?.message ??
+            String(error),
+        });
+    }
+  }
+);
+
 
 // ========================================
 // CURRENT USER MESSAGES
