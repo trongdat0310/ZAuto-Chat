@@ -11,30 +11,33 @@ import {
 
 const DAYPART_RANGES =
   Object.freeze({
+    // Cac range nay dung endpoint inclusive
+    // trong rangesOverlap(), vi vay cac moc
+    // giao nhau phai tach nhau 1 phut.
     sang: [
-      [300, 660],
+      [300, 659],
     ],
 
     trua: [
-      [660, 780],
+      [660, 779],
     ],
 
     chieu: [
-      [780, 1080],
+      [780, 1079],
     ],
 
     toi: [
-      [1080, 1380],
+      [1080, 1319],
     ],
 
     dem: [
-      [1320, 1440],
-      [0, 240],
+      [1320, 1439],
+      [0, 239],
     ],
 
     khuya: [
-      [1320, 1440],
-      [0, 240],
+      [1320, 1439],
+      [0, 239],
     ],
   });
 
