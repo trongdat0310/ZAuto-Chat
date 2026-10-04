@@ -301,21 +301,49 @@ function parseOrderedGroups(
 
 
 // ========================================
-// ORDERED MATCH
+// FIND ORDERED GROUPS
+//
+// Tra ve:
+// {
+//   index,
+//   end
+// }
+//
+// Hoac null.
+//
+// startAt cho phep route evaluator tim
+// occurrence tiep theo ma khong compile lai.
 // ========================================
 
-function matchOrderedGroups(
+function findOrderedGroups(
   text,
-  groups
+  groups,
+  startAt = 0
 ) {
-  let cursor = 0;
+  let cursor =
+    Math.max(
+      0,
+      startAt
+    );
+
+
+  let firstIndex =
+    -1;
+
+  let finalEnd =
+    -1;
+
 
   for (
     const alternatives
     of groups
   ) {
-    let bestIndex = -1;
-    let bestLength = 0;
+    let bestIndex =
+      -1;
+
+    let bestLength =
+      0;
+
 
     for (
       const alternative
@@ -327,17 +355,17 @@ function matchOrderedGroups(
           cursor
         );
 
+
       if (
         index < 0
       ) {
         continue;
       }
 
-      // Lay occurrence som nhat.
+
       if (
         bestIndex < 0 ||
-        index <
-          bestIndex
+        index < bestIndex
       ) {
         bestIndex =
           index;
@@ -347,18 +375,56 @@ function matchOrderedGroups(
       }
     }
 
+
     if (
       bestIndex < 0
     ) {
-      return false;
+      return null;
     }
+
+
+    if (
+      firstIndex < 0
+    ) {
+      firstIndex =
+        bestIndex;
+    }
+
 
     cursor =
       bestIndex +
       bestLength;
+
+
+    finalEnd =
+      cursor;
   }
 
-  return true;
+
+  return {
+    index:
+      firstIndex,
+
+    end:
+      finalEnd,
+  };
+}
+
+
+// ========================================
+// BOOLEAN WRAPPER
+// ========================================
+
+function matchOrderedGroups(
+  text,
+  groups
+) {
+  return (
+    findOrderedGroups(
+      text,
+      groups
+    ) !== null
+  );
 }
 
 
@@ -418,6 +484,17 @@ export function compileKeywordPattern(
             ? "wildcard-or"
             : "ordered-wildcard",
 
+        find(
+          normalizedText,
+          startAt = 0
+        ) {
+          return findOrderedGroups(
+            normalizedText,
+            groups,
+            startAt
+          );
+        },
+
         matches(
           normalizedText
         ) {
@@ -462,6 +539,36 @@ export function compileKeywordPattern(
 
       kind:
         "contains",
+
+      find(
+        normalizedText,
+        startAt = 0
+      ) {
+        const index =
+          normalizedText.indexOf(
+            inner,
+            Math.max(
+              0,
+              startAt
+            )
+          );
+
+
+        if (
+          index < 0
+        ) {
+          return null;
+        }
+
+
+        return {
+          index,
+
+          end:
+            index +
+            inner.length,
+        };
+      },
 
       matches(
         normalizedText
@@ -514,6 +621,34 @@ export function compileKeywordPattern(
       )
         ? "number"
         : "exact",
+
+    find(
+      normalizedText,
+      startAt = 0
+    ) {
+      const index =
+        findWholePhrase(
+          normalizedText,
+          normalized,
+          startAt
+        );
+
+
+      if (
+        index < 0
+      ) {
+        return null;
+      }
+
+
+      return {
+        index,
+
+        end:
+          index +
+          normalized.length,
+      };
+    },
 
     matches(
       normalizedText
@@ -636,6 +771,140 @@ export function findFirstKeywordMatch(
   return null;
 }
 
+// ========================================
+// FIRST OCCURRENCE
+//
+// Tim matcher xuat hien SOM NHAT.
+//
+// Khong compile.
+// Khong normalize.
+// Chi chay tren normalized message.
+// ========================================
+
+export function findFirstKeywordOccurrence(
+  compiledMatchers,
+  normalizedText,
+  startAt = 0
+) {
+  let best =
+    null;
+
+
+  for (
+    const matcher
+    of compiledMatchers
+  ) {
+    if (
+      typeof matcher.find !==
+      "function"
+    ) {
+      continue;
+    }
+
+
+    const occurrence =
+      matcher.find(
+        normalizedText,
+        startAt
+      );
+
+
+    if (!occurrence) {
+      continue;
+    }
+
+
+    if (
+      !best ||
+      occurrence.index <
+        best.index
+    ) {
+      best = {
+        matcher,
+
+        index:
+          occurrence.index,
+
+        end:
+          occurrence.end,
+      };
+    }
+  }
+
+
+  return best;
+}
+
+
+// ========================================
+// ORDERED ROUTE
+//
+// pickup phai xuat hien truoc dropoff.
+//
+// Neu message co nhieu occurrence,
+// ta tiep tuc tim pickup tiep theo.
+//
+// VD:
+// "noi bai ve q1, q1 di noi bai"
+//
+// Van co mot cap:
+// q1 -> noi bai
+//
+// nen result = match.
+// ========================================
+
+export function findOrderedKeywordPair(
+  pickupMatchers,
+  dropoffMatchers,
+  normalizedText
+) {
+  let searchAt =
+    0;
+
+
+  while (
+    searchAt <
+    normalizedText.length
+  ) {
+    const pickup =
+      findFirstKeywordOccurrence(
+        pickupMatchers,
+        normalizedText,
+        searchAt
+      );
+
+
+    if (!pickup) {
+      return null;
+    }
+
+
+    const dropoff =
+      findFirstKeywordOccurrence(
+        dropoffMatchers,
+        normalizedText,
+        pickup.end
+      );
+
+
+    if (dropoff) {
+      return {
+        pickup,
+
+        dropoff,
+      };
+    }
+
+
+    // Tim pickup occurrence tiep theo.
+    searchAt =
+      pickup.index + 1;
+  }
+
+
+  return null;
+}
+
 
 // ========================================
 // LEGACY MATCHER
@@ -694,6 +963,36 @@ export function compileLegacyContainsList(
 
       kind:
         "legacy-contains",
+
+      find(
+        normalizedText,
+        startAt = 0
+      ) {
+        const index =
+          normalizedText.indexOf(
+            normalized,
+            Math.max(
+              0,
+              startAt
+            )
+          );
+
+
+        if (
+          index < 0
+        ) {
+          return null;
+        }
+
+
+        return {
+          index,
+
+          end:
+            index +
+            normalized.length,
+        };
+      },
 
       matches(
         normalizedText

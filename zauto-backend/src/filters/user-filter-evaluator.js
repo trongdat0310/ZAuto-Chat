@@ -1,6 +1,8 @@
 import {
   normalizeFilterText,
   findFirstKeywordMatch,
+  findFirstKeywordOccurrence,
+  findOrderedKeywordPair,
 } from "./user-filter-matcher.js";
 
 
@@ -114,6 +116,33 @@ function rejected(
   };
 }
 
+function pending(
+  filter,
+  reason
+) {
+  return {
+    state:
+      "pending",
+
+    matched:
+      null,
+
+    reason,
+
+    filterId:
+      filter.id,
+
+    filterName:
+      filter.name,
+
+    mode:
+      filter.mode,
+
+    keyword:
+      null,
+  };
+}
+
 
 // ========================================
 // ADVANCED FILTER
@@ -218,6 +247,233 @@ export function evaluateAdvancedFilter(
   );
 }
 
+// ========================================
+// BASIC FILTER
+//
+// Thu tu:
+// 1. exclude
+// 2. pickup
+// 3. dropoff
+// 4. direction
+// 5. include
+// 6. price/time
+//
+// Price/time se lam buoc ke tiep.
+// ========================================
+
+export function evaluateBasicFilter(
+  filter,
+  context
+) {
+  const basic =
+    filter.basic;
+
+
+  if (!basic) {
+    return rejected(
+      filter,
+      "basic_runtime_missing"
+    );
+  }
+
+
+  // ========================================
+  // 1. EXCLUDE
+  //
+  // Exclude thang moi dieu kien khac
+  // TRONG filter nay.
+  // ========================================
+
+  const excludeMatch =
+    findFirstKeywordMatch(
+      basic.excludeMatchers,
+      context.text
+    );
+
+
+  if (excludeMatch) {
+    return rejected(
+      filter,
+      "basic_excluded_keyword",
+      {
+        keyword:
+          excludeMatch.source,
+      }
+    );
+  }
+
+
+  // ========================================
+  // 2. PICKUP
+  // ========================================
+
+  const hasPickupRule =
+    basic
+      .pickupMatchers
+      .length >
+    0;
+
+
+  const pickup =
+    hasPickupRule
+      ? findFirstKeywordOccurrence(
+          basic.pickupMatchers,
+          context.text
+        )
+      : null;
+
+
+  if (
+    hasPickupRule &&
+    !pickup
+  ) {
+    return rejected(
+      filter,
+      "basic_pickup_no_match"
+    );
+  }
+
+
+  // ========================================
+  // 3. DROPOFF
+  // ========================================
+
+  const hasDropoffRule =
+    basic
+      .dropoffMatchers
+      .length >
+    0;
+
+
+  const dropoff =
+    hasDropoffRule
+      ? findFirstKeywordOccurrence(
+          basic.dropoffMatchers,
+          context.text
+        )
+      : null;
+
+
+  if (
+    hasDropoffRule &&
+    !dropoff
+  ) {
+    return rejected(
+      filter,
+      "basic_dropoff_no_match"
+    );
+  }
+
+
+  // ========================================
+  // 4. DIRECTION
+  //
+  // Chi ap dung khi:
+  // - co pickup
+  // - co dropoff
+  // - acceptBothDirections = false
+  // ========================================
+
+  if (
+    basic.needsDirection
+  ) {
+    let directionMatched =
+      false;
+
+
+    // Fast path:
+    // occurrence dau tien da dung thu tu.
+    if (
+      pickup &&
+      dropoff &&
+      pickup.index <
+        dropoff.index
+    ) {
+      directionMatched =
+        true;
+
+    } else {
+
+      // Slow path rat hiem:
+      // message co nhieu occurrence.
+      directionMatched =
+        findOrderedKeywordPair(
+          basic.pickupMatchers,
+          basic.dropoffMatchers,
+          context.text
+        ) !== null;
+    }
+
+
+    if (
+      !directionMatched
+    ) {
+      return rejected(
+        filter,
+        "basic_wrong_direction"
+      );
+    }
+  }
+
+
+  // ========================================
+  // 5. INCLUDE KEYWORD
+  //
+  // Rong = khong dat them dieu kien.
+  // ========================================
+
+  if (
+    basic
+      .includeMatchers
+      .length >
+    0
+  ) {
+    const includeMatch =
+      findFirstKeywordMatch(
+        basic.includeMatchers,
+        context.text
+      );
+
+
+    if (!includeMatch) {
+      return rejected(
+        filter,
+        "basic_include_no_match"
+      );
+    }
+  }
+
+
+  // ========================================
+  // 6. PRICE / TIME
+  //
+  // Route + keyword da PASS.
+  //
+  // Neu filter con price/time thi tam thoi
+  // khong duoc ACCEPT cho den khi parser
+  // buoc ke tiep xong.
+  // ========================================
+
+  if (
+    basic.needsPrice ||
+    basic.needsTime
+  ) {
+    return pending(
+      filter,
+      "basic_price_time_pending"
+    );
+  }
+
+
+  // ========================================
+  // ALL BASIC CONDITIONS PASSED
+  // ========================================
+
+  return accepted(
+    filter,
+    "basic_conditions_match"
+  );
+}
 
 // ========================================
 // ONE FILTER DISPATCH
@@ -244,28 +500,10 @@ export function evaluateCompiledFilter(
   }
 
 
-  return {
-    state:
-      "pending",
-
-    matched:
-      null,
-
-    reason:
-      "basic_evaluator_pending",
-
-    filterId:
-      filter.id,
-
-    filterName:
-      filter.name,
-
-    mode:
-      filter.mode,
-
-    keyword:
-      null,
-  };
+  return evaluateBasicFilter(
+    filter,
+    context
+  );
 }
 
 
@@ -399,7 +637,7 @@ export function evaluateCompiledGroupPlan(
         true,
 
       reason:
-        "basic_filter_pending_fail_open",
+        "basic_price_time_pending_fail_open",
 
       filterId:
         null,

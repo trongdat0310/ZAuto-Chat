@@ -52,6 +52,13 @@ function advancedFilter({
 function basicFilter({
   id,
   groups = [],
+  pickup = "",
+  dropoff = "",
+  bothDirections = false,
+  include = "",
+  exclude = "",
+  price = null,
+  time = "",
 }) {
   return {
     id,
@@ -69,26 +76,24 @@ function basicFilter({
       groups,
 
     basic: {
-      pickup:
-        "q1",
+      pickup,
 
-      dropoff:
-        "nội bài",
+      dropoff,
 
       acceptBothDirections:
-        false,
+        bothDirections,
 
       includeKeywords:
-        "",
+        include,
 
       excludeKeywords:
-        "",
+        exclude,
 
       minimumPrice:
-        null,
+        price,
 
       timeRules:
-        "",
+        time,
     },
 
     advanced: {
@@ -490,18 +495,20 @@ test(
 // ========================================
 
 test(
-  "basic filter fails open until basic evaluator is implemented",
+  "basic route accepts correct pickup to dropoff direction",
   () => {
     const runtime =
       compileUserFilterDocument({
         filters: [
           basicFilter({
             id:
-              "basic",
+              "airport",
 
-            groups: [
-              "a",
-            ],
+            pickup:
+              "q1, quận 1",
+
+            dropoff:
+              "nội bài, nb",
           }),
         ],
       });
@@ -511,10 +518,290 @@ test(
       evaluateCompiledGroupPlan(
         getCompiledGroupPlan(
           runtime,
-          "a"
+          "any"
         ),
 
-        "message bat ky"
+        "22h cần xe Q1 đi Nội Bài"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+    assert.equal(
+      result.filterId,
+      "airport"
+    );
+
+    assert.equal(
+      result.reason,
+      "basic_conditions_match"
+    );
+  }
+);
+
+
+test(
+  "basic route rejects reverse direction",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "airport",
+
+            pickup:
+              "q1",
+
+            dropoff:
+              "nội bài",
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Nội Bài về Q1"
+      );
+
+
+    assert.equal(
+      result.matched,
+      false
+    );
+  }
+);
+
+
+test(
+  "basic both directions accepts reverse route",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "airport",
+
+            pickup:
+              "q1",
+
+            dropoff:
+              "nội bài",
+
+            bothDirections:
+              true,
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Nội Bài về Q1"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+  }
+);
+
+
+test(
+  "basic exclude keyword overrides matching route and include",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "airport",
+
+            pickup:
+              "q1",
+
+            dropoff:
+              "nội bài",
+
+            include:
+              "4c, 4 chỗ",
+
+            exclude:
+              "ghép",
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Q1 đi Nội Bài xe 4c ghép khách"
+      );
+
+
+    assert.equal(
+      result.matched,
+      false
+    );
+  }
+);
+
+
+test(
+  "basic include keywords use OR",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "airport",
+
+            include:
+              "4c, 7c, vip",
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "cần xe 7c đi sân bay"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+  }
+);
+
+
+test(
+  "basic include rejects when none match",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "airport",
+
+            include:
+              "4c, vip",
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "cần xe 7c"
+      );
+
+
+    assert.equal(
+      result.matched,
+      false
+    );
+  }
+);
+
+
+test(
+  "basic empty fields accept message",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "all-basic",
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "tin bất kỳ"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+  }
+);
+
+
+test(
+  "basic price or time remains fail open until parser step",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "priced",
+
+            pickup:
+              "q1",
+
+            price:
+              500,
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Q1 đi Nội Bài giá 300k"
       );
 
 
@@ -525,7 +812,7 @@ test(
 
     assert.equal(
       result.reason,
-      "basic_filter_pending_fail_open"
+      "basic_price_time_pending_fail_open"
     );
   }
 );
