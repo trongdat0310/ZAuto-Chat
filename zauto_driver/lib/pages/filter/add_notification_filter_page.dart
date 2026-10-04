@@ -651,6 +651,10 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
         return 'Giá tối thiểu';
       case 'time':
         return 'Khung giờ';
+      case 'advanced_hide':
+        return 'Từ khoá Ẩn';
+      case 'advanced_show':
+        return 'Từ khoá Hiện';
       default:
         return key;
     }
@@ -781,6 +785,46 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
             : status == 'pass'
                 ? 'Khớp quy tắc “$rules”.'
                 : 'Không khớp quy tắc “$rules”.';
+
+      case 'advanced_hide':
+        final matched =
+            details['matched']?.toString() ?? '';
+
+        if (status == 'skipped') {
+          return 'Không có từ khoá Ẩn.';
+        }
+
+        if (status == 'fail' && matched.isNotEmpty) {
+          return 'Khớp từ khoá Ẩn “$matched” nên tin bị chặn.';
+        }
+
+        return 'Không khớp từ khoá Ẩn nào.';
+
+      case 'advanced_show':
+        final matched =
+            details['matched']?.toString() ?? '';
+
+        final overridden =
+            details['overriddenByHide'] == true;
+
+        if (status == 'skipped') {
+          return overridden
+              ? 'Danh sách Hiện trống nên mặc định cho qua, nhưng từ khoá Ẩn vẫn có ưu tiên.'
+              : 'Danh sách Hiện trống nên mặc định cho qua mọi tin không bị Ẩn.';
+        }
+
+        if (status == 'pass' && matched.isNotEmpty) {
+          return overridden
+              ? 'Khớp từ khoá Hiện “$matched”, nhưng vẫn bị từ khoá Ẩn chặn.'
+              : 'Khớp từ khoá Hiện “$matched”.';
+        }
+
+        final expected =
+            joined(details['expected']);
+
+        return expected.isEmpty
+            ? 'Không khớp từ khoá Hiện.'
+            : 'Không khớp từ khoá Hiện. Đang chờ một trong: $expected.';
 
       default:
         return '';
@@ -992,6 +1036,17 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                           color: colorScheme.onSurface,
                         ),
                       ),
+                      if (result['mode']?.toString() == 'advanced') ...[
+                        const SizedBox(height: 5),
+                        Text(
+                          'Ưu tiên: Từ khoá Ẩn > Từ khoá Hiện.',
+                          style: TextStyle(
+                            fontSize: 12.8,
+                            height: 1.3,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 4),
                       ...(result['checks'] as List)
                           .whereType<Map>()
