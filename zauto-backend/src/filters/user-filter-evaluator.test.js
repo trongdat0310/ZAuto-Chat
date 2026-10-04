@@ -1271,3 +1271,46 @@ test(
     assert.equal(byAllGroupFilter.filterId, "all-vip");
   }
 );
+
+
+
+test(
+  "filter priority controls which matching filter short-circuits first",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id: "specific-priority",
+            groups: ["a"],
+            show: ["vip"],
+          }),
+          advancedFilter({
+            id: "all-groups-second",
+            show: ["vip"],
+          }),
+        ],
+      });
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(runtime, "a"),
+        "VIP"
+      );
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+    assert.equal(
+      result.filterId,
+      "specific-priority"
+    );
+
+    assert.equal(
+      result.evaluatedFilters,
+      1
+    );
+  }
+);
