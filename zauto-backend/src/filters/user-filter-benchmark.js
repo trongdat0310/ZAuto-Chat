@@ -165,7 +165,7 @@ function buildBasicWorkload(
     filters,
 
     message:
-      "cuốc tối nay 20h giá 800k",
+      "cuốc tối nay 20h giá 1tr2",
   };
 }
 
@@ -174,6 +174,27 @@ function buildMixedWorkload(
   count
 ) {
   const filters = [];
+
+  let targetAdvancedIndex =
+    -1;
+
+
+  for (
+    let index = count - 1;
+    index >= 0;
+    index -= 1
+  ) {
+    if (
+      index % 2 ===
+      0
+    ) {
+      targetAdvancedIndex =
+        index;
+
+      break;
+    }
+  }
+
 
   for (
     let index = 0;
@@ -187,7 +208,7 @@ function buildMixedWorkload(
       filters.push(
         advancedFilter(
           `mixed-advanced-${index + 1}`,
-          index === count - 2
+          index === targetAdvancedIndex
             ? "target"
             : `never-${index + 1}`
         )
