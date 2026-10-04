@@ -141,3 +141,48 @@ test(
     );
   }
 );
+
+
+
+test(
+  "stored normalized media records use the same display policy",
+  () => {
+    const settings = {
+      showImages: false,
+      showVoiceMessages: false,
+    };
+
+
+    assert.equal(
+      shouldDisplayConversationEvent(
+        settings,
+        {
+          msgType: "chat.photo",
+        }
+      ),
+      false
+    );
+
+
+    assert.equal(
+      shouldDisplayConversationEvent(
+        settings,
+        {
+          msgType: "chat.voice",
+        }
+      ),
+      false
+    );
+
+
+    assert.equal(
+      shouldDisplayConversationEvent(
+        settings,
+        {
+          msgType: "chat.video",
+        }
+      ),
+      true
+    );
+  }
+);
