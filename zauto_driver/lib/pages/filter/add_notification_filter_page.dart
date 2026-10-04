@@ -8,9 +8,12 @@ enum _FilterMode { basic, advanced }
 class AddNotificationFilterPage extends StatefulWidget {
   final Map<String, dynamic>? initialFilter;
 
+  final Map<String, dynamic>? initialTemplate;
+
   const AddNotificationFilterPage({
     super.key,
     this.initialFilter,
+    this.initialTemplate,
   });
 
   @override
@@ -22,6 +25,10 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
   static const int maxNameLength = 255;
 
   bool get isEditing => widget.initialFilter != null;
+
+  bool get isDuplicating =>
+      !isEditing &&
+      widget.initialTemplate != null;
 
   String get editingFilterId =>
       widget.initialFilter?['id']?.toString() ?? '';
@@ -167,13 +174,35 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
   }
 
   void _populateInitialFilter() {
-    final filter = widget.initialFilter;
+    final filter =
+        widget.initialFilter ??
+        widget.initialTemplate;
 
     if (filter == null) {
       return;
     }
 
-    nameController.text = filter['name']?.toString() ?? '';
+    final rawName =
+        filter['name']?.toString().trim() ?? '';
+
+    if (isDuplicating) {
+      const suffix = ' Bản sao';
+
+      final maxBaseLength =
+          maxNameLength - suffix.length;
+
+      final baseName =
+          rawName.length > maxBaseLength
+              ? rawName.substring(0, maxBaseLength).trimRight()
+              : rawName;
+
+      nameController.text =
+          baseName.isEmpty
+              ? 'Bộ lọc$suffix'
+              : '$baseName$suffix';
+    } else {
+      nameController.text = rawName;
+    }
 
     mode = filter['mode']?.toString() == 'advanced'
         ? _FilterMode.advanced
@@ -594,7 +623,9 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     return {
       'name': nameController.text.trim(),
       'mode': mode == _FilterMode.advanced ? 'advanced' : 'basic',
-      'enabled': widget.initialFilter?['enabled'] != false,
+      'enabled': isEditing
+          ? widget.initialFilter?['enabled'] != false
+          : true,
       'groupIds': selectedGroupIds.toList(),
       'basic': {
         'pickup': pickupController.text.trim(),
@@ -3247,7 +3278,11 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
 
           children: [
             Text(
-              isEditing ? 'Chỉnh sửa bộ lọc' : 'Thêm bộ lọc mới',
+              isEditing
+                  ? 'Chỉnh sửa bộ lọc'
+                  : isDuplicating
+                      ? 'Sao chép bộ lọc'
+                      : 'Thêm bộ lọc mới',
 
               style: const TextStyle(
                 fontSize: 24,
