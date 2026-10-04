@@ -94,6 +94,16 @@ class BackendService {
     return notificationFilterApi.getFilters();
   }
 
+  Future<List<String>> getSavedNotificationFilterKeywords() {
+    return notificationFilterApi.getSavedKeywords();
+  }
+
+  Future<List<String>> saveSavedNotificationFilterKeywords(
+    List<String> keywords,
+  ) {
+    return notificationFilterApi.saveSavedKeywords(keywords);
+  }
+
   Future<Map<String, dynamic>> createNotificationFilter(
     Map<String, dynamic> filter,
   ) {
