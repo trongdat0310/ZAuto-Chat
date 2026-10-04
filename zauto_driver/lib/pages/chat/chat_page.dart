@@ -2866,9 +2866,6 @@ class _ChatPageState extends State<ChatPage> {
 
       content: content,
 
-      fontSize:
-          widget.settingsController.settings.chatFontSize,
-
       timeText: formatTime(message['timestamp']),
 
       hasQuote: quote != null,
