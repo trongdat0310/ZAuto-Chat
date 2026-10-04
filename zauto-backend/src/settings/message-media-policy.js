@@ -11,7 +11,8 @@ export function isPhotoConversationEvent(
   message
 ) {
   const raw =
-    message?.data?.msgType;
+    message?.data?.msgType ??
+    message?.msgType;
 
   const type =
     String(
@@ -34,7 +35,8 @@ export function isVoiceConversationEvent(
   message
 ) {
   const raw =
-    message?.data?.msgType;
+    message?.data?.msgType ??
+    message?.msgType;
 
   const type =
     String(
