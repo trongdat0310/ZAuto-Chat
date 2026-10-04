@@ -2428,6 +2428,12 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
   @override
   void dispose() {
     nameController.removeListener(_handleNameChanged);
+    pickupController.removeListener(_handleBasicFieldChanged);
+    dropoffController.removeListener(_handleBasicFieldChanged);
+    includeController.removeListener(_handleBasicFieldChanged);
+    excludeController.removeListener(_handleBasicFieldChanged);
+    minimumPriceController.removeListener(_handleBasicFieldChanged);
+    timeController.removeListener(_handleBasicFieldChanged);
 
     nameController.dispose();
     pickupController.dispose();
@@ -2529,6 +2535,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                   context,
 
                   hint: 'VD: Sân bay ca sáng, Nội thành ca đêm',
+
+                  errorText: nameError,
                 ),
               ),
 
@@ -2573,6 +2581,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                   controller: pickupController,
 
                   hint: 'VD: hà nội, hn, ben thanh',
+
+                  errorText: pickupError,
                 ),
 
                 const SizedBox(height: 24),
@@ -2590,6 +2600,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                   controller: dropoffController,
 
                   hint: 'VD: tan son nhat, sân bay',
+
+                  errorText: dropoffError,
                 ),
 
                 const SizedBox(height: 20),
@@ -2661,6 +2673,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                   controller: includeController,
 
                   hint: 'VD: 4 chỗ, xe 4c, 500',
+
+                  errorText: includeError,
                 ),
 
                 const SizedBox(height: 26),
@@ -2678,6 +2692,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                   controller: excludeController,
 
                   hint: 'VD: ghép, hàng cồng kềnh',
+
+                  errorText: excludeError,
                 ),
 
                 const SizedBox(height: 28),
@@ -2712,6 +2728,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                   hint: 'VD: 500 (= 500k)',
 
                   keyboardType: TextInputType.number,
+
+                  errorText: minimumPriceError,
                 ),
 
                 const SizedBox(height: 28),
@@ -2745,6 +2763,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                   controller: timeController,
 
                   hint: 'VD: sáng, chiều, sau 22h, 0-30p',
+
+                  errorText: timeError,
                 ),
 
                 const SizedBox(height: 16),
@@ -3101,6 +3121,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     BuildContext context, {
     required TextEditingController controller,
     required String hint,
+    String? errorText,
   }) {
     return TextField(
       controller: controller,
@@ -3110,7 +3131,11 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       minLines: 2,
       maxLines: 3,
 
-      decoration: _inputDecoration(context, hint: hint),
+      decoration: _inputDecoration(
+        context,
+        hint: hint,
+        errorText: errorText,
+      ),
     );
   }
 
@@ -3123,6 +3148,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     required TextEditingController controller,
     required String hint,
     TextInputType? keyboardType,
+    String? errorText,
   }) {
     return TextField(
       controller: controller,
@@ -3131,7 +3157,11 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
 
       keyboardType: keyboardType,
 
-      decoration: _inputDecoration(context, hint: hint),
+      decoration: _inputDecoration(
+        context,
+        hint: hint,
+        errorText: errorText,
+      ),
     );
   }
 
@@ -3142,11 +3172,16 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
   InputDecoration _inputDecoration(
     BuildContext context, {
     required String hint,
+    String? errorText,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return InputDecoration(
       hintText: hint,
+
+      errorText: errorText,
+
+      errorMaxLines: 3,
 
       hintStyle: TextStyle(
         fontSize: 14.5,
