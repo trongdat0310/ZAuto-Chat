@@ -183,3 +183,100 @@ test(
     );
   }
 );
+
+
+
+test(
+  "preview returns detailed price rejection",
+  () => {
+    const result =
+      previewUserFilterV2(
+        basicFilter({
+          price: 500,
+        }),
+        "cuốc giá 450k"
+      );
+
+    assert.equal(
+      result.matched,
+      false
+    );
+
+    assert.equal(
+      result.reason,
+      "basic_price_below_minimum"
+    );
+
+    assert.equal(
+      result.details.messagePrice,
+      450
+    );
+
+    assert.equal(
+      result.details.minimumPrice,
+      500
+    );
+  }
+);
+
+
+test(
+  "preview returns hidden keyword details",
+  () => {
+    const result =
+      previewUserFilterV2(
+        advancedFilter({
+          show: ["vip"],
+          hide: ["ghép"],
+        }),
+        "VIP ghép khách"
+      );
+
+    assert.equal(
+      result.matched,
+      false
+    );
+
+    assert.equal(
+      result.reason,
+      "advanced_hidden_keyword"
+    );
+
+    assert.equal(
+      result.keyword,
+      "ghép"
+    );
+  }
+);
+
+
+test(
+  "preview returns expected pickup values",
+  () => {
+    const result =
+      previewUserFilterV2(
+        basicFilter({
+          pickup: "q1, quận 1",
+        }),
+        "Bình Thạnh đi Nội Bài"
+      );
+
+    assert.equal(
+      result.matched,
+      false
+    );
+
+    assert.equal(
+      result.reason,
+      "basic_pickup_no_match"
+    );
+
+    assert.deepEqual(
+      result.details.expected,
+      [
+        "q1",
+        "quận 1",
+      ]
+    );
+  }
+);
