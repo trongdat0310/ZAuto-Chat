@@ -38,6 +38,16 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
 
   bool saving = false;
 
+  String? nameError;
+  String? pickupError;
+  String? dropoffError;
+  String? includeError;
+  String? excludeError;
+  String? minimumPriceError;
+  String? timeError;
+  String? advancedShowError;
+  String? advancedHideError;
+
   final TextEditingController nameController = TextEditingController();
 
   final TextEditingController pickupController = TextEditingController();
@@ -71,6 +81,12 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     _populateInitialFilter();
 
     nameController.addListener(_handleNameChanged);
+    pickupController.addListener(_handleBasicFieldChanged);
+    dropoffController.addListener(_handleBasicFieldChanged);
+    includeController.addListener(_handleBasicFieldChanged);
+    excludeController.addListener(_handleBasicFieldChanged);
+    minimumPriceController.addListener(_handleBasicFieldChanged);
+    timeController.addListener(_handleBasicFieldChanged);
 
     if (selectedGroupIds.isNotEmpty) {
       _hydrateSelectedGroupNames();
@@ -211,7 +227,219 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       return;
     }
 
-    setState(() {});
+    setState(() {
+      nameError = null;
+    });
+  }
+
+  void _handleBasicFieldChanged() {
+    if (!mounted) {
+      return;
+    }
+
+    if (
+      pickupError == null &&
+      dropoffError == null &&
+      includeError == null &&
+      excludeError == null &&
+      minimumPriceError == null &&
+      timeError == null
+    ) {
+      return;
+    }
+
+    setState(() {
+      pickupError = null;
+      dropoffError = null;
+      includeError = null;
+      excludeError = null;
+      minimumPriceError = null;
+      timeError = null;
+    });
+  }
+
+  String? _validateKeywordPattern(String raw) {
+    final value = raw.trim();
+
+    if (value.isEmpty) {
+      return null;
+    }
+
+    if (!value.contains('*')) {
+      return null;
+    }
+
+    if (
+      !value.startsWith('*') ||
+      !value.endsWith('*')
+    ) {
+      return 'Dấu * phải nằm ở cả hai đầu, VD: *nội bài*.';
+    }
+
+    if (value.length <= 2) {
+      return 'Từ khoá wildcard không được để trống.';
+    }
+
+    return null;
+  }
+
+  String? _validateCommaSeparatedKeywords(String raw) {
+    for (final item in raw.split(',')) {
+      final error = _validateKeywordPattern(item);
+
+      if (error != null) {
+        return error;
+      }
+    }
+
+    return null;
+  }
+
+  String? _validateAdvancedKeywords(List<String> values) {
+    for (final value in values) {
+      final error = _validateKeywordPattern(value);
+
+      if (error != null) {
+        return '“$value”: $error';
+      }
+    }
+
+    return null;
+  }
+
+  bool _validateForm() {
+    final rawPrice = minimumPriceController.text.trim();
+
+    final parsedPrice =
+        rawPrice.isEmpty ? null : num.tryParse(rawPrice);
+
+    final nextNameError =
+        nameController.text.trim().isEmpty
+            ? 'Vui lòng nhập tên bộ lọc.'
+            : null;
+
+    String? nextPriceError;
+
+    if (rawPrice.isNotEmpty && parsedPrice == null) {
+      nextPriceError = 'Giá tối thiểu phải là một số hợp lệ.';
+    } else if (parsedPrice != null && parsedPrice < 0) {
+      nextPriceError = 'Giá tối thiểu không được nhỏ hơn 0.';
+    }
+
+    final nextPickupError =
+        _validateCommaSeparatedKeywords(
+          pickupController.text,
+        );
+
+    final nextDropoffError =
+        _validateCommaSeparatedKeywords(
+          dropoffController.text,
+        );
+
+    final nextIncludeError =
+        _validateCommaSeparatedKeywords(
+          includeController.text,
+        );
+
+    final nextExcludeError =
+        _validateCommaSeparatedKeywords(
+          excludeController.text,
+        );
+
+    final nextTimeError =
+        _validateCommaSeparatedKeywords(
+          timeController.text,
+        );
+
+    final nextAdvancedShowError =
+        _validateAdvancedKeywords(
+          advancedShowKeywords,
+        );
+
+    final nextAdvancedHideError =
+        _validateAdvancedKeywords(
+          advancedHideKeywords,
+        );
+
+    setState(() {
+      nameError = nextNameError;
+
+      if (mode == _FilterMode.basic) {
+        pickupError = nextPickupError;
+        dropoffError = nextDropoffError;
+        includeError = nextIncludeError;
+        excludeError = nextExcludeError;
+        minimumPriceError = nextPriceError;
+        timeError = nextTimeError;
+        advancedShowError = null;
+        advancedHideError = null;
+      } else {
+        pickupError = null;
+        dropoffError = null;
+        includeError = null;
+        excludeError = null;
+        minimumPriceError = null;
+        timeError = null;
+        advancedShowError = nextAdvancedShowError;
+        advancedHideError = nextAdvancedHideError;
+      }
+    });
+
+    if (nextNameError != null) {
+      return false;
+    }
+
+    if (mode == _FilterMode.basic) {
+      return nextPickupError == null &&
+          nextDropoffError == null &&
+          nextIncludeError == null &&
+          nextExcludeError == null &&
+          nextPriceError == null &&
+          nextTimeError == null;
+    }
+
+    return nextAdvancedShowError == null &&
+        nextAdvancedHideError == null;
+  }
+
+  Future<bool> _confirmAdvancedCatchAll() async {
+    if (
+      mode != _FilterMode.advanced ||
+      advancedShowKeywords.isNotEmpty
+    ) {
+      return true;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          icon: const Icon(Icons.warning_amber_rounded),
+          title: const Text('Bộ lọc sẽ nhận gần như tất cả tin'),
+          content: const Text(
+            'Danh sách “Hiện thông báo” đang trống. '
+            'Ở chế độ Nâng cao, điều này có nghĩa là mọi tin không '
+            'khớp từ khoá Ẩn đều sẽ được nhận. Bạn vẫn muốn tiếp tục?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              child: const Text('QUAY LẠI'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              child: const Text('TIẾP TỤC'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmed == true;
   }
 
   Map<String, dynamic> _buildFilterPayload() {
@@ -241,6 +469,18 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
   }
 
   Future<void> _checkFilter() async {
+    if (!_validateForm()) {
+      return;
+    }
+
+    if (!await _confirmAdvancedCatchAll()) {
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
     final messageController = TextEditingController();
 
     final message = await showDialog<String>(
@@ -347,23 +587,15 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       return;
     }
 
-    if (nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập tên bộ lọc.')),
-      );
-
+    if (!_validateForm()) {
       return;
     }
 
-    final rawPrice = minimumPriceController.text.trim();
+    if (!await _confirmAdvancedCatchAll()) {
+      return;
+    }
 
-    if (rawPrice.isNotEmpty && num.tryParse(rawPrice) == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Giá tối thiểu phải là một số hợp lệ.'),
-        ),
-      );
-
+    if (!mounted) {
       return;
     }
 
