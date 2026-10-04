@@ -1459,3 +1459,127 @@ test(
     }
   }
 );
+
+
+
+// ========================================
+// 50 FILTER PRIORITY SCALE
+// ========================================
+
+function makePriorityFilters(
+  matchIndex
+) {
+  const filters = [];
+
+  for (
+    let index = 0;
+    index < 50;
+    index += 1
+  ) {
+    filters.push(
+      advancedFilter({
+        id:
+          `priority-${index + 1}`,
+
+        show: [
+          index === matchIndex
+            ? "target"
+            : `never-${index + 1}`,
+        ],
+      })
+    );
+  }
+
+  return filters;
+}
+
+
+for (
+  const {
+    position,
+    expectedEvaluations,
+  } of [
+    {
+      position: 1,
+      expectedEvaluations: 1,
+    },
+    {
+      position: 10,
+      expectedEvaluations: 10,
+    },
+    {
+      position: 50,
+      expectedEvaluations: 50,
+    },
+  ]
+) {
+  test(
+    `50-filter priority match at position ${position} evaluates ${expectedEvaluations} filters`,
+    () => {
+      const runtime =
+        compileUserFilterDocument({
+          filters:
+            makePriorityFilters(
+              position - 1
+            ),
+        });
+
+      const result =
+        evaluateCompiledGroupPlan(
+          getCompiledGroupPlan(
+            runtime,
+            "any"
+          ),
+          "target"
+        );
+
+      assert.equal(
+        result.matched,
+        true
+      );
+
+      assert.equal(
+        result.filterId,
+        `priority-${position}`
+      );
+
+      assert.equal(
+        result.evaluatedFilters,
+        expectedEvaluations
+      );
+    }
+  );
+}
+
+
+test(
+  "50 filters with no match evaluate all candidates",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters:
+          makePriorityFilters(
+            -1
+          ),
+      });
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+        "no matching keyword"
+      );
+
+    assert.equal(
+      result.matched,
+      false
+    );
+
+    assert.equal(
+      result.evaluatedFilters,
+      50
+    );
+  }
+);
