@@ -1105,7 +1105,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       return;
     }
 
-    final messageController = TextEditingController();
+    String draftMessage = '';
 
     final message = await showDialog<String>(
       context: context,
@@ -1113,10 +1113,25 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
         return AlertDialog(
           title: const Text('Kiểm tra bộ lọc'),
           content: TextField(
-            controller: messageController,
             autofocus: true,
             minLines: 2,
             maxLines: 5,
+            textInputAction: TextInputAction.done,
+            onChanged: (value) {
+              draftMessage = value;
+            },
+            onSubmitted: (value) {
+              final trimmed =
+                  value.trim();
+
+              if (trimmed.isEmpty) {
+                return;
+              }
+
+              Navigator.of(dialogContext).pop(
+                trimmed,
+              );
+            },
             decoration: const InputDecoration(
               hintText: 'Dán một tin nhắn cuốc để kiểm tra...',
               border: OutlineInputBorder(),
@@ -1124,13 +1139,22 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
               child: const Text('HỦY'),
             ),
             FilledButton(
               onPressed: () {
+                final trimmed =
+                    draftMessage.trim();
+
+                if (trimmed.isEmpty) {
+                  return;
+                }
+
                 Navigator.of(dialogContext).pop(
-                  messageController.text.trim(),
+                  trimmed,
                 );
               },
               child: const Text('KIỂM TRA'),
@@ -1139,8 +1163,6 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
         );
       },
     );
-
-    messageController.dispose();
 
     if (!mounted || message == null || message.isEmpty) {
       return;
@@ -1164,7 +1186,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       final explanation =
           _previewReasonText(result);
 
-      showDialog<void>(
+      await showDialog<void>(
         context: context,
         builder: (dialogContext) {
           final colorScheme = Theme.of(dialogContext).colorScheme;
