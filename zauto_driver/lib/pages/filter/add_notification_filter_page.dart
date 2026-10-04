@@ -1518,6 +1518,314 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     });
   }
 
+  Future<void> _openSavedKeywordLibrary({
+    required bool showKeyword,
+  }) async {
+    List<String> savedKeywords;
+
+    try {
+      savedKeywords =
+          await backend.getSavedNotificationFilterKeywords();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Không thể tải từ khoá đã lưu: $error'),
+        ),
+      );
+
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    final target =
+        showKeyword ? advancedShowKeywords : advancedHideKeywords;
+
+    final draftSaved =
+        List<String>.from(savedKeywords);
+
+    final selected =
+        <String>{
+          ...target.where(
+            (keyword) => draftSaved.any(
+              (saved) =>
+                  saved.toLowerCase() == keyword.toLowerCase(),
+            ),
+          ),
+        };
+
+    final addController =
+        TextEditingController();
+
+    final result =
+        await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            void addKeyword() {
+              final value =
+                  addController.text.trim();
+
+              if (value.isEmpty) {
+                return;
+              }
+
+              final exists =
+                  draftSaved.any(
+                (item) =>
+                    item.toLowerCase() ==
+                    value.toLowerCase(),
+              );
+
+              if (!exists) {
+                setSheetState(() {
+                  draftSaved.add(value);
+                  selected.add(value);
+                });
+              }
+
+              addController.clear();
+            }
+
+            return SafeArea(
+              child: SizedBox(
+                height:
+                    MediaQuery.sizeOf(context).height * 0.78,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding:
+                          const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              showKeyword
+                                  ? 'Từ khoá đã lưu - Hiện'
+                                  : 'Từ khoá đã lưu - Ẩn',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${draftSaved.length}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding:
+                          const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: addController,
+                              textInputAction:
+                                  TextInputAction.done,
+                              onSubmitted: (_) => addKeyword(),
+                              decoration: const InputDecoration(
+                                hintText: 'Thêm từ khoá vào thư viện...',
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          IconButton.filled(
+                            tooltip: 'Lưu từ khoá',
+                            onPressed: addKeyword,
+                            icon: const Icon(
+                              Icons.add_rounded,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: draftSaved.isEmpty
+                          ? Center(
+                              child: Text(
+                                'Chưa có từ khoá nào được lưu.',
+                                style: TextStyle(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: draftSaved.length,
+                              itemBuilder: (context, index) {
+                                final keyword =
+                                    draftSaved[index];
+
+                                final checked =
+                                    selected.any(
+                                  (item) =>
+                                      item.toLowerCase() ==
+                                      keyword.toLowerCase(),
+                                );
+
+                                return CheckboxListTile(
+                                  value: checked,
+                                  title: Text(keyword),
+                                  controlAffinity:
+                                      ListTileControlAffinity.leading,
+                                  secondary: IconButton(
+                                    tooltip:
+                                        'Xoá khỏi thư viện',
+                                    icon: const Icon(
+                                      Icons.delete_outline_rounded,
+                                    ),
+                                    onPressed: () {
+                                      setSheetState(() {
+                                        draftSaved.removeAt(index);
+                                        selected.removeWhere(
+                                          (item) =>
+                                              item.toLowerCase() ==
+                                              keyword.toLowerCase(),
+                                        );
+                                      });
+                                    },
+                                  ),
+                                  onChanged: (value) {
+                                    setSheetState(() {
+                                      selected.removeWhere(
+                                        (item) =>
+                                            item.toLowerCase() ==
+                                            keyword.toLowerCase(),
+                                      );
+
+                                      if (value == true) {
+                                        selected.add(keyword);
+                                      }
+                                    });
+                                  },
+                                );
+                              },
+                            ),
+                    ),
+                    Padding(
+                      padding:
+                          const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: () {
+                            Navigator.of(sheetContext).pop({
+                              'saved':
+                                  List<String>.from(draftSaved),
+                              'selected':
+                                  List<String>.from(selected),
+                            });
+                          },
+                          child: const Text('LƯU VÀ DÙNG'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    addController.dispose();
+
+    if (!mounted || result == null) {
+      return;
+    }
+
+    final rawSaved =
+        result['saved'];
+
+    final rawSelected =
+        result['selected'];
+
+    final nextSaved =
+        rawSaved is List
+            ? rawSaved
+                .map((item) => item.toString())
+                .where((item) => item.isNotEmpty)
+                .toList()
+            : <String>[];
+
+    final nextSelected =
+        rawSelected is List
+            ? rawSelected
+                .map((item) => item.toString())
+                .where((item) => item.isNotEmpty)
+                .toList()
+            : <String>[];
+
+    try {
+      await backend.saveSavedNotificationFilterKeywords(
+        nextSaved,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Không thể lưu thư viện từ khoá: $error'),
+        ),
+      );
+
+      return;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    final savedKeys =
+        nextSaved
+            .map((item) => item.toLowerCase())
+            .toSet();
+
+    setState(() {
+      target.removeWhere(
+        (item) => savedKeys.contains(item.toLowerCase()),
+      );
+
+      for (final keyword in nextSelected) {
+        final exists =
+            target.any(
+          (item) =>
+              item.toLowerCase() ==
+              keyword.toLowerCase(),
+        );
+
+        if (!exists) {
+          target.add(keyword);
+        }
+      }
+    });
+  }
+
   void _showAdvancedUiNotice(String message) {
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(message)));
@@ -1580,8 +1888,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
               tooltip: 'Từ khoá đã lưu',
 
               onTap: () {
-                _showAdvancedUiNotice(
-                  'Danh sách từ khoá đã lưu sẽ được thêm sau.',
+                _openSavedKeywordLibrary(
+                  showKeyword: showKeyword,
                 );
               },
             ),
