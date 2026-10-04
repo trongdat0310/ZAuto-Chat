@@ -581,7 +581,7 @@ test(
 
 
 test(
-  "group plan keeps all-group filters before group-specific filters",
+  "group plan preserves document priority across all and specific filters",
   () => {
     const runtime =
       compileUserFilterDocument({
@@ -609,8 +609,8 @@ test(
         .map((item) => item.id),
       [
         "all-first",
-        "all-second",
         "group-first",
+        "all-second",
         "group-second",
       ]
     );
@@ -676,5 +676,35 @@ test(
     assert.equal(plan.needsAdvanced, true);
     assert.equal(plan.needsPrice, false);
     assert.equal(plan.needsTime, false);
+  }
+);
+
+
+
+test(
+  "group-specific filter can have higher priority than all-group filter",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id: "specific-first",
+            groups: ["a"],
+          }),
+          advancedFilter({
+            id: "all-second",
+          }),
+        ],
+      });
+
+    assert.deepEqual(
+      getCompiledGroupPlan(runtime, "a")
+        .filters
+        .map((item) => item.id),
+      [
+        "specific-first",
+        "all-second",
+      ]
+    );
   }
 );
