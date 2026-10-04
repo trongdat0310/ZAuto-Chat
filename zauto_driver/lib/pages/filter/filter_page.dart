@@ -23,7 +23,7 @@ class _FilterPageState extends State<FilterPage> {
 
   List<Map<String, dynamic>> filters = [];
 
-  final Set<String> mutatingFilterIds = {};
+  final Map<String, String> filterMutations = {};
 
   bool loading = true;
 
@@ -176,12 +176,12 @@ class _FilterPageState extends State<FilterPage> {
       return;
     }
 
-    if (mutatingFilterIds.contains(filterId)) {
+    if (filterMutations.containsKey(filterId)) {
       return;
     }
 
     setState(() {
-      mutatingFilterIds.add(filterId);
+      filterMutations[filterId] = 'Đang xóa...';
     });
 
     try {
@@ -207,7 +207,7 @@ class _FilterPageState extends State<FilterPage> {
     } finally {
       if (mounted) {
         setState(() {
-          mutatingFilterIds.remove(filterId);
+          filterMutations.remove(filterId);
         });
       }
     }
@@ -223,14 +223,15 @@ class _FilterPageState extends State<FilterPage> {
       return;
     }
 
-    if (mutatingFilterIds.contains(filterId)) {
+    if (filterMutations.containsKey(filterId)) {
       return;
     }
 
     final previous = filter['enabled'] != false;
 
     setState(() {
-      mutatingFilterIds.add(filterId);
+      filterMutations[filterId] =
+          enabled ? 'Đang bật...' : 'Đang tắt...';
       filter['enabled'] = enabled;
     });
 
@@ -271,7 +272,7 @@ class _FilterPageState extends State<FilterPage> {
     } finally {
       if (mounted) {
         setState(() {
-          mutatingFilterIds.remove(filterId);
+          filterMutations.remove(filterId);
         });
       }
     }
@@ -665,7 +666,12 @@ class _FilterPageState extends State<FilterPage> {
 
           final updating =
               filterId.isNotEmpty &&
-              mutatingFilterIds.contains(filterId);
+              filterMutations.containsKey(filterId);
+
+          final mutationLabel =
+              filterId.isEmpty
+                  ? null
+                  : filterMutations[filterId];
 
           final mode = filter['mode']?.toString() == 'advanced'
               ? 'Nâng cao'
@@ -737,7 +743,26 @@ class _FilterPageState extends State<FilterPage> {
                                 color: colorScheme.onSurfaceVariant,
                               ),
                             ),
-                            if (!enabled)
+                            if (mutationLabel != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primaryContainer,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  mutationLabel,
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: colorScheme.onPrimaryContainer,
+                                  ),
+                                ),
+                              )
+                            else if (!enabled)
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 7,
