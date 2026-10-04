@@ -15,11 +15,21 @@ const settingsCache =
 
 const DEFAULT_SETTINGS = {
 
-  // Lọc trùng cuốc
+  // Hien thi anh trong hoi thoai.
+  showImages: true,
+
+  // Loc trung cuoc.
   deduplicateMessages: true,
 
   // Phai trung voi thoi gian hien thi card cuoc.
-    dedupeWindowSeconds: 10,
+  dedupeWindowSeconds: 10,
+
+  // Hien thi voice/audio trong hoi thoai.
+  showVoiceMessages: true,
+
+  // Luu preference cho pipeline phien am.
+  // Engine speech-to-text se doc flag nay.
+  transcribeVoiceMessages: false,
 };
 
 
@@ -183,12 +193,56 @@ export function updateUserMessageSettings(
 
 
   if (
+    typeof patch.showImages ===
+    "boolean"
+  ) {
+
+    next.showImages =
+      patch.showImages;
+  }
+
+
+  if (
     typeof patch.deduplicateMessages ===
     "boolean"
   ) {
 
     next.deduplicateMessages =
       patch.deduplicateMessages;
+  }
+
+
+  if (
+    typeof patch.showVoiceMessages ===
+    "boolean"
+  ) {
+
+    next.showVoiceMessages =
+      patch.showVoiceMessages;
+
+
+    // Khong cho transcribe=true khi voice bi an.
+    if (
+      patch.showVoiceMessages ===
+      false
+    ) {
+
+      next.transcribeVoiceMessages =
+        false;
+    }
+  }
+
+
+  if (
+    typeof patch.transcribeVoiceMessages ===
+    "boolean"
+  ) {
+
+    next.transcribeVoiceMessages =
+      next.showVoiceMessages ===
+        true
+        ? patch.transcribeVoiceMessages
+        : false;
   }
 
 
