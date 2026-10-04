@@ -8,6 +8,7 @@ import 'backend/account_api.dart';
 import 'backend/group_api.dart';
 import 'backend/settings_api.dart';
 import 'backend/trip_api.dart';
+import 'backend/notification_filter_api.dart';
 
 class BackendService {
   final String baseUrl;
@@ -22,6 +23,7 @@ class BackendService {
   late final GroupApi groupApi;
   late final SettingsApi settingsApi;
   late final TripApi tripApi;
+  late final NotificationFilterApi notificationFilterApi;
 
   BackendService({required this.baseUrl}) {
     realtimeApi = RealtimeApi(auth: auth, webSocketUrl: _createWebSocketUrl());
@@ -32,6 +34,7 @@ class BackendService {
     groupApi = GroupApi(baseUrl: baseUrl, auth: auth);
     settingsApi = SettingsApi(baseUrl: baseUrl, auth: auth);
     tripApi = TripApi(baseUrl: baseUrl, auth: auth);
+    notificationFilterApi = NotificationFilterApi(baseUrl: baseUrl, auth: auth);
   }
 
   String _createWebSocketUrl() {
@@ -83,6 +86,40 @@ class BackendService {
       excludeKeywords: excludeKeywords,
 
       enabled: enabled,
+    );
+  }
+
+
+  Future<List<Map<String, dynamic>>> getNotificationFilters() {
+    return notificationFilterApi.getFilters();
+  }
+
+  Future<Map<String, dynamic>> createNotificationFilter(
+    Map<String, dynamic> filter,
+  ) {
+    return notificationFilterApi.createFilter(filter);
+  }
+
+  Future<Map<String, dynamic>> updateNotificationFilter(
+    String filterId,
+    Map<String, dynamic> filter,
+  ) {
+    return notificationFilterApi.updateFilter(filterId, filter);
+  }
+
+  Future<void> deleteNotificationFilter(String filterId) {
+    return notificationFilterApi.deleteFilter(filterId);
+  }
+
+  Future<Map<String, dynamic>> previewNotificationFilter({
+    required Map<String, dynamic> filter,
+    required String messageText,
+    String? groupId,
+  }) {
+    return notificationFilterApi.previewFilter(
+      filter: filter,
+      messageText: messageText,
+      groupId: groupId,
     );
   }
 
