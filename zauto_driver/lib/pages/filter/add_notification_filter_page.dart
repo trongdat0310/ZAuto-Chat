@@ -1829,9 +1829,131 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     });
   }
 
-  void _showAdvancedUiNotice(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+  Future<void> _openAdvancedKeywordList({
+    required bool showKeyword,
+  }) async {
+    final target =
+        showKeyword ? advancedShowKeywords : advancedHideKeywords;
+
+    final controller =
+        TextEditingController(
+      text: target.join('\n'),
+    );
+
+    final result =
+        await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        final colorScheme =
+            Theme.of(sheetContext).colorScheme;
+
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 18,
+              right: 18,
+              bottom:
+                  MediaQuery.viewInsetsOf(sheetContext).bottom + 16,
+            ),
+            child: SizedBox(
+              height:
+                  MediaQuery.sizeOf(sheetContext).height * 0.72,
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    showKeyword
+                        ? 'Danh sách từ khoá hiển thị'
+                        : 'Danh sách từ khoá ẩn',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Mỗi dòng là một từ khoá hoặc một biểu thức. '
+                    'Dòng trống và từ khoá trùng sẽ tự được bỏ qua.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.35,
+                      color:
+                          colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      expands: true,
+                      minLines: null,
+                      maxLines: null,
+                      textAlignVertical:
+                          TextAlignVertical.top,
+                      decoration: const InputDecoration(
+                        hintText:
+                            'VD:\nnội bài\n*(quận 1)*(nội bài)*\n500',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  FilledButton(
+                    onPressed: () {
+                      final values =
+                          <String>[];
+
+                      final seen =
+                          <String>{};
+
+                      for (final raw
+                          in controller.text.split('\n')) {
+                        final value =
+                            raw.trim();
+
+                        if (value.isEmpty) {
+                          continue;
+                        }
+
+                        final key =
+                            value.toLowerCase();
+
+                        if (seen.add(key)) {
+                          values.add(value);
+                        }
+
+                        if (values.length >= 100) {
+                          break;
+                        }
+                      }
+
+                      Navigator.of(sheetContext)
+                          .pop(values);
+                    },
+                    child: const Text('ÁP DỤNG'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (!mounted || result == null) {
+      return;
+    }
+
+    setState(() {
+      target
+        ..clear()
+        ..addAll(result);
+    });
   }
 
   Widget _buildAdvancedKeywordSection(
@@ -1909,8 +2031,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
               tooltip: 'Danh sách từ khoá',
 
               onTap: () {
-                _showAdvancedUiNotice(
-                  'Quản lý danh sách từ khoá sẽ được thêm sau.',
+                _openAdvancedKeywordList(
+                  showKeyword: showKeyword,
                 );
               },
             ),
