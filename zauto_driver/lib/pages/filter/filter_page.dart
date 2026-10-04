@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../config/app_config.dart';
 import '../../services/backend_service.dart';
+import '../../theme/app_typography.dart';
 
 import 'add_notification_filter_page.dart';
 
@@ -678,9 +679,7 @@ class _FilterPageState extends State<FilterPage> {
             child: Center(
               child: Text(
                 'Bộ lọc thông báo',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w400,
+                style: AppTypography.pageTitle.copyWith(
                   color: colorScheme.onSurface,
                 ),
               ),
