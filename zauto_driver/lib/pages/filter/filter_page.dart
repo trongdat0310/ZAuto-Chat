@@ -27,6 +27,8 @@ class _FilterPageState extends State<FilterPage> {
 
   bool loading = true;
 
+  bool reorderingFilters = false;
+
   int get filterCount => filters.length;
 
   @override
@@ -339,6 +341,107 @@ class _FilterPageState extends State<FilterPage> {
       if (mounted) {
         setState(() {
           filterMutations.remove(filterId);
+        });
+      }
+    }
+  }
+
+  Future<void> _moveFilter(
+    int index,
+    int delta,
+  ) async {
+    if (
+      reorderingFilters ||
+      filterMutations.isNotEmpty
+    ) {
+      return;
+    }
+
+    final nextIndex =
+        index + delta;
+
+    if (
+      index < 0 ||
+      index >= filters.length ||
+      nextIndex < 0 ||
+      nextIndex >= filters.length
+    ) {
+      return;
+    }
+
+    final previous =
+        List<Map<String, dynamic>>.from(
+      filters,
+    );
+
+    final next =
+        List<Map<String, dynamic>>.from(
+      filters,
+    );
+
+    final moved =
+        next.removeAt(index);
+
+    next.insert(
+      nextIndex,
+      moved,
+    );
+
+    setState(() {
+      reorderingFilters = true;
+      filters = next;
+    });
+
+    try {
+      final orderedIds =
+          next
+              .map(
+                (item) =>
+                    item['id']?.toString() ?? '',
+              )
+              .where(
+                (id) => id.isNotEmpty,
+              )
+              .toList();
+
+      if (orderedIds.length != next.length) {
+        throw Exception(
+          'Danh sách bộ lọc có ID không hợp lệ.',
+        );
+      }
+
+      final saved =
+          await backend.reorderNotificationFilters(
+        orderedIds,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        filters = saved;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        filters = previous;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Không thể đổi thứ tự bộ lọc: $error',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          reorderingFilters = false;
         });
       }
     }
@@ -731,8 +834,11 @@ class _FilterPageState extends State<FilterPage> {
           final filterId = filter['id']?.toString() ?? '';
 
           final updating =
-              filterId.isNotEmpty &&
-              filterMutations.containsKey(filterId);
+              reorderingFilters ||
+              (
+                filterId.isNotEmpty &&
+                filterMutations.containsKey(filterId)
+              );
 
           final mutationLabel =
               filterId.isEmpty
@@ -878,6 +984,16 @@ class _FilterPageState extends State<FilterPage> {
                   PopupMenuButton<String>(
                     enabled: !updating,
                     onSelected: (value) {
+                      if (value == 'move_up') {
+                        _moveFilter(index, -1);
+                        return;
+                      }
+
+                      if (value == 'move_down') {
+                        _moveFilter(index, 1);
+                        return;
+                      }
+
                       if (value == 'edit') {
                         _editFilter(filter);
                         return;
@@ -892,8 +1008,31 @@ class _FilterPageState extends State<FilterPage> {
                         _deleteFilter(filter);
                       }
                     },
-                    itemBuilder: (context) => const [
+                    itemBuilder: (context) => [
                       PopupMenuItem<String>(
+                        value: 'move_up',
+                        enabled: index > 0,
+                        child: const Row(
+                          children: [
+                            Icon(Icons.arrow_upward_rounded),
+                            SizedBox(width: 10),
+                            Text('Đưa lên'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'move_down',
+                        enabled: index < filters.length - 1,
+                        child: const Row(
+                          children: [
+                            Icon(Icons.arrow_downward_rounded),
+                            SizedBox(width: 10),
+                            Text('Đưa xuống'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuDivider(),
+                      const PopupMenuItem<String>(
                         value: 'edit',
                         child: Row(
                           children: [
@@ -903,7 +1042,7 @@ class _FilterPageState extends State<FilterPage> {
                           ],
                         ),
                       ),
-                      PopupMenuItem<String>(
+                      const PopupMenuItem<String>(
                         value: 'duplicate',
                         child: Row(
                           children: [
@@ -913,7 +1052,7 @@ class _FilterPageState extends State<FilterPage> {
                           ],
                         ),
                       ),
-                      PopupMenuItem<String>(
+                      const PopupMenuItem<String>(
                         value: 'delete',
                         child: Row(
                           children: [
