@@ -32,6 +32,10 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
 
   final Map<String, String> selectedGroupNames = {};
 
+  List<Map<String, dynamic>>? groupOptionsCache;
+
+  Future<List<Map<String, dynamic>>>? groupOptionsRequest;
+
   bool saving = false;
 
   final TextEditingController nameController = TextEditingController();
@@ -73,11 +77,39 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     }
   }
 
+  Future<List<Map<String, dynamic>>> _loadGroupOptions() async {
+    final cached = groupOptionsCache;
+
+    if (cached != null) {
+      return cached;
+    }
+
+    final inFlight = groupOptionsRequest;
+
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final request = backend.getGroups();
+
+    groupOptionsRequest = request;
+
+    try {
+      final groups = await request;
+
+      groupOptionsCache = groups;
+
+      return groups;
+    } finally {
+      groupOptionsRequest = null;
+    }
+  }
+
   Future<void> _hydrateSelectedGroupNames() async {
     List<Map<String, dynamic>> groups;
 
     try {
-      groups = await backend.getGroups();
+      groups = await _loadGroupOptions();
     } catch (_) {
       // Ten group chi la du lieu hien thi.
       // Khong duoc chan Edit Filter neu request nay loi.
@@ -383,7 +415,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     List<Map<String, dynamic>> groups;
 
     try {
-      groups = await backend.getGroups();
+      groups = await _loadGroupOptions();
     } catch (error) {
       if (!mounted) {
         return;
