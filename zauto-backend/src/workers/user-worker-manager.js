@@ -701,6 +701,98 @@ function isDisplayableConversationEvent(
 }
 
 // ========================================
+// MESSAGE MEDIA TYPE HELPERS
+// ========================================
+
+function isPhotoConversationEvent(
+  message
+) {
+  const raw =
+    message?.data?.msgType;
+
+  const type =
+    String(
+      raw ?? ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  return (
+    type ===
+      "chat.photo" ||
+    Number(raw) ===
+      32
+  );
+}
+
+
+function isVoiceConversationEvent(
+  message
+) {
+  const raw =
+    message?.data?.msgType;
+
+  const type =
+    String(
+      raw ?? ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  return (
+    type ===
+      "chat.voice" ||
+    type ===
+      "chat.voice.msg" ||
+    type ===
+      "chat.audio" ||
+    Number(raw) ===
+      31
+  );
+}
+
+
+function shouldStoreConversationEvent(
+  userId,
+  message
+) {
+  const settings =
+    getUserMessageSettings(
+      userId
+    );
+
+
+  if (
+    settings.showImages ===
+      false &&
+    isPhotoConversationEvent(
+      message
+    )
+  ) {
+
+    return false;
+  }
+
+
+  if (
+    settings.showVoiceMessages ===
+      false &&
+    isVoiceConversationEvent(
+      message
+    )
+  ) {
+
+    return false;
+  }
+
+
+  return true;
+}
+
+
+// ========================================
 // STORE ALL GROUP CONVERSATION MESSAGES
 // ========================================
 
@@ -738,6 +830,24 @@ async function storeConversationEvent(
   const data =
     message?.data ??
     {};
+
+
+  // ========================================
+  // USER MEDIA DISPLAY SETTINGS
+  //
+  // Chan truoc khi enrich/store/broadcast.
+  // Ap dung chung cho realtime va old_messages.
+  // ========================================
+
+  if (
+    !shouldStoreConversationEvent(
+      userId,
+      message
+    )
+  ) {
+
+    return null;
+  }
 
 
   // ========================================
