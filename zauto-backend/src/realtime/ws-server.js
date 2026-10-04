@@ -469,10 +469,36 @@ export function broadcastUserEvent(
   }
 
 
+  let eventData =
+    data;
+
+
+  if (
+    type === "new_trip" &&
+    data &&
+    typeof data === "object" &&
+    data._latencyTrace &&
+    typeof data._latencyTrace ===
+      "object"
+  ) {
+    eventData = {
+      ...data,
+
+      _latencyTrace: {
+        ...data._latencyTrace,
+
+        wsBroadcastAtMs:
+          Date.now(),
+      },
+    };
+  }
+
+
   const payload =
     JSON.stringify({
       type,
-      data,
+      data:
+        eventData,
 
       at:
         new Date()
