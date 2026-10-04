@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
+import '../controllers/settings_controller.dart';
 import '../services/backend_service.dart';
 import 'chat/chat_page.dart';
 import '../services/app_realtime_service.dart';
@@ -10,11 +11,14 @@ import 'dart:async';
 class MessagesPage extends StatefulWidget {
   final VoidCallback onOpenSettings;
   final AppRealtimeService realtimeService;
+  final SettingsController settingsController;
 
   const MessagesPage({
     super.key,
 
     required this.realtimeService,
+
+    required this.settingsController,
 
     required this.onOpenSettings,
   });
@@ -687,6 +691,8 @@ class _MessagesPageState extends State<MessagesPage>
         builder: (_) => ChatPage(
           realtimeService: widget.realtimeService,
 
+          settingsController: widget.settingsController,
+
           groupId: groupId,
 
           groupName: groupName,
@@ -824,6 +830,8 @@ class _MessagesPageState extends State<MessagesPage>
       MaterialPageRoute(
         builder: (_) => ChatPage(
           realtimeService: widget.realtimeService,
+
+          settingsController: widget.settingsController,
 
           groupId: groupId,
 
@@ -1305,6 +1313,9 @@ class _MessagesPageState extends State<MessagesPage>
                     overflow: TextOverflow.ellipsis,
 
                     style: TextStyle(
+                      fontSize:
+                          widget.settingsController.settings.chatFontSize,
+
                       color: hasUnread
                           ? colorScheme.onSurface
                           : colorScheme.onSurfaceVariant,
