@@ -59,6 +59,28 @@ class NotificationFilterApi extends BackendApiBase {
         .toList();
   }
 
+  Future<List<Map<String, dynamic>>> reorderFilters(
+    List<String> orderedIds,
+  ) async {
+    final decoded = await putJson(
+      Uri.parse('$baseUrl/api/me/notification-filters-order'),
+      body: {
+        'orderedIds': orderedIds,
+      },
+    );
+
+    final raw = decoded['filters'];
+
+    if (raw is! List) {
+      throw Exception('Dữ liệu thứ tự bộ lọc không hợp lệ');
+    }
+
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
   Future<Map<String, dynamic>> createFilter(
     Map<String, dynamic> filter,
   ) async {
