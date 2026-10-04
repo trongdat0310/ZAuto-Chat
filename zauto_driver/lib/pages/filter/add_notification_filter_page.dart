@@ -1768,6 +1768,12 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
 
     setState(() {
       target.add(keyword);
+
+      if (showKeyword) {
+        advancedShowError = null;
+      } else {
+        advancedHideError = null;
+      }
     });
   }
 
@@ -1779,6 +1785,12 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       final target = showKeyword ? advancedShowKeywords : advancedHideKeywords;
 
       target.remove(keyword);
+
+      if (showKeyword) {
+        advancedShowError = null;
+      } else {
+        advancedHideError = null;
+      }
     });
   }
 
@@ -2217,6 +2229,12 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       target
         ..clear()
         ..addAll(result);
+
+      if (showKeyword) {
+        advancedShowError = null;
+      } else {
+        advancedHideError = null;
+      }
     });
   }
 
@@ -2308,6 +2326,24 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
         // ========================================
         // CHIPS + ADD BUTTON
         // ========================================
+        if (
+          showKeyword
+              ? advancedShowError != null
+              : advancedHideError != null
+        ) ...[
+          const SizedBox(height: 10),
+          Text(
+            showKeyword
+                ? advancedShowError!
+                : advancedHideError!,
+            style: TextStyle(
+              fontSize: 12.5,
+              height: 1.3,
+              color: colorScheme.error,
+            ),
+          ),
+        ],
+
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
 
@@ -2986,6 +3022,15 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       onTap: () {
         setState(() {
           this.mode = mode;
+
+          advancedShowError = null;
+          advancedHideError = null;
+          pickupError = null;
+          dropoffError = null;
+          includeError = null;
+          excludeError = null;
+          minimumPriceError = null;
+          timeError = null;
         });
       },
 
