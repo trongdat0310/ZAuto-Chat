@@ -22,6 +22,76 @@ class ZautoDriverApp extends StatelessWidget {
           title: 'Driver Assistant',
 
           // ========================================
+          // GLOBAL KEYBOARD DISMISS
+          //
+          // Cham ra ngoai o dang nhap:
+          // - bo focus
+          // - ha ban phim
+          //
+          // Listener chi quan sat pointer nen khong
+          // chan tap/scroll cua widget ben duoi.
+          // ========================================
+
+          builder: (context, child) {
+            return Listener(
+              behavior:
+                  HitTestBehavior.translucent,
+
+              onPointerDown: (event) {
+                final focus =
+                    FocusManager.instance.primaryFocus;
+
+                if (
+                  focus == null ||
+                  !focus.hasFocus
+                ) {
+                  return;
+                }
+
+
+                final focusContext =
+                    focus.context;
+
+                final renderObject =
+                    focusContext
+                        ?.findRenderObject();
+
+
+                if (
+                  renderObject is RenderBox &&
+                  renderObject.hasSize
+                ) {
+                  final localPosition =
+                      renderObject.globalToLocal(
+                    event.position,
+                  );
+
+
+                  final insideFocusedField =
+                      localPosition.dx >= 0 &&
+                      localPosition.dy >= 0 &&
+                      localPosition.dx <=
+                          renderObject.size.width &&
+                      localPosition.dy <=
+                          renderObject.size.height;
+
+
+                  if (insideFocusedField) {
+                    return;
+                  }
+                }
+
+
+                focus.unfocus();
+              },
+
+              child:
+                  child ??
+                  const SizedBox.shrink(),
+            );
+          },
+
+          // ========================================
           // LIGHT THEME
           // ========================================
           theme: ThemeData(
