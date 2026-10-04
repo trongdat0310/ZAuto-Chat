@@ -468,6 +468,173 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     };
   }
 
+  String _formatPriceThousands(dynamic value) {
+    final number =
+        value is num
+            ? value
+            : num.tryParse(
+                value?.toString() ?? '',
+              );
+
+    if (number == null) {
+      return '';
+    }
+
+    final rounded =
+        number.round();
+
+    if (rounded >= 1000) {
+      final millions =
+          rounded / 1000;
+
+      final text =
+          millions % 1 == 0
+              ? millions.toInt().toString()
+              : millions.toStringAsFixed(1);
+
+      return '${text} triệu';
+    }
+
+    return '${rounded}k';
+  }
+
+  String _previewReasonText(
+    Map<String, dynamic> result,
+  ) {
+    final reason =
+        result['reason']?.toString() ?? '';
+
+    final keyword =
+        result['keyword']?.toString().trim() ?? '';
+
+    final rawDetails =
+        result['details'];
+
+    final details =
+        rawDetails is Map
+            ? Map<String, dynamic>.from(rawDetails)
+            : <String, dynamic>{};
+
+    String expectedList() {
+      final raw = details['expected'];
+
+      if (raw is! List) {
+        return '';
+      }
+
+      return raw
+          .map((item) => item.toString())
+          .where((item) => item.isNotEmpty)
+          .join(', ');
+    }
+
+    switch (reason) {
+      case 'advanced_hidden_keyword':
+        return keyword.isEmpty
+            ? 'Tin nhắn chứa từ khoá đang bị ẩn.'
+            : 'Bị chặn bởi từ khoá ẩn “$keyword”.';
+
+      case 'advanced_show_keyword':
+        return keyword.isEmpty
+            ? 'Tin nhắn khớp từ khoá hiển thị.'
+            : 'Khớp từ khoá hiển thị “$keyword”.';
+
+      case 'advanced_no_show_keywords':
+        return 'Danh sách Hiện đang trống nên mọi tin không bị Ẩn đều được nhận.';
+
+      case 'advanced_no_show_match':
+        return 'Không khớp bất kỳ từ khoá nào trong danh sách Hiện.';
+
+      case 'basic_excluded_keyword':
+        return keyword.isEmpty
+            ? 'Tin nhắn chứa từ khoá bị loại.'
+            : 'Bị chặn bởi từ khoá “$keyword”.';
+
+      case 'basic_pickup_no_match':
+        final expected = expectedList();
+
+        return expected.isEmpty
+            ? 'Không tìm thấy điểm đón phù hợp.'
+            : 'Không tìm thấy điểm đón. Đang chờ một trong: $expected.';
+
+      case 'basic_dropoff_no_match':
+        final expected = expectedList();
+
+        return expected.isEmpty
+            ? 'Không tìm thấy điểm trả phù hợp.'
+            : 'Không tìm thấy điểm trả. Đang chờ một trong: $expected.';
+
+      case 'basic_wrong_direction':
+        final pickup =
+            details['pickup']?.toString() ?? '';
+
+        final dropoff =
+            details['dropoff']?.toString() ?? '';
+
+        if (pickup.isNotEmpty && dropoff.isNotEmpty) {
+          return 'Có cả điểm đón “$pickup” và điểm trả “$dropoff” nhưng thứ tự đang ngược chiều.';
+        }
+
+        return 'Điểm đón và điểm trả xuất hiện sai thứ tự.';
+
+      case 'basic_include_no_match':
+        final expected = expectedList();
+
+        return expected.isEmpty
+            ? 'Không khớp từ khoá bắt buộc.'
+            : 'Không khớp từ khoá bắt buộc. Đang chờ một trong: $expected.';
+
+      case 'basic_price_missing':
+        final minimum =
+            _formatPriceThousands(
+          details['minimumPrice'],
+        );
+
+        return minimum.isEmpty
+            ? 'Tin nhắn không ghi giá.'
+            : 'Tin nhắn không ghi giá nên không thể kiểm tra mức tối thiểu $minimum.';
+
+      case 'basic_price_below_minimum':
+        final messagePrice =
+            _formatPriceThousands(
+          details['messagePrice'],
+        );
+
+        final minimum =
+            _formatPriceThousands(
+          details['minimumPrice'],
+        );
+
+        if (messagePrice.isNotEmpty && minimum.isNotEmpty) {
+          return 'Giá tin nhắn $messagePrice thấp hơn mức tối thiểu $minimum.';
+        }
+
+        return 'Giá tin nhắn thấp hơn mức tối thiểu.';
+
+      case 'basic_time_no_match':
+        final rules =
+            details['timeRules']?.toString().trim() ?? '';
+
+        return rules.isEmpty
+            ? 'Khung giờ trong tin nhắn không phù hợp.'
+            : 'Khung giờ trong tin nhắn không khớp quy tắc “$rules”.';
+
+      case 'basic_conditions_match':
+        return 'Tin nhắn đáp ứng đầy đủ các điều kiện của bộ lọc Cơ bản.';
+
+      case 'no_applicable_filters':
+        return 'Không có bộ lọc áp dụng cho nhóm này.';
+
+      case 'no_filter_match':
+        return 'Không có điều kiện nào của bộ lọc khớp tin nhắn.';
+
+      default:
+        return reason.isEmpty
+            ? 'Không có thêm chi tiết.'
+            : reason;
+    }
+  }
+
   Future<void> _checkFilter() async {
     if (!_validateForm()) {
       return;
@@ -537,7 +704,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
 
       final matched = result['matched'] == true;
 
-      final reason = result['reason']?.toString() ?? '';
+      final explanation =
+          _previewReasonText(result);
 
       showDialog<void>(
         context: context,
@@ -559,9 +727,13 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                   ? 'Tin nhắn sẽ được nhận'
                   : 'Tin nhắn sẽ bị bỏ qua',
             ),
-            content: reason.isEmpty
-                ? null
-                : Text('Kết quả: $reason'),
+            content: Text(
+              explanation,
+              style: const TextStyle(
+                fontSize: 15,
+                height: 1.4,
+              ),
+            ),
             actions: [
               FilledButton(
                 onPressed: () => Navigator.of(dialogContext).pop(),
