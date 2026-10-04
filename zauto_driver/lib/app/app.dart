@@ -12,11 +12,15 @@ class ZautoDriverApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: ThemeService.themeMode,
+    return AnimatedBuilder(
+      animation: settingsController,
 
-      builder: (context, themeMode, child) {
-        return MaterialApp(
+      builder: (context, _) {
+        return ValueListenableBuilder<ThemeMode>(
+          valueListenable: ThemeService.themeMode,
+
+          builder: (context, themeMode, child) {
+            return MaterialApp(
           debugShowCheckedModeBanner: false,
 
           title: 'Driver Assistant',
@@ -115,7 +119,12 @@ class ZautoDriverApp extends StatelessWidget {
 
           themeMode: themeMode,
 
-          home: AuthGate(settingsController: settingsController),
+              home: AuthGate(
+                settingsController:
+                    settingsController,
+              ),
+            );
+          },
         );
       },
     );
