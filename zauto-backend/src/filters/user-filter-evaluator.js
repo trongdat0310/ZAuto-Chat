@@ -129,6 +129,7 @@ function accepted(
   reason,
   {
     keyword = null,
+    details = null,
   } = {}
 ) {
   return {
@@ -150,6 +151,8 @@ function accepted(
       filter.mode,
 
     keyword,
+
+    details,
   };
 }
 
@@ -159,6 +162,7 @@ function rejected(
   reason,
   {
     keyword = null,
+    details = null,
   } = {}
 ) {
   return {
@@ -180,6 +184,8 @@ function rejected(
       filter.mode,
 
     keyword,
+
+    details,
   };
 }
 
@@ -396,7 +402,15 @@ export function evaluateBasicFilter(
   ) {
     return rejected(
       filter,
-      "basic_pickup_no_match"
+      "basic_pickup_no_match",
+      {
+        details: {
+          expected:
+            basic.pickupMatchers.map(
+              matcher => matcher.source
+            ),
+        },
+      }
     );
   }
 
@@ -427,7 +441,15 @@ export function evaluateBasicFilter(
   ) {
     return rejected(
       filter,
-      "basic_dropoff_no_match"
+      "basic_dropoff_no_match",
+      {
+        details: {
+          expected:
+            basic.dropoffMatchers.map(
+              matcher => matcher.source
+            ),
+        },
+      }
     );
   }
 
@@ -477,7 +499,18 @@ export function evaluateBasicFilter(
     ) {
       return rejected(
         filter,
-        "basic_wrong_direction"
+        "basic_wrong_direction",
+        {
+          details: {
+            pickup:
+              pickup?.matcher?.source ??
+              null,
+
+            dropoff:
+              dropoff?.matcher?.source ??
+              null,
+          },
+        }
       );
     }
   }
@@ -505,7 +538,15 @@ export function evaluateBasicFilter(
     if (!includeMatch) {
       return rejected(
         filter,
-        "basic_include_no_match"
+        "basic_include_no_match",
+        {
+          details: {
+            expected:
+              basic.includeMatchers.map(
+                matcher => matcher.source
+              ),
+          },
+        }
       );
     }
   }
@@ -542,7 +583,13 @@ export function evaluateBasicFilter(
     ) {
       return rejected(
         filter,
-        "basic_price_missing"
+        "basic_price_missing",
+        {
+          details: {
+            minimumPrice:
+              basic.minimumPrice,
+          },
+        }
       );
     }
 
@@ -553,7 +600,16 @@ export function evaluateBasicFilter(
     ) {
       return rejected(
         filter,
-        "basic_price_below_minimum"
+        "basic_price_below_minimum",
+        {
+          details: {
+            messagePrice:
+              price,
+
+            minimumPrice:
+              basic.minimumPrice,
+          },
+        }
       );
     }
   }
@@ -581,7 +637,13 @@ export function evaluateBasicFilter(
     ) {
       return rejected(
         filter,
-        "basic_time_no_match"
+        "basic_time_no_match",
+        {
+          details: {
+            timeRules:
+              basic.timeRules,
+          },
+        }
       );
     }
   }
