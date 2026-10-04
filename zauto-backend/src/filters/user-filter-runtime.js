@@ -225,7 +225,8 @@ function compileAdvancedFilter(
 // ========================================
 
 function compileOneFilter(
-  filter
+  filter,
+  order = 0
 ) {
   const mode =
     filter.mode ===
@@ -250,6 +251,8 @@ function compileOneFilter(
     enabled:
       filter.enabled !==
       false,
+
+    order,
 
     groupIds:
       Array.isArray(
@@ -432,7 +435,8 @@ export function compileUserFilterDocument(
   ) {
     const filter =
       compileOneFilter(
-        rawFilter
+        rawFilter,
+        compiledFilters.length
       );
 
 
@@ -646,7 +650,11 @@ export function getCompiledGroupPlan(
             .allGroupsFilters,
 
           ...specific,
-        ]
+        ].sort(
+          (a, b) =>
+            a.order -
+            b.order
+        )
       : specific;
 
 
