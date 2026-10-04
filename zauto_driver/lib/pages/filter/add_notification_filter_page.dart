@@ -2409,7 +2409,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
   }
 
   Future<void> _addAdvancedKeyword({required bool showKeyword}) async {
-    final controller = TextEditingController();
+    String draftKeyword = '';
 
     final value = await showDialog<String>(
       context: context,
@@ -2420,14 +2420,16 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
             showKeyword ? 'Thêm từ khoá hiển thị' : 'Thêm từ khoá ẩn',
           ),
 
-          content: TextField(
-            controller: controller,
-
+          content: TextFormField(
             autofocus: true,
 
             textInputAction: TextInputAction.done,
 
-            onSubmitted: (value) {
+            onChanged: (value) {
+              draftKeyword = value;
+            },
+
+            onFieldSubmitted: (value) {
               Navigator.of(dialogContext).pop(value.trim());
             },
 
@@ -2449,7 +2451,9 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
 
             FilledButton(
               onPressed: () {
-                Navigator.of(dialogContext).pop(controller.text.trim());
+                Navigator.of(dialogContext).pop(
+                  draftKeyword.trim(),
+                );
               },
 
               child: const Text('THÊM'),
@@ -2458,8 +2462,6 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
         );
       },
     );
-
-    controller.dispose();
 
     if (!mounted || value == null || value.trim().isEmpty) {
       return;
@@ -2554,8 +2556,9 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
           ),
         };
 
-    final addController =
-        TextEditingController();
+    String draftLibraryKeyword = '';
+
+    int libraryInputRevision = 0;
 
     String? libraryError;
 
@@ -2569,7 +2572,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
           builder: (context, setSheetState) {
             void addKeyword() {
               final value =
-                  addController.text.trim();
+                  draftLibraryKeyword.trim();
 
               if (value.isEmpty) {
                 return;
@@ -2601,7 +2604,10 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                 });
               }
 
-              addController.clear();
+              setSheetState(() {
+                draftLibraryKeyword = '';
+                libraryInputRevision += 1;
+              });
             }
 
             return SafeArea(
@@ -2644,11 +2650,18 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                       child: Row(
                         children: [
                           Expanded(
-                            child: TextField(
-                              controller: addController,
+                            child: TextFormField(
+                              key: ValueKey(
+                                'library-keyword-$libraryInputRevision',
+                              ),
+                              initialValue:
+                                  draftLibraryKeyword,
                               textInputAction:
                                   TextInputAction.done,
-                              onSubmitted: (_) => addKeyword(),
+                              onChanged: (value) {
+                                draftLibraryKeyword = value;
+                              },
+                              onFieldSubmitted: (_) => addKeyword(),
                               decoration: const InputDecoration(
                                 hintText: 'Thêm từ khoá vào thư viện...',
                                 border: OutlineInputBorder(),
@@ -2773,8 +2786,6 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       },
     );
 
-    addController.dispose();
-
     if (!mounted || result == null) {
       return;
     }
@@ -2857,10 +2868,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
     final target =
         showKeyword ? advancedShowKeywords : advancedHideKeywords;
 
-    final controller =
-        TextEditingController(
-      text: target.join('\n'),
-    );
+    String draftText =
+        target.join('\n');
 
     String? listError;
 
@@ -2912,13 +2921,17 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                       ),
                       const SizedBox(height: 16),
                       Expanded(
-                        child: TextField(
-                          controller: controller,
+                        child: TextFormField(
+                          initialValue:
+                              draftText,
                           expands: true,
                           minLines: null,
                           maxLines: null,
                           textAlignVertical:
                               TextAlignVertical.top,
+                          onChanged: (value) {
+                            draftText = value;
+                          },
                           decoration: const InputDecoration(
                             hintText:
                                 'VD:\nnội bài\n*(quận 1)*(nội bài)*\n500',
@@ -2947,7 +2960,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
                               <String>{};
 
                           for (final raw
-                              in controller.text.split('\n')) {
+                              in draftText.split('\n')) {
                             final value =
                                 raw.trim();
 
@@ -2993,8 +3006,6 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
         );
       },
     );
-
-    controller.dispose();
 
     if (!mounted || result == null) {
       return;
