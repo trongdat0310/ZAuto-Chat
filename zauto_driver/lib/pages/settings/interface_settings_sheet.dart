@@ -211,6 +211,11 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                           setState(() {
                             notificationFontSize = value;
                           });
+
+                          widget.settingsController
+                              .previewFontSize(
+                            value,
+                          );
                         },
 
                         onChangeEnd: (value) async {
