@@ -679,6 +679,9 @@ class _FilterPageState extends State<FilterPage> {
               ? 'Tất cả các nhóm'
               : '$groupCount nhóm';
 
+          final summary =
+              _buildFilterSummary(filter);
+
           return Material(
             color: colorScheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(18),
@@ -711,6 +714,17 @@ class _FilterPageState extends State<FilterPage> {
                           '$mode • $groupText',
                           style: TextStyle(
                             fontSize: 13.5,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 7),
+                        Text(
+                          summary,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13.2,
+                            height: 1.35,
                             color: colorScheme.onSurfaceVariant,
                           ),
                         ),
