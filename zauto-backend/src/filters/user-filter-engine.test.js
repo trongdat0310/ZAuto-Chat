@@ -123,3 +123,63 @@ test(
     assert.equal(result.filterId, "preview-basic");
   }
 );
+
+
+
+test(
+  "preview rejects one-sided wildcard instead of silently dropping it",
+  () => {
+    assert.throws(
+      () => {
+        previewUserFilterV2(
+          advancedFilter({
+            show: ["vip*"],
+          }),
+          "VIP"
+        );
+      },
+      /Dau \* phai nam o ca hai dau/
+    );
+  }
+);
+
+
+test(
+  "preview rejects negative minimum price",
+  () => {
+    assert.throws(
+      () => {
+        previewUserFilterV2(
+          basicFilter({
+            price: -1,
+          }),
+          "cuốc giá 500k"
+        );
+      },
+      /Gia toi thieu/
+    );
+  }
+);
+
+
+test(
+  "preview rejects blank filter name",
+  () => {
+    const filter =
+      advancedFilter({
+        show: ["vip"],
+      });
+
+    filter.name = "   ";
+
+    assert.throws(
+      () => {
+        previewUserFilterV2(
+          filter,
+          "VIP"
+        );
+      },
+      /Ten bo loc/
+    );
+  }
+);
