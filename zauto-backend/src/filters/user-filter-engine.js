@@ -15,6 +15,8 @@ import {
 } from "./user-filter-runtime.js";
 
 import {
+  createFilterMessageContext,
+  evaluateCompiledFilter,
   evaluateCompiledGroupPlan,
 } from "./user-filter-evaluator.js";
 
@@ -452,8 +454,56 @@ export function previewUserFilterV2(
     );
 
 
-  return evaluateCompiledGroupPlan(
-    plan,
-    messageText
-  );
+  const summary =
+    evaluateCompiledGroupPlan(
+      plan,
+      messageText
+    );
+
+
+  if (summary.matched === true) {
+    return summary;
+  }
+
+
+  const compiledFilter =
+    runtime.compiledFilters[0];
+
+
+  if (!compiledFilter) {
+    return summary;
+  }
+
+
+  const detailed =
+    evaluateCompiledFilter(
+      compiledFilter,
+      createFilterMessageContext(
+        messageText
+      )
+    );
+
+
+  return {
+    ...summary,
+
+    reason:
+      detailed.reason,
+
+    filterId:
+      detailed.filterId,
+
+    filterName:
+      detailed.filterName,
+
+    mode:
+      detailed.mode,
+
+    keyword:
+      detailed.keyword,
+
+    details:
+      detailed.details ??
+      null,
+  };
 }
