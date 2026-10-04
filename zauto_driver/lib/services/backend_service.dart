@@ -104,6 +104,12 @@ class BackendService {
     return notificationFilterApi.saveSavedKeywords(keywords);
   }
 
+  Future<List<Map<String, dynamic>>> reorderNotificationFilters(
+    List<String> orderedIds,
+  ) {
+    return notificationFilterApi.reorderFilters(orderedIds);
+  }
+
   Future<Map<String, dynamic>> createNotificationFilter(
     Map<String, dynamic> filter,
   ) {
