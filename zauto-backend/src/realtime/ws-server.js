@@ -6,6 +6,10 @@ import {
 import jwt from "jsonwebtoken";
 
 import {
+  performance,
+} from "node:perf_hooks";
+
+import {
   JWT_SECRET,
 } from "../config/env.js";
 
@@ -489,6 +493,9 @@ export function broadcastUserEvent(
 
         wsBroadcastAtMs:
           Date.now(),
+
+        wsBroadcastPerfMs:
+          performance.now(),
       },
     };
   }
