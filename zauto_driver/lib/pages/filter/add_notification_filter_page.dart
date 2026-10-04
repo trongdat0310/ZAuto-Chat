@@ -2169,115 +2169,117 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
         return StatefulBuilder(
           builder: (context, setSheetState) {
             return SafeArea(
-          child: Padding(
-            padding: EdgeInsets.only(
-              left: 18,
-              right: 18,
-              bottom:
-                  MediaQuery.viewInsetsOf(sheetContext).bottom + 16,
-            ),
-            child: SizedBox(
-              height:
-                  MediaQuery.sizeOf(sheetContext).height * 0.72,
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    showKeyword
-                        ? 'Danh sách từ khoá hiển thị'
-                        : 'Danh sách từ khoá ẩn',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Mỗi dòng là một từ khoá hoặc một biểu thức. '
-                    'Dòng trống và từ khoá trùng sẽ tự được bỏ qua.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      height: 1.35,
-                      color:
-                          colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: TextField(
-                      controller: controller,
-                      expands: true,
-                      minLines: null,
-                      maxLines: null,
-                      textAlignVertical:
-                          TextAlignVertical.top,
-                      decoration: const InputDecoration(
-                        hintText:
-                            'VD:\nnội bài\n*(quận 1)*(nội bài)*\n500',
-                        border: OutlineInputBorder(),
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 18,
+                  right: 18,
+                  bottom:
+                      MediaQuery.viewInsetsOf(sheetContext).bottom + 16,
+                ),
+                child: SizedBox(
+                  height:
+                      MediaQuery.sizeOf(sheetContext).height * 0.72,
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        showKeyword
+                            ? 'Danh sách từ khoá hiển thị'
+                            : 'Danh sách từ khoá ẩn',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  if (listError != null) ...[
-                    Text(
-                      listError!,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        height: 1.3,
-                        color: colorScheme.error,
+                      const SizedBox(height: 6),
+                      Text(
+                        'Mỗi dòng là một từ khoá hoặc một biểu thức. '
+                        'Dòng trống và từ khoá trùng sẽ tự được bỏ qua.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          height: 1.35,
+                          color:
+                              colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                  FilledButton(
-                    onPressed: () {
-                      final values =
-                          <String>[];
+                      const SizedBox(height: 16),
+                      Expanded(
+                        child: TextField(
+                          controller: controller,
+                          expands: true,
+                          minLines: null,
+                          maxLines: null,
+                          textAlignVertical:
+                              TextAlignVertical.top,
+                          decoration: const InputDecoration(
+                            hintText:
+                                'VD:\nnội bài\n*(quận 1)*(nội bài)*\n500',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      if (listError != null) ...[
+                        Text(
+                          listError!,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            height: 1.3,
+                            color: colorScheme.error,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                      FilledButton(
+                        onPressed: () {
+                          final values =
+                              <String>[];
 
-                      final seen =
-                          <String>{};
+                          final seen =
+                              <String>{};
 
-                      for (final raw
-                          in controller.text.split('\n')) {
-                        final value =
-                            raw.trim();
+                          for (final raw
+                              in controller.text.split('\n')) {
+                            final value =
+                                raw.trim();
 
-                        if (value.isEmpty) {
-                          continue;
-                        }
+                            if (value.isEmpty) {
+                              continue;
+                            }
 
-                        final validationError =
-                            _validateKeywordPattern(value);
+                            final validationError =
+                                _validateKeywordPattern(value);
 
-                        if (validationError != null) {
-                          setSheetState(() {
-                            listError =
-                                '“$value”: $validationError';
-                          });
+                            if (validationError != null) {
+                              setSheetState(() {
+                                listError =
+                                    '“$value”: $validationError';
+                              });
 
-                          return;
-                        }
+                              return;
+                            }
 
-                        final key =
-                            value.toLowerCase();
+                            final key =
+                                value.toLowerCase();
 
-                        if (seen.add(key)) {
-                          values.add(value);
-                        }
+                            if (seen.add(key)) {
+                              values.add(value);
+                            }
 
-                        if (values.length >= 100) {
-                          break;
-                        }
-                      }
+                            if (values.length >= 100) {
+                              break;
+                            }
+                          }
 
-                      Navigator.of(sheetContext)
-                          .pop(values);
-                    },
-                    child: const Text('ÁP DỤNG'),
+                          Navigator.of(sheetContext)
+                              .pop(values);
+                        },
+                        child: const Text('ÁP DỤNG'),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             );
           },
