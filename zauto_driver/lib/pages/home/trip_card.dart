@@ -260,8 +260,8 @@ class TripCard extends StatelessWidget {
             Text(
               content,
 
-              style: TextStyle(
-                fontSize: settingsController.settings.chatFontSize,
+              style: const TextStyle(
+                fontSize: 15,
 
                 fontWeight: FontWeight.w600,
 
