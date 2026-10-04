@@ -19,6 +19,29 @@ const rootPath =
 
 
 // ========================================
+// RAM CACHE + WRITE-BEHIND STATE
+//
+// Realtime hot path:
+// - cache miss: doc disk 1 lan
+// - message tiep theo: chi RAM
+// - save: mutate RAM, schedule persist
+// ========================================
+
+const messageCache =
+  new Map();
+
+
+// userId -> {
+//   dirty,
+//   scheduled,
+//   writing,
+//   waiters,
+// }
+const writeStates =
+  new Map();
+
+
+// ========================================
 // PATH
 // ========================================
 
@@ -43,73 +66,386 @@ function getMessagesPath(userId) {
 // ========================================
 
 function readUserMessages(userId) {
-  const filePath =
-    getMessagesPath(userId);
-
-
-  if (!fs.existsSync(filePath)) {
-    return [];
-  }
-
-
-  try {
-    const data =
-      JSON.parse(
-        fs.readFileSync(
-          filePath,
-          "utf-8"
-        )
-      );
-
-
-    return Array.isArray(data)
-      ? data
-      : [];
-
-  } catch (error) {
-
-    console.error(
-      "[USER MESSAGES] READ ERROR:",
-      userId,
-      error
+  const key =
+    String(
+      userId
     );
 
 
-    return [];
+  const cached =
+    messageCache.get(
+      key
+    );
+
+
+  if (cached) {
+    return cached;
   }
+
+
+  const filePath =
+    getMessagesPath(
+      key
+    );
+
+
+  let messages =
+    [];
+
+
+  if (
+    fs.existsSync(
+      filePath
+    )
+  ) {
+    try {
+      const data =
+        JSON.parse(
+          fs.readFileSync(
+            filePath,
+            "utf-8"
+          )
+        );
+
+
+      if (
+        Array.isArray(
+          data
+        )
+      ) {
+        messages =
+          data;
+      }
+
+    } catch (error) {
+
+      console.error(
+        "[USER MESSAGES] READ ERROR:",
+        key,
+        error
+      );
+    }
+  }
+
+
+  messageCache.set(
+    key,
+    messages
+  );
+
+
+  return messages;
 }
 
 
 // ========================================
-// WRITE
+// ASYNC ATOMIC PERSIST
+//
+// Khong chan event loop truoc websocket.
+// Neu co nhieu thay doi trong luc dang ghi,
+// loop se ghi snapshot moi nhat them 1 lan.
 // ========================================
 
-function writeUserMessages(
-  userId,
-  messages
+function getWriteState(
+  userId
 ) {
-  const userDir =
-    getUserDir(userId);
+  const key =
+    String(
+      userId
+    );
 
 
-  fs.mkdirSync(
-    userDir,
-    {
-      recursive: true,
+  let state =
+    writeStates.get(
+      key
+    );
+
+
+  if (!state) {
+    state = {
+      dirty:
+        false,
+
+      scheduled:
+        false,
+
+      writing:
+        false,
+
+      waiters:
+        [],
+    };
+
+
+    writeStates.set(
+      key,
+      state
+    );
+  }
+
+
+  return state;
+}
+
+
+function resolveWriteWaiters(
+  state
+) {
+  if (
+    state.dirty ||
+    state.scheduled ||
+    state.writing
+  ) {
+    return;
+  }
+
+
+  const waiters =
+    state.waiters.splice(
+      0
+    );
+
+
+  for (
+    const resolve of waiters
+  ) {
+    resolve();
+  }
+}
+
+
+async function flushUserMessagesInternal(
+  userId
+) {
+  const key =
+    String(
+      userId
+    );
+
+
+  const state =
+    getWriteState(
+      key
+    );
+
+
+  if (state.writing) {
+    return;
+  }
+
+
+  state.scheduled =
+    false;
+
+  state.writing =
+    true;
+
+
+  try {
+
+    while (state.dirty) {
+
+      state.dirty =
+        false;
+
+
+      const messages =
+        readUserMessages(
+          key
+        );
+
+
+      // Snapshot string duoc tao truoc await.
+      // Message den sau se set dirty=true
+      // va duoc ghi o vong tiep theo.
+      const serialized =
+        JSON.stringify(
+          messages,
+          null,
+          2
+        );
+
+
+      const userDir =
+        getUserDir(
+          key
+        );
+
+
+      await fs.promises.mkdir(
+        userDir,
+        {
+          recursive: true,
+        }
+      );
+
+
+      const filePath =
+        getMessagesPath(
+          key
+        );
+
+
+      const tempPath =
+        `${filePath}.tmp-${process.pid}-${Date.now()}`;
+
+
+      await fs.promises.writeFile(
+        tempPath,
+        serialized,
+        "utf-8"
+      );
+
+
+      await fs.promises.rename(
+        tempPath,
+        filePath
+      );
+    }
+
+  } catch (error) {
+
+    // Thu lai snapshot moi nhat lan sau.
+    state.dirty =
+      true;
+
+
+    console.error(
+      "[USER MESSAGES] ASYNC WRITE ERROR:",
+      key,
+      error
+    );
+
+
+    setTimeout(
+      () => {
+        scheduleUserMessagesPersist(
+          key
+        );
+      },
+      250
+    );
+
+  } finally {
+
+    state.writing =
+      false;
+
+
+    resolveWriteWaiters(
+      state
+    );
+  }
+}
+
+
+function scheduleUserMessagesPersist(
+  userId
+) {
+  const key =
+    String(
+      userId
+    );
+
+
+  const state =
+    getWriteState(
+      key
+    );
+
+
+  state.dirty =
+    true;
+
+
+  if (
+    state.scheduled ||
+    state.writing
+  ) {
+    return;
+  }
+
+
+  state.scheduled =
+    true;
+
+
+  setImmediate(
+    () => {
+      void flushUserMessagesInternal(
+        key
+      );
     }
   );
+}
 
 
-  fs.writeFileSync(
-    getMessagesPath(userId),
+// Test / graceful shutdown helper.
+export function flushUserMessages(
+  userId
+) {
+  const key =
+    String(
+      userId
+    );
 
-    JSON.stringify(
-      messages,
-      null,
-      2
-    ),
 
-    "utf-8"
+  const state =
+    getWriteState(
+      key
+    );
+
+
+  if (
+    !state.dirty &&
+    !state.scheduled &&
+    !state.writing
+  ) {
+    return Promise.resolve();
+  }
+
+
+  return new Promise(
+    resolve => {
+
+      state.waiters.push(
+        resolve
+      );
+
+
+      if (
+        !state.scheduled &&
+        !state.writing
+      ) {
+        state.scheduled =
+          true;
+
+
+        setImmediate(
+          () => {
+            void flushUserMessagesInternal(
+              key
+            );
+          }
+        );
+      }
+    }
+  );
+}
+
+
+// Test helper. Khong dung tren production hot path.
+export function clearUserMessageCache(
+  userId
+) {
+  const key =
+    String(
+      userId
+    );
+
+
+  messageCache.delete(
+    key
   );
 }
 
@@ -341,9 +677,8 @@ export function saveUserMessage(
   }
 
 
-  writeUserMessages(
-    userId,
-    messages
+  scheduleUserMessagesPersist(
+    userId
   );
 
 
@@ -446,9 +781,8 @@ export function updateUserMessage(
   };
 
 
-  writeUserMessages(
-    userId,
-    messages
+  scheduleUserMessagesPersist(
+    userId
   );
 
 
