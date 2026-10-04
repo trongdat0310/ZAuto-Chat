@@ -34,6 +34,68 @@ const runtimeCache =
   new Map();
 
 
+
+// ========================================
+// TEST INSTRUMENTATION
+//
+// Mac dinh TAT.
+// Chi test moi bat counter nay.
+// ========================================
+
+let runtimeTestMetrics =
+  null;
+
+
+export function resetUserFilterRuntimeTestMetrics() {
+  runtimeTestMetrics = {
+    compileDocumentCalls:
+      0,
+
+    buildGroupPlanCalls:
+      0,
+
+    groupPlanCacheHits:
+      0,
+
+    groupPlanCacheMisses:
+      0,
+  };
+
+
+  return {
+    ...runtimeTestMetrics,
+  };
+}
+
+
+export function getUserFilterRuntimeTestMetrics() {
+  return runtimeTestMetrics
+    ? {
+        ...runtimeTestMetrics,
+      }
+    : null;
+}
+
+
+export function disableUserFilterRuntimeTestMetrics() {
+  runtimeTestMetrics =
+    null;
+}
+
+
+function bumpRuntimeMetric(
+  key
+) {
+  if (!runtimeTestMetrics) {
+    return;
+  }
+
+
+  runtimeTestMetrics[key] +=
+    1;
+}
+
+
 // ========================================
 // EMPTY CONSTANTS
 // ========================================
@@ -310,6 +372,11 @@ function compileOneFilter(
 function buildGroupPlan(
   filters
 ) {
+  bumpRuntimeMetric(
+    "buildGroupPlanCalls"
+  );
+
+
   if (
     !filters ||
     filters.length ===
@@ -397,6 +464,11 @@ function buildGroupPlan(
 export function compileUserFilterDocument(
   document
 ) {
+  bumpRuntimeMetric(
+    "compileDocumentCalls"
+  );
+
+
   const sourceFilters =
     Array.isArray(
       document?.filters
@@ -629,8 +701,17 @@ export function getCompiledGroupPlan(
 
 
   if (cached) {
+    bumpRuntimeMetric(
+      "groupPlanCacheHits"
+    );
+
     return cached;
   }
+
+
+  bumpRuntimeMetric(
+    "groupPlanCacheMisses"
+  );
 
 
   // ========================================
