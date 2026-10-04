@@ -927,7 +927,49 @@ test(
 
 
 test(
-  "basic time is still temporarily fail open",
+  "basic time accepts matching daypart",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "timed",
+
+            time:
+              "sáng",
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "cuốc sáng mai 7h30"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+
+    assert.equal(
+      result.filterId,
+      "timed"
+    );
+  }
+);
+
+
+test(
+  "basic time rejects non matching daypart",
   () => {
     const runtime =
       compileUserFilterDocument({
@@ -956,13 +998,13 @@ test(
 
     assert.equal(
       result.matched,
-      true
+      false
     );
 
 
     assert.equal(
       result.reason,
-      "basic_time_pending_fail_open"
+      "no_filter_match"
     );
   }
 );
