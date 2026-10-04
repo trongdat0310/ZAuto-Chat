@@ -102,12 +102,42 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
 
                   title: const Text('Hiển thị ảnh'),
 
-                  onChanged: (value) {
+                  subtitle: const Text(
+                    'Ẩn ảnh khỏi hội thoại khi tắt',
+                  ),
+
+                  onChanged: (value) async {
+                    final oldValue = showImages;
+
                     setState(() {
                       showImages = value;
                     });
 
                     widget.onShowImagesChanged(value);
+
+                    try {
+                      await widget.backend.updateMessageSettings(
+                        showImages: value,
+                      );
+                    } catch (error) {
+                      if (!mounted) {
+                        return;
+                      }
+
+                      setState(() {
+                        showImages = oldValue;
+                      });
+
+                      widget.onShowImagesChanged(oldValue);
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Không thể lưu Hiển thị ảnh: $error',
+                          ),
+                        ),
+                      );
+                    }
                   },
                 ),
 
@@ -230,12 +260,81 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
 
                   title: const Text('Hiển thị tin nhắn thoại'),
 
-                  onChanged: (value) {
+                  subtitle: const Text(
+                    'Ẩn voice/audio khỏi hội thoại khi tắt',
+                  ),
+
+                  onChanged: (value) async {
+                    final oldVoice = showVoiceMessages;
+                    final oldTranscribe =
+                        transcribeVoiceMessages;
+
                     setState(() {
                       showVoiceMessages = value;
+
+                      if (!value) {
+                        transcribeVoiceMessages = false;
+                      }
                     });
 
                     widget.onShowVoiceMessagesChanged(value);
+
+                    if (!value && oldTranscribe) {
+                      widget.onTranscribeVoiceMessagesChanged(false);
+                    }
+
+                    try {
+                      final saved =
+                          await widget.backend.updateMessageSettings(
+                        showVoiceMessages: value,
+                        transcribeVoiceMessages:
+                            value ? null : false,
+                      );
+
+                      if (!mounted) {
+                        return;
+                      }
+
+                      final serverTranscribe =
+                          saved['transcribeVoiceMessages'] == true;
+
+                      if (
+                        transcribeVoiceMessages !=
+                        serverTranscribe
+                      ) {
+                        setState(() {
+                          transcribeVoiceMessages =
+                              serverTranscribe;
+                        });
+
+                        widget.onTranscribeVoiceMessagesChanged(
+                          serverTranscribe,
+                        );
+                      }
+                    } catch (error) {
+                      if (!mounted) {
+                        return;
+                      }
+
+                      setState(() {
+                        showVoiceMessages = oldVoice;
+                        transcribeVoiceMessages =
+                            oldTranscribe;
+                      });
+
+                      widget.onShowVoiceMessagesChanged(oldVoice);
+                      widget.onTranscribeVoiceMessagesChanged(
+                        oldTranscribe,
+                      );
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Không thể lưu Tin nhắn thoại: $error',
+                          ),
+                        ),
+                      );
+                    }
                   },
                 ),
 
@@ -249,13 +348,46 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
 
                   title: const Text('Phiên âm tin nhắn thoại'),
 
+                  subtitle: const Text(
+                    'Lưu lựa chọn phiên âm cho voice/audio',
+                  ),
+
                   onChanged: showVoiceMessages
-                      ? (value) {
+                      ? (value) async {
+                          final oldValue =
+                              transcribeVoiceMessages;
+
                           setState(() {
                             transcribeVoiceMessages = value;
                           });
 
                           widget.onTranscribeVoiceMessagesChanged(value);
+
+                          try {
+                            await widget.backend.updateMessageSettings(
+                              transcribeVoiceMessages: value,
+                            );
+                          } catch (error) {
+                            if (!mounted) {
+                              return;
+                            }
+
+                            setState(() {
+                              transcribeVoiceMessages = oldValue;
+                            });
+
+                            widget.onTranscribeVoiceMessagesChanged(
+                              oldValue,
+                            );
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Không thể lưu Phiên âm: $error',
+                                ),
+                              ),
+                            );
+                          }
                         }
                       : null,
                 ),
