@@ -3208,8 +3208,17 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      backgroundColor: colorScheme.surface,
+    return PopScope(
+      canPop: allowPop || !hasUnsavedChanges,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) {
+          return;
+        }
+
+        await _handleBack();
+      },
+      child: Scaffold(
+        backgroundColor: colorScheme.surface,
 
       appBar: AppBar(
         toolbarHeight: 86,
@@ -3223,9 +3232,9 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
 
           icon: const Icon(Icons.arrow_back_rounded, size: 32),
 
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
+          onPressed: saving
+              ? null
+              : _handleBack,
         ),
 
         title: Column(
@@ -3724,7 +3733,8 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   // ========================================
