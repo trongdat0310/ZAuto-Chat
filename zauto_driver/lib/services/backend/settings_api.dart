@@ -54,11 +54,21 @@ class SettingsApi extends BackendApiBase {
   }
 
   Future<Map<String, dynamic>> updateMessageSettings({
+    bool? showImages,
+
     bool? deduplicateMessages,
 
     int? dedupeWindowSeconds,
+
+    bool? showVoiceMessages,
+
+    bool? transcribeVoiceMessages,
   }) async {
     final body = <String, dynamic>{};
+
+    if (showImages != null) {
+      body['showImages'] = showImages;
+    }
 
     if (deduplicateMessages != null) {
       body['deduplicateMessages'] = deduplicateMessages;
@@ -66,6 +76,14 @@ class SettingsApi extends BackendApiBase {
 
     if (dedupeWindowSeconds != null) {
       body['dedupeWindowSeconds'] = dedupeWindowSeconds;
+    }
+
+    if (showVoiceMessages != null) {
+      body['showVoiceMessages'] = showVoiceMessages;
+    }
+
+    if (transcribeVoiceMessages != null) {
+      body['transcribeVoiceMessages'] = transcribeVoiceMessages;
     }
 
     final decoded = await patchJson(
