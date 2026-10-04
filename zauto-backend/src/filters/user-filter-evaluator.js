@@ -15,6 +15,68 @@ import {
 } from "./user-filter-time.js";
 
 
+
+// ========================================
+// TEST INSTRUMENTATION
+//
+// Mac dinh TAT.
+// Chi test moi bat de dem hot-path work.
+// ========================================
+
+let evaluatorTestMetrics =
+  null;
+
+
+export function resetUserFilterEvaluatorTestMetrics() {
+  evaluatorTestMetrics = {
+    normalizeCalls:
+      0,
+
+    priceParseCalls:
+      0,
+
+    timeParseCalls:
+      0,
+
+    filterEvaluationCalls:
+      0,
+  };
+
+
+  return {
+    ...evaluatorTestMetrics,
+  };
+}
+
+
+export function getUserFilterEvaluatorTestMetrics() {
+  return evaluatorTestMetrics
+    ? {
+        ...evaluatorTestMetrics,
+      }
+    : null;
+}
+
+
+export function disableUserFilterEvaluatorTestMetrics() {
+  evaluatorTestMetrics =
+    null;
+}
+
+
+function bumpEvaluatorMetric(
+  key
+) {
+  if (!evaluatorTestMetrics) {
+    return;
+  }
+
+
+  evaluatorTestMetrics[key] +=
+    1;
+}
+
+
 // ========================================
 // MESSAGE CONTEXT
 //
@@ -31,6 +93,11 @@ export function createFilterMessageContext(
     String(
       messageText ?? ""
     );
+
+
+  bumpEvaluatorMetric(
+    "normalizeCalls"
+  );
 
 
   return {
@@ -85,6 +152,11 @@ function getContextPrice(
   }
 
 
+  bumpEvaluatorMetric(
+    "priceParseCalls"
+  );
+
+
   context.price =
     extractMessagePriceThousands(
       context.text
@@ -108,6 +180,11 @@ function getContextTemporalMentions(
   ) {
     return context.temporalMentions;
   }
+
+
+  bumpEvaluatorMetric(
+    "timeParseCalls"
+  );
 
 
   context.temporalMentions =
@@ -1130,6 +1207,11 @@ export function evaluateCompiledFilter(
   filter,
   context
 ) {
+  bumpEvaluatorMetric(
+    "filterEvaluationCalls"
+  );
+
+
   if (
     filter.mode ===
     "advanced"
