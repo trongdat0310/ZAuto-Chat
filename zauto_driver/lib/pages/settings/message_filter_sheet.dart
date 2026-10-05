@@ -11,15 +11,11 @@ class MessageFilterSheet extends StatefulWidget {
 
   final bool initialShowVoiceMessages;
 
-  final bool initialTranscribeVoiceMessages;
-
   final ValueChanged<bool> onShowImagesChanged;
 
   final ValueChanged<bool> onDeduplicateMessagesChanged;
 
   final ValueChanged<bool> onShowVoiceMessagesChanged;
-
-  final ValueChanged<bool> onTranscribeVoiceMessagesChanged;
 
   const MessageFilterSheet({
     super.key,
@@ -32,15 +28,11 @@ class MessageFilterSheet extends StatefulWidget {
 
     required this.initialShowVoiceMessages,
 
-    required this.initialTranscribeVoiceMessages,
-
     required this.onShowImagesChanged,
 
     required this.onDeduplicateMessagesChanged,
 
     required this.onShowVoiceMessagesChanged,
-
-    required this.onTranscribeVoiceMessagesChanged,
   });
 
   @override
@@ -54,8 +46,6 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
 
   late bool showVoiceMessages;
 
-  late bool transcribeVoiceMessages;
-
   @override
   void initState() {
     super.initState();
@@ -65,8 +55,6 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
     deduplicateMessages = widget.initialDeduplicateMessages;
 
     showVoiceMessages = widget.initialShowVoiceMessages;
-
-    transcribeVoiceMessages = widget.initialTranscribeVoiceMessages;
   }
 
   @override
@@ -93,10 +81,6 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
 
             child: Column(
               children: [
-                // ========================================
-                // HIEN THI ANH
-                // ========================================
-
                 SwitchListTile(
                   value: showImages,
 
@@ -143,9 +127,6 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
 
                 const Divider(height: 1),
 
-                // ========================================
-                // LOC TRUNG
-                // ========================================
                 SwitchListTile(
                   value: deduplicateMessages,
 
@@ -158,10 +139,6 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
                   onChanged: (value) async {
                     final oldValue = deduplicateMessages;
 
-                    // ========================================
-                    // DOI UI NGAY
-                    // ========================================
-
                     setState(() {
                       deduplicateMessages = value;
                     });
@@ -169,19 +146,11 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
                     widget.onDeduplicateMessagesChanged(value);
 
                     try {
-                      // ========================================
-                      // LUU BACKEND
-                      // ========================================
-
                       await widget.backend.updateMessageSettings(
                         deduplicateMessages: value,
                       );
                     } catch (error) {
                       if (!mounted) {
-                        return;
-                      }
-
-                      if (!context.mounted) {
                         return;
                       }
 
@@ -202,9 +171,6 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
 
                 const Divider(height: 1),
 
-                // ========================================
-                // THONG TIN LOC TRUNG
-                // ========================================
                 ListTile(
                   leading: Container(
                     width: 46,
@@ -249,159 +215,54 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
           Card(
             clipBehavior: Clip.antiAlias,
 
-            child: Column(
-              children: [
-                // ========================================
-                // HIEN THI TIN THOAI
-                // ========================================
+            child: SwitchListTile(
+              value: showVoiceMessages,
 
-                SwitchListTile(
-                  value: showVoiceMessages,
+              title: const Text('Hiển thị tin nhắn thoại'),
 
-                  title: const Text('Hiển thị tin nhắn thoại'),
+              subtitle: const Text(
+                'Ẩn voice/audio khỏi hội thoại khi tắt',
+              ),
 
-                  subtitle: const Text(
-                    'Ẩn voice/audio khỏi hội thoại khi tắt',
-                  ),
+              onChanged: (value) async {
+                final oldValue = showVoiceMessages;
 
-                  onChanged: (value) async {
-                    final oldVoice = showVoiceMessages;
-                    final oldTranscribe =
-                        transcribeVoiceMessages;
+                setState(() {
+                  showVoiceMessages = value;
+                });
 
-                    setState(() {
-                      showVoiceMessages = value;
+                widget.onShowVoiceMessagesChanged(value);
 
-                      if (!value) {
-                        transcribeVoiceMessages = false;
-                      }
-                    });
+                try {
+                  await widget.backend.updateMessageSettings(
+                    showVoiceMessages: value,
+                  );
+                } catch (error) {
+                  if (!mounted) {
+                    return;
+                  }
 
-                    widget.onShowVoiceMessagesChanged(value);
+                  setState(() {
+                    showVoiceMessages = oldValue;
+                  });
 
-                    if (!value && oldTranscribe) {
-                      widget.onTranscribeVoiceMessagesChanged(false);
-                    }
+                  widget.onShowVoiceMessagesChanged(oldValue);
 
-                    try {
-                      final saved =
-                          await widget.backend.updateMessageSettings(
-                        showVoiceMessages: value,
-                        transcribeVoiceMessages:
-                            value ? null : false,
-                      );
-
-                      if (!mounted) {
-                        return;
-                      }
-
-                      final serverTranscribe =
-                          saved['transcribeVoiceMessages'] == true;
-
-                      if (
-                        transcribeVoiceMessages !=
-                        serverTranscribe
-                      ) {
-                        setState(() {
-                          transcribeVoiceMessages =
-                              serverTranscribe;
-                        });
-
-                        widget.onTranscribeVoiceMessagesChanged(
-                          serverTranscribe,
-                        );
-                      }
-                    } catch (error) {
-                      if (!mounted) {
-                        return;
-                      }
-
-                      setState(() {
-                        showVoiceMessages = oldVoice;
-                        transcribeVoiceMessages =
-                            oldTranscribe;
-                      });
-
-                      widget.onShowVoiceMessagesChanged(oldVoice);
-                      widget.onTranscribeVoiceMessagesChanged(
-                        oldTranscribe,
-                      );
-
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Không thể lưu Tin nhắn thoại: $error',
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                ),
-
-                const Divider(height: 1),
-
-                // ========================================
-                // PHIEN AM
-                // ========================================
-                SwitchListTile(
-                  value: transcribeVoiceMessages,
-
-                  title: const Text('Phiên âm tin nhắn thoại'),
-
-                  subtitle: const Text(
-                    'Tự động chuyển nội dung voice thành văn bản',
-                  ),
-
-                  onChanged: showVoiceMessages
-                      ? (value) async {
-                          final oldValue =
-                              transcribeVoiceMessages;
-
-                          setState(() {
-                            transcribeVoiceMessages = value;
-                          });
-
-                          widget.onTranscribeVoiceMessagesChanged(value);
-
-                          try {
-                            await widget.backend.updateMessageSettings(
-                              transcribeVoiceMessages: value,
-                            );
-                          } catch (error) {
-                            if (!mounted) {
-                              return;
-                            }
-
-                            setState(() {
-                              transcribeVoiceMessages = oldValue;
-                            });
-
-                            widget.onTranscribeVoiceMessagesChanged(
-                              oldValue,
-                            );
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Không thể lưu Phiên âm: $error',
-                                ),
-                              ),
-                            );
-                          }
-                        }
-                      : null,
-                ),
-              ],
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Không thể lưu Tin nhắn thoại: $error',
+                      ),
+                    ),
+                  );
+                }
+              },
             ),
           ),
         ],
       ),
     );
   }
-
-  // ========================================
-  // DUPLICATE INFO
-  // ========================================
 
   void _showDuplicateInfo() {
     showDialog<void>(
