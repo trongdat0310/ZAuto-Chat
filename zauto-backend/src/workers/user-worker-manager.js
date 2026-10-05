@@ -60,6 +60,10 @@ import {
 } from "../settings/message-media-policy.js";
 
 import {
+  enqueueVoiceTranscription,
+} from "../transcription/voice-transcription-queue.js";
+
+import {
   shouldSkipDuplicateUserMessage,
 } from "../messages/user-message-dedupe.js";
 
@@ -953,6 +957,20 @@ async function storeConversationEvent(
       message:
         saved,
     }
+  );
+
+
+  // ========================================
+  // VOICE TRANSCRIPTION
+  //
+  // KHONG await:
+  // message realtime da duoc day ve Flutter
+  // truoc khi download/audio AI bat dau.
+  // ========================================
+
+  enqueueVoiceTranscription(
+    userId,
+    saved
   );
 
 
