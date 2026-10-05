@@ -142,6 +142,46 @@ export function getUserMessageSettings(
         ...saved,
       };
 
+
+      // Legacy key from removed voice transcription feature.
+      delete settings.transcribeVoiceMessages;
+
+
+      if (
+        Object.prototype.hasOwnProperty.call(
+          saved,
+          "transcribeVoiceMessages"
+        )
+      ) {
+
+        const cleaned = {
+          ...saved,
+        };
+
+
+        delete cleaned.transcribeVoiceMessages;
+
+
+        try {
+          fs.writeFileSync(
+            file,
+            JSON.stringify(
+              cleaned,
+              null,
+              2
+            ),
+            "utf8"
+          );
+        } catch (cleanupError) {
+          console.warn(
+            "[MESSAGE SETTINGS] LEGACY CLEANUP ERROR:",
+            key,
+            cleanupError?.message ??
+            cleanupError
+          );
+        }
+      }
+
     } catch (error) {
 
       console.error(
