@@ -576,58 +576,29 @@ export function previewUserFilterV2(
     });
 
 
-  const plan =
-    getCompiledGroupPlan(
-      runtime,
-      groupId
-    );
-
-
-  const summary =
-    evaluateCompiledGroupPlan(
-      plan,
-      messageText
-    );
-
-
   const compiledFilter =
     runtime.compiledFilters[0];
 
 
-  const checks =
-    compiledFilter?.mode ===
-      "basic"
-      ? evaluateBasicFilterDiagnostics(
-          compiledFilter,
-          messageText
-        )
-      : compiledFilter?.mode ===
-            "advanced"
-        ? evaluateAdvancedFilterDiagnostics(
-            compiledFilter,
-            messageText
-          )
-        : null;
-
-
-  if (summary.matched === true) {
+  if (!compiledFilter) {
     return {
-      ...summary,
-
-      checks,
+      matched: true,
+      reason: "no_applicable_filters",
+      filterId: null,
+      filterName: null,
+      mode: null,
+      keyword: null,
+      details: null,
+      evaluatedFilters: 0,
+      checks: [],
     };
   }
 
 
-  
-
-
-  if (!compiledFilter) {
-    return summary;
-  }
-
-
-  const detailed =
+  // Preview chi co DUY NHAT mot filter dang soan.
+  // Dung truc tiep cung evaluator voi realtime de
+  // matched/reason/filterId khong co duong logic thu hai.
+  const result =
     evaluateCompiledFilter(
       compiledFilter,
       createFilterMessageContext(
@@ -636,28 +607,24 @@ export function previewUserFilterV2(
     );
 
 
+  const checks =
+    compiledFilter.mode ===
+      "basic"
+      ? evaluateBasicFilterDiagnostics(
+          compiledFilter,
+          messageText
+        )
+      : evaluateAdvancedFilterDiagnostics(
+          compiledFilter,
+          messageText
+        );
+
+
   return {
-    ...summary,
+    ...result,
 
-    reason:
-      detailed.reason,
-
-    filterId:
-      detailed.filterId,
-
-    filterName:
-      detailed.filterName,
-
-    mode:
-      detailed.mode,
-
-    keyword:
-      detailed.keyword,
-
-    details:
-      detailed.details ??
-      null,
+    evaluatedFilters:
+      1,
 
     checks,
-  };
-}
+  };}
