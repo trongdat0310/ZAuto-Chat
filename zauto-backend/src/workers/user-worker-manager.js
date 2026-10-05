@@ -1447,6 +1447,12 @@ async function processMessage(
       }
     }
 
+    markRealtimeLatencyTrace(
+      latencyTrace,
+      "dedupeDoneAtMs"
+    );
+
+
     const saved =
       saveUserMessage(
         userId,
