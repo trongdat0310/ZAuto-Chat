@@ -125,9 +125,29 @@ class _HomePageState extends State<HomePage> {
           return;
         }
 
-        addTrip(data);
+        final added =
+            addTrip(data);
 
-        notificationHandler.handleTripNotificationSpeech(data);
+        if (!added) {
+          return;
+        }
+
+        // Uu tien ve TripCard truoc.
+        // AudioPlayer/TTS dung platform channel va co the
+        // khoi tao MediaPlayer; neu chay ngay sau setState
+        // no se chen vao critical path truoc frame moi.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) {
+            return;
+          }
+
+          unawaited(
+            notificationHandler
+                .handleTripNotificationSpeech(
+              data,
+            ),
+          );
+        });
       },
 
       onConnectionError: () {
@@ -650,11 +670,11 @@ class _HomePageState extends State<HomePage> {
       'total~=$totalText',
     );
   }
-  void addTrip(Map<String, dynamic> trip) {
+  bool addTrip(Map<String, dynamic> trip) {
     final tripId = trip['id']?.toString();
 
     if (tripId == null || tripId.isEmpty) {
-      return;
+      return false;
     }
 
     // ========================================
@@ -664,7 +684,7 @@ class _HomePageState extends State<HomePage> {
     final existed = activeTrips.any((item) => item['id']?.toString() == tripId);
 
     if (existed) {
-      return;
+      return false;
     }
 
     final newTrip = Map<String, dynamic>.from(trip);
@@ -697,6 +717,8 @@ class _HomePageState extends State<HomePage> {
     }
 
     _ensureTripCountdownTimer();
+
+    return true;
   }
 
   void removeTrip(String tripId) {
