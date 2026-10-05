@@ -323,6 +323,16 @@ class BackendService {
     return conversationApi.syncAndGetConversations();
   }
 
+  Future<List<Map<String, dynamic>>> getRecentPendingTrips({
+    required int displaySeconds,
+    int limit = 200,
+  }) {
+    return tripApi.getRecentPendingTrips(
+      displaySeconds: displaySeconds,
+      limit: limit,
+    );
+  }
+
   Future<List<Map<String, dynamic>>> getAcceptedTrips() {
     return tripApi.getAcceptedTrips();
   }
