@@ -55,13 +55,32 @@ class TripApi extends BackendApiBase {
     required int displaySeconds,
     int limit = 200,
   }) async {
-    final messages =
-        await getMessages(
-      limit: limit,
+    final decoded =
+        await getJson(
+      Uri.parse(
+        '$baseUrl/api/me/messages'
+        '?limit=$limit',
+      ),
     );
 
-    final now =
-        DateTime.now();
+
+    final rawMessages =
+        decoded['messages'];
+
+    final serverNow =
+        DateTime.tryParse(
+      decoded['serverNow']
+              ?.toString() ??
+          '',
+    );
+
+
+    if (
+      rawMessages is! List ||
+      serverNow == null
+    ) {
+      return [];
+    }
 
 
     final result =
@@ -69,8 +88,20 @@ class TripApi extends BackendApiBase {
 
 
     for (
-      final message in messages
+      final rawMessage
+      in rawMessages
     ) {
+      if (rawMessage is! Map) {
+        continue;
+      }
+
+
+      final message =
+          Map<String, dynamic>.from(
+        rawMessage,
+      );
+
+
       if (
         message['status'] !=
         'new'
@@ -95,20 +126,18 @@ class TripApi extends BackendApiBase {
 
 
       final expiresAt =
-          receivedAt
-              .toLocal()
-              .add(
-                Duration(
-                  seconds:
-                      displaySeconds,
-                ),
-              );
+          receivedAt.add(
+        Duration(
+          seconds:
+              displaySeconds,
+        ),
+      );
 
 
       final remainingMs =
           expiresAt
               .difference(
-                now,
+                serverNow,
               )
               .inMilliseconds;
 
