@@ -280,6 +280,20 @@ class BackendService {
     );
   }
 
+  Future<Map<String, dynamic>> transcribeVoiceMessage({
+    required String groupId,
+    String? id,
+    String? msgId,
+    String? cliMsgId,
+  }) {
+    return messageApi.transcribeVoiceMessage(
+      groupId: groupId,
+      id: id,
+      msgId: msgId,
+      cliMsgId: cliMsgId,
+    );
+  }
+
   Future<void> sendConversationMessage({
     required String groupId,
     required String text,
