@@ -3704,6 +3704,7 @@ export function findUserConversationMessage(
   userId,
   groupId,
   {
+    id = null,
     msgId = null,
     cliMsgId = null,
   } = {}
@@ -3721,6 +3722,15 @@ export function findUserConversationMessage(
   return (
     messages.find(
       item => {
+
+        if (
+          id &&
+          item.id ===
+            String(id)
+        ) {
+          return true;
+        }
+
 
         if (
           msgId &&
