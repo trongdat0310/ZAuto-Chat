@@ -280,20 +280,6 @@ class BackendService {
     );
   }
 
-  Future<Map<String, dynamic>> transcribeVoiceMessage({
-    required String groupId,
-    String? id,
-    String? msgId,
-    String? cliMsgId,
-  }) {
-    return messageApi.transcribeVoiceMessage(
-      groupId: groupId,
-      id: id,
-      msgId: msgId,
-      cliMsgId: cliMsgId,
-    );
-  }
-
   Future<void> sendConversationMessage({
     required String groupId,
     required String text,
@@ -353,8 +339,6 @@ class BackendService {
     int? dedupeWindowSeconds,
 
     bool? showVoiceMessages,
-
-    bool? transcribeVoiceMessages,
   }) {
     return settingsApi.updateMessageSettings(
       showImages: showImages,
@@ -364,8 +348,6 @@ class BackendService {
       dedupeWindowSeconds: dedupeWindowSeconds,
 
       showVoiceMessages: showVoiceMessages,
-
-      transcribeVoiceMessages: transcribeVoiceMessages,
     );
   }
 
