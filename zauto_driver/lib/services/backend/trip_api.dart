@@ -51,6 +51,91 @@ class TripApi extends BackendApiBase {
         .toList();
   }
 
+  Future<List<Map<String, dynamic>>> getRecentPendingTrips({
+    required int displaySeconds,
+    int limit = 200,
+  }) async {
+    final messages =
+        await getMessages(
+      limit: limit,
+    );
+
+    final now =
+        DateTime.now();
+
+
+    final result =
+        <Map<String, dynamic>>[];
+
+
+    for (
+      final message in messages
+    ) {
+      if (
+        message['status'] !=
+        'new'
+      ) {
+        continue;
+      }
+
+
+      final receivedAt =
+          DateTime.tryParse(
+        message['receivedAt']
+                ?.toString() ??
+            '',
+      );
+
+
+      if (
+        receivedAt == null
+      ) {
+        continue;
+      }
+
+
+      final expiresAt =
+          receivedAt
+              .toLocal()
+              .add(
+                Duration(
+                  seconds:
+                      displaySeconds,
+                ),
+              );
+
+
+      final remainingMs =
+          expiresAt
+              .difference(
+                now,
+              )
+              .inMilliseconds;
+
+
+      if (
+        remainingMs <=
+        0
+      ) {
+        continue;
+      }
+
+
+      result.add(
+        <String, dynamic>{
+          ...message,
+
+          '_reconcileRemainingMs':
+              remainingMs,
+        },
+      );
+    }
+
+
+    return result;
+  }
+
+
   Future<List<Map<String, dynamic>>> getAcceptedTrips() async {
     final messages = await getMessages(limit: 500);
 
