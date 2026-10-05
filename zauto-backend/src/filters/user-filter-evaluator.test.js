@@ -586,6 +586,95 @@ test(
 
 
 test(
+  "basic one way rejects round trip message",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "one-way",
+
+            pickup:
+              "q1",
+
+            dropoff:
+              "nội bài",
+
+            bothDirections:
+              false,
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Q1 đi Nội Bài rồi về lại Q1"
+      );
+
+
+    assert.equal(
+      result.matched,
+      false
+    );
+  }
+);
+
+
+test(
+  "basic both directions accepts round trip message",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "two-way",
+
+            pickup:
+              "q1",
+
+            dropoff:
+              "nội bài",
+
+            bothDirections:
+              true,
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Q1 đi Nội Bài rồi về lại Q1"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+    assert.equal(
+      result.filterId,
+      "two-way"
+    );
+  }
+);
+
+
+test(
   "basic both directions accepts reverse route",
   () => {
     const runtime =
