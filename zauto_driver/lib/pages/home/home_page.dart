@@ -502,6 +502,12 @@ class _HomePageState extends State<HomePage> {
       'filterPerfMs',
     );
 
+    final dedupePerf =
+        _traceDouble(
+      trace,
+      'dedupePerfMs',
+    );
+
     final tripPerf =
         _traceDouble(
       trace,
@@ -514,10 +520,22 @@ class _HomePageState extends State<HomePage> {
       'wsBroadcastPerfMs',
     );
 
-    final flutterReceived =
+    final socketDecodedAt =
         _traceInt(
       trace,
-      'flutterReceivedAtMs',
+      'flutterSocketDecodedAtMs',
+    );
+
+    final appRealtimeAt =
+        _traceInt(
+      trace,
+      'flutterAppRealtimeAtMs',
+    );
+
+    final homeReceivedAt =
+        _traceInt(
+      trace,
+      'flutterHomeReceivedAtMs',
     );
 
     final renderedAt =
@@ -561,27 +579,51 @@ class _HomePageState extends State<HomePage> {
       listenerPerf,
     );
 
-    final filterToTripUs =
+    final filterToDedupeUs =
         backendUs(
-      tripPerf,
+      dedupePerf,
       filterPerf,
     );
 
-    final tripToWsUs =
+    final dedupeToStoreUs =
+        backendUs(
+      tripPerf,
+      dedupePerf,
+    );
+
+    final storeToWsUs =
         backendUs(
       wsPerf,
       tripPerf,
     );
 
-    final flutterToRender =
+    final socketToBus =
+        diff(
+      appRealtimeAt,
+      socketDecodedAt,
+    );
+
+    final busToHome =
+        diff(
+      homeReceivedAt,
+      appRealtimeAt,
+    );
+
+    final homeToRender =
         diff(
       renderedAt,
-      flutterReceived,
+      homeReceivedAt,
+    );
+
+    final flutterInternal =
+        diff(
+      renderedAt,
+      socketDecodedAt,
     );
 
     final transportApprox =
         diff(
-      flutterReceived,
+      socketDecodedAt,
       wsBroadcast,
     );
 
@@ -607,10 +649,14 @@ class _HomePageState extends State<HomePage> {
       '[LATENCY] '
       'trace=$traceId '
       'backend.filter=${listenerToFilterUs}us '
-      'backend.trip=${filterToTripUs}us '
-      'backend.ws=${tripToWsUs}us '
+      'backend.dedupe=${filterToDedupeUs}us '
+      'backend.store=${dedupeToStoreUs}us '
+      'backend.ws=${storeToWsUs}us '
       'network~=$networkText '
-      'flutter.render=${flutterToRender ?? '-'}ms '
+      'flutter.socketToBus=${socketToBus ?? '-'}ms '
+      'flutter.busToHome=${busToHome ?? '-'}ms '
+      'flutter.homeToRender=${homeToRender ?? '-'}ms '
+      'flutter.internal=${flutterInternal ?? '-'}ms '
       'total~=$totalText',
     );
   }
