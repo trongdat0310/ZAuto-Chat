@@ -232,6 +232,12 @@ class _ChatPageState extends State<ChatPage> {
 
     voiceController = ChatVoiceController();
 
+    // Mot group moi luon bat dau voi player rong.
+    // Tuyet doi khong tiep tuc/phat lai voice cua route truoc.
+    unawaited(
+      voiceController.stopAndReset(),
+    );
+
     messageController.addListener(_handleComposerChanged);
 
     initializeChat();
@@ -2994,6 +3000,11 @@ class _ChatPageState extends State<ChatPage> {
     messageController.removeListener(_handleComposerChanged);
 
     messageController.dispose();
+
+    // Dung audio truoc khi route Chat bi huy.
+    unawaited(
+      voiceController.stopAndReset(),
+    );
 
     voiceController.dispose();
 
