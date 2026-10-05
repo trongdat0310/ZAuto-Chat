@@ -314,3 +314,115 @@ test(
     }
   }
 );
+
+
+
+test(
+  "trip keeps source quote snapshot in RAM before conversation persistence",
+  async () => {
+    const userId =
+      `test-message-store-quote-${process.pid}`;
+
+    cleanup(
+      userId
+    );
+
+
+    try {
+      const saved =
+        saveUserMessage(
+          userId,
+          {
+            groupId:
+              "group-a",
+
+            senderId:
+              "sender-a",
+
+            zaloMessageId:
+              "msg-quote-1",
+
+            clientMessageId:
+              "cli-quote-1",
+
+            content:
+              "Q1 di Noi Bai 650k",
+
+            sourceQuote: {
+              content:
+                "Q1 di Noi Bai 650k",
+
+              msgType:
+                "chat.text",
+
+              uidFrom:
+                "sender-a",
+
+              msgId:
+                "msg-quote-1",
+
+              cliMsgId:
+                "cli-quote-1",
+
+              ts:
+                123456,
+
+              ttl:
+                0,
+            },
+          }
+        );
+
+
+      assert.equal(
+        saved.created,
+        true
+      );
+
+      assert.equal(
+        saved.message
+          .sourceQuote
+          .msgId,
+        "msg-quote-1"
+      );
+
+      assert.equal(
+        saved.message
+          .sourceQuote
+          .cliMsgId,
+        "cli-quote-1"
+      );
+
+      assert.equal(
+        saved.message
+          .sourceQuote
+          .content,
+        "Q1 di Noi Bai 650k"
+      );
+
+
+      const fromRam =
+        getUserMessages(
+          userId,
+          10
+        )[0];
+
+
+      assert.equal(
+        fromRam
+          .sourceQuote
+          .msgId,
+        "msg-quote-1"
+      );
+
+    } finally {
+      await flushUserMessages(
+        userId
+      );
+
+      cleanup(
+        userId
+      );
+    }
+  }
+);
