@@ -13,6 +13,10 @@ class VoiceMessageBubble extends StatelessWidget {
 
   final VoidCallback onToggle;
 
+  final String? transcript;
+
+  final String? transcriptionStatus;
+
   const VoiceMessageBubble({
     super.key,
     required this.samples,
@@ -20,6 +24,8 @@ class VoiceMessageBubble extends StatelessWidget {
     required this.progress,
     required this.isPlaying,
     required this.onToggle,
+    this.transcript,
+    this.transcriptionStatus,
   });
 
   String _formatDuration(Duration duration) {
@@ -45,10 +51,16 @@ class VoiceMessageBubble extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
       ),
 
-      child: Row(
+      child: Column(
         mainAxisSize: MainAxisSize.min,
 
+        crossAxisAlignment: CrossAxisAlignment.start,
+
         children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+
+            children: [
           // ========================================
           // PLAY / PAUSE
           // ========================================
@@ -116,6 +128,52 @@ class VoiceMessageBubble extends StatelessWidget {
               ],
             ),
           ),
+            ],
+          ),
+
+          if (
+            transcript != null &&
+            transcript!.trim().isNotEmpty
+          ) ...[
+            const SizedBox(height: 8),
+
+            Divider(
+              height: 1,
+              color: colorScheme.outlineVariant,
+            ),
+
+            const SizedBox(height: 8),
+
+            Text(
+              transcript!.trim(),
+
+              style: TextStyle(
+                fontSize: 13,
+
+                height: 1.35,
+
+                color: colorScheme.onSurface,
+              ),
+            ),
+          ] else if (
+            transcriptionStatus ==
+            'processing'
+          ) ...[
+            const SizedBox(height: 6),
+
+            Text(
+              'Đang phiên âm…',
+
+              style: TextStyle(
+                fontSize: 12,
+
+                fontStyle: FontStyle.italic,
+
+                color:
+                    colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ],
       ),
     );
