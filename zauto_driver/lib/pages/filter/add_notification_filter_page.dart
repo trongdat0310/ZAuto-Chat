@@ -752,6 +752,9 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
 
         return 'Điểm đón và điểm trả xuất hiện sai thứ tự.';
 
+      case 'basic_round_trip_detected':
+        return 'Tin nhắn có cả chiều đón → trả và chiều ngược, trong khi “Nhận cả hai chiều” đang tắt.';
+
       case 'basic_include_no_match':
         final expected = expectedList();
 
@@ -901,6 +904,10 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
       case 'direction':
         if (details['blockedByMissingRoute'] == true) {
           return 'Chưa thể kiểm tra vì thiếu điểm đón hoặc điểm trả.';
+        }
+
+        if (details['roundTripDetected'] == true) {
+          return 'Phát hiện cả chiều thuận và chiều ngược. Bộ lọc đang chỉ nhận một chiều.';
         }
 
         final pickup =
