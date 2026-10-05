@@ -1725,3 +1725,199 @@ test(
     );
   }
 );
+
+
+
+// ========================================
+// STRESS: MANY BASIC FILTERS SHARE PARSERS
+// ========================================
+
+test(
+  "50 full basic filters parse price and time once per message",
+  () => {
+    resetUserFilterEvaluatorTestMetrics();
+
+    try {
+      const filters =
+        [];
+
+
+      for (
+        let index = 0;
+        index < 50;
+        index += 1
+      ) {
+        filters.push(
+          basicFilter({
+            id:
+              `full-basic-${index + 1}`,
+
+            pickup:
+              "q1",
+
+            dropoff:
+              "nội bài",
+
+            include:
+              index === 49
+                ? "4c"
+                : `never-${index + 1}`,
+
+            exclude:
+              "ghép",
+
+            price:
+              500,
+
+            time:
+              "sáng",
+          })
+        );
+      }
+
+
+      const runtime =
+        compileUserFilterDocument({
+          filters,
+        });
+
+
+      const result =
+        evaluateCompiledGroupPlan(
+          getCompiledGroupPlan(
+            runtime,
+            "stress"
+          ),
+          "sáng mai 7h30 Q1 đi Nội Bài xe 4c giá 650k"
+        );
+
+
+      const metrics =
+        getUserFilterEvaluatorTestMetrics();
+
+
+      assert.equal(
+        result.matched,
+        true
+      );
+
+      assert.equal(
+        result.filterId,
+        "full-basic-50"
+      );
+
+      assert.equal(
+        result.evaluatedFilters,
+        50
+      );
+
+      assert.equal(
+        metrics.normalizeCalls,
+        1
+      );
+
+      assert.equal(
+        metrics.priceParseCalls,
+        1
+      );
+
+      assert.equal(
+        metrics.timeParseCalls,
+        1
+      );
+
+      assert.equal(
+        metrics.filterEvaluationCalls,
+        50
+      );
+
+    } finally {
+      disableUserFilterEvaluatorTestMetrics();
+    }
+  }
+);
+
+
+test(
+  "50 advanced filters with no match normalize message once",
+  () => {
+    resetUserFilterEvaluatorTestMetrics();
+
+    try {
+      const filters =
+        [];
+
+
+      for (
+        let index = 0;
+        index < 50;
+        index += 1
+      ) {
+        filters.push(
+          advancedFilter({
+            id:
+              `advanced-no-match-${index + 1}`,
+
+            show: [
+              `never-${index + 1}`,
+            ],
+          })
+        );
+      }
+
+
+      const runtime =
+        compileUserFilterDocument({
+          filters,
+        });
+
+
+      const result =
+        evaluateCompiledGroupPlan(
+          getCompiledGroupPlan(
+            runtime,
+            "stress"
+          ),
+          "Q1 đi Nội Bài xe 4c giá 650k"
+        );
+
+
+      const metrics =
+        getUserFilterEvaluatorTestMetrics();
+
+
+      assert.equal(
+        result.matched,
+        false
+      );
+
+      assert.equal(
+        result.evaluatedFilters,
+        50
+      );
+
+      assert.equal(
+        metrics.normalizeCalls,
+        1
+      );
+
+      assert.equal(
+        metrics.filterEvaluationCalls,
+        50
+      );
+
+      assert.equal(
+        metrics.priceParseCalls,
+        0
+      );
+
+      assert.equal(
+        metrics.timeParseCalls,
+        0
+      );
+
+    } finally {
+      disableUserFilterEvaluatorTestMetrics();
+    }
+  }
+);
