@@ -44,8 +44,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   bool showVoiceMessages = true;
 
-  bool transcribeVoiceMessages = false;
-
   // ========================================
   // GIAO DIEN VA TUONG TAC
   // ========================================
@@ -143,10 +141,6 @@ class _SettingsPageState extends State<SettingsPage> {
       final nextShowVoiceMessages =
           settings['showVoiceMessages'] != false;
 
-      final transcribeEnabled =
-          nextShowVoiceMessages &&
-          settings['transcribeVoiceMessages'] == true;
-
       setState(() {
         showImages =
             settings['showImages'] != false;
@@ -157,18 +151,10 @@ class _SettingsPageState extends State<SettingsPage> {
         showVoiceMessages =
             nextShowVoiceMessages;
 
-        transcribeVoiceMessages =
-            transcribeEnabled;
-
         if (savedSeconds == 5 || savedSeconds == 10 || savedSeconds == 15) {
           currentTripDisplaySeconds = savedSeconds!;
         }
       });
-
-      await widget.settingsController
-          .updateTranscribeVoiceMessages(
-        transcribeEnabled,
-      );
 
       if (savedSeconds == 5 || savedSeconds == 10 || savedSeconds == 15) {
         await widget.settingsController.updateTripDisplaySeconds(savedSeconds!);
@@ -248,8 +234,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
           initialShowVoiceMessages: showVoiceMessages,
 
-          initialTranscribeVoiceMessages: transcribeVoiceMessages,
-
           // ========================================
           // IMAGE
           // ========================================
@@ -289,23 +273,6 @@ class _SettingsPageState extends State<SettingsPage> {
             });
           },
 
-          // ========================================
-          // TRANSCRIBE
-          // ========================================
-          onTranscribeVoiceMessagesChanged: (value) {
-            if (!mounted) {
-              return;
-            }
-
-            setState(() {
-              transcribeVoiceMessages = value;
-            });
-
-            widget.settingsController
-                .updateTranscribeVoiceMessages(
-              value,
-            );
-          },
         );
       },
     );
