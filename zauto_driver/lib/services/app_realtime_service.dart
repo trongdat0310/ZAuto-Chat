@@ -49,6 +49,42 @@ class AppRealtimeService {
           return;
         }
 
+        final type =
+            event['type']?.toString();
+
+        if (
+          type == 'new_trip'
+        ) {
+          final rawData =
+              event['data'];
+
+          if (rawData is Map) {
+            final data =
+                Map<String, dynamic>.from(
+              rawData,
+            );
+
+            final rawTrace =
+                data['_latencyTrace'];
+
+            if (rawTrace is Map) {
+              data['_latencyTrace'] =
+                  <String, dynamic>{
+                ...Map<String, dynamic>.from(
+                  rawTrace,
+                ),
+
+                'flutterAppRealtimeAtMs':
+                    DateTime.now()
+                        .millisecondsSinceEpoch,
+              };
+
+              event['data'] =
+                  data;
+            }
+          }
+        }
+
         _eventController.add(event);
       },
 
