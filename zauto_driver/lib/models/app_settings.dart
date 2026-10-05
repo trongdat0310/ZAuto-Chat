@@ -26,8 +26,6 @@ class AppSettings {
 
   final double speechRate;
 
-  final bool transcribeVoiceMessages;
-
 
   const AppSettings({
 
@@ -57,9 +55,6 @@ class AppSettings {
 
     this.speechRate =
     0.45,
-
-    this.transcribeVoiceMessages =
-    false,
   });
 
 
@@ -80,8 +75,6 @@ class AppSettings {
     bool? readTripNotification,
 
     double? speechRate,
-
-    bool? transcribeVoiceMessages,
 
   }) {
 
@@ -121,10 +114,6 @@ class AppSettings {
       speechRate:
       speechRate ??
           this.speechRate,
-
-      transcribeVoiceMessages:
-      transcribeVoiceMessages ??
-          this.transcribeVoiceMessages,
 
     );
   }
