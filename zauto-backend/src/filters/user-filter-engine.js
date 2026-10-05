@@ -27,6 +27,10 @@ import {
   compileKeywordPattern,
 } from "./user-filter-matcher.js";
 
+import {
+  validateTimeRulesInput,
+} from "./user-filter-time.js";
+
 
 // ========================================
 // OLD API COMPATIBILITY
@@ -290,6 +294,22 @@ function validateUserFilterV2Input(
       basic.timeRules,
       "Khung gio"
     );
+
+
+    const invalidTimeRules =
+      validateTimeRulesInput(
+        basic.timeRules
+      );
+
+
+    if (
+      invalidTimeRules.length >
+      0
+    ) {
+      throw new Error(
+        `Khung gio khong hop le "${invalidTimeRules[0]}".`
+      );
+    }
 
 
     const rawPrice =
