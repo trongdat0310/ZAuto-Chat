@@ -176,3 +176,71 @@ test(
     );
   }
 );
+
+
+test(
+  "does not confuse address route distance or year with bare price",
+  () => {
+    assert.equal(
+      price(
+        "đón khách số 300 phố huế"
+      ),
+      null
+    );
+
+    assert.equal(
+      price(
+        "đón tại ngõ 125 thái hà"
+      ),
+      null
+    );
+
+    assert.equal(
+      price(
+        "đi cao tốc khoảng 120 km"
+      ),
+      null
+    );
+
+    assert.equal(
+      price(
+        "chuyến 350 đón lúc 8h"
+      ),
+      null
+    );
+
+    assert.equal(
+      price(
+        "lịch chạy năm 2026"
+      ),
+      null
+    );
+  }
+);
+
+
+test(
+  "bare trip amount remains supported when no non-price context exists",
+  () => {
+    assert.equal(
+      price(
+        "cuốc này 300"
+      ),
+      300
+    );
+
+    assert.equal(
+      price(
+        "300 đi nội bài"
+      ),
+      300
+    );
+
+    assert.equal(
+      price(
+        "giá 450"
+      ),
+      450
+    );
+  }
+);
