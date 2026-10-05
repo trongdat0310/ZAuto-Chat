@@ -9,6 +9,7 @@ import {
   compileTimeRules,
   extractMessageTemporalMentions,
   matchesCompiledTimeRules,
+  validateTimeRulesInput,
 } from "./user-filter-time.js";
 
 
@@ -308,6 +309,32 @@ test(
         normalizeFilterText("22h")
       ),
       true
+    );
+  }
+);
+
+
+
+test(
+  "validates malformed time-like rules without rejecting free text keywords",
+  () => {
+    assert.deepEqual(
+      validateTimeRulesInput(
+        "6h-8h, 0-30p, sáng, csct"
+      ),
+      []
+    );
+
+
+    assert.deepEqual(
+      validateTimeRulesInput(
+        "25h-30h, sau 27h, 12:99"
+      ),
+      [
+        "25h-30h",
+        "sau 27h",
+        "12:99",
+      ]
     );
   }
 );
