@@ -5,6 +5,9 @@ import crypto from "node:crypto";
 import {
   spawn,
 } from "node:child_process";
+import {
+  fileURLToPath,
+} from "node:url";
 
 
 const MAX_AUDIO_BYTES =
@@ -40,10 +43,28 @@ const PYTHON_COMMAND =
   );
 
 const WORKER_PATH =
-  new URL(
-    "./local_whisper_worker.py",
-    import.meta.url
+  fileURLToPath(
+    new URL(
+      "./local_whisper_worker.py",
+      import.meta.url
+    )
   );
+
+
+let worker =
+  null;
+
+let workerReady =
+  false;
+
+let stdoutBuffer =
+  "";
+
+let workerStartPromise =
+  null;
+
+const pendingJobs =
+  new Map();
 
 
 function timeoutSignal(
@@ -112,7 +133,7 @@ function audioExtension(
       return extension;
     }
   } catch (_) {
-    // Ignore invalid URL here.
+    // Ignore invalid URL.
   }
 
 
@@ -205,69 +226,402 @@ async function downloadAudioToTemp(
 }
 
 
-function runLocalWhisper(
+function rejectAllPending(
+  error
+) {
+  for (
+    const job of
+    pendingJobs.values()
+  ) {
+    clearTimeout(
+      job.timer
+    );
+
+    job.reject(
+      error
+    );
+  }
+
+
+  pendingJobs.clear();
+}
+
+
+function handleWorkerLine(
+  line
+) {
+  let data =
+    null;
+
+
+  try {
+    data =
+      JSON.parse(
+        line
+      );
+  } catch {
+    return;
+  }
+
+
+  if (
+    data?.type ===
+      "ready"
+  ) {
+    workerReady =
+      true;
+
+    console.log(
+      "[VOICE TRANSCRIPTION] Local Whisper ready:",
+      data.model
+    );
+
+    return;
+  }
+
+
+  if (
+    data?.type ===
+      "fatal"
+  ) {
+    rejectAllPending(
+      new Error(
+        `LOCAL_WHISPER_FATAL: ${data.error ?? "unknown"}`
+      )
+    );
+
+    return;
+  }
+
+
+  const id =
+    String(
+      data?.id ?? ""
+    );
+
+
+  const pending =
+    pendingJobs.get(
+      id
+    );
+
+
+  if (!pending) {
+    return;
+  }
+
+
+  pendingJobs.delete(
+    id
+  );
+
+
+  clearTimeout(
+    pending.timer
+  );
+
+
+  if (
+    data.type ===
+      "error"
+  ) {
+    pending.reject(
+      new Error(
+        `LOCAL_TRANSCRIPTION_FAILED: ${data.error ?? "unknown"}`
+      )
+    );
+
+    return;
+  }
+
+
+  const text =
+    String(
+      data?.text ?? ""
+    ).trim();
+
+
+  if (!text) {
+    pending.reject(
+      new Error(
+        "TRANSCRIPTION_EMPTY"
+      )
+    );
+
+    return;
+  }
+
+
+  pending.resolve({
+    text,
+
+    model:
+      data.model ??
+      "local-whisper",
+
+    language:
+      data.language ??
+      "vi",
+  });
+}
+
+
+function attachWorker(
+  child
+) {
+  child.stdout.on(
+    "data",
+    chunk => {
+      stdoutBuffer +=
+        chunk.toString();
+
+
+      while (
+        stdoutBuffer.includes(
+          "\n"
+        )
+      ) {
+        const index =
+          stdoutBuffer.indexOf(
+            "\n"
+          );
+
+        const line =
+          stdoutBuffer
+            .slice(
+              0,
+              index
+            )
+            .trim();
+
+        stdoutBuffer =
+          stdoutBuffer.slice(
+            index + 1
+          );
+
+
+        if (line) {
+          handleWorkerLine(
+            line
+          );
+        }
+      }
+    }
+  );
+
+
+  child.stderr.on(
+    "data",
+    chunk => {
+      const message =
+        chunk
+          .toString()
+          .trim();
+
+      if (message) {
+        console.warn(
+          "[VOICE TRANSCRIPTION] Python:",
+          message
+        );
+      }
+    }
+  );
+
+
+  child.on(
+    "error",
+    error => {
+      workerReady =
+        false;
+
+      worker =
+        null;
+
+      workerStartPromise =
+        null;
+
+      rejectAllPending(
+        new Error(
+          `LOCAL_TRANSCRIPTION_START_FAILED: ${error.message}`
+        )
+      );
+    }
+  );
+
+
+  child.on(
+    "close",
+    code => {
+      workerReady =
+        false;
+
+      worker =
+        null;
+
+      workerStartPromise =
+        null;
+
+      rejectAllPending(
+        new Error(
+          `LOCAL_TRANSCRIPTION_WORKER_EXITED: ${code}`
+        )
+      );
+    }
+  );
+}
+
+
+async function ensureWorker() {
+  if (
+    worker &&
+    workerReady
+  ) {
+    return worker;
+  }
+
+
+  if (
+    workerStartPromise
+  ) {
+    return workerStartPromise;
+  }
+
+
+  workerStartPromise =
+    new Promise(
+      (
+        resolve,
+        reject
+      ) => {
+        const child =
+          spawn(
+            PYTHON_COMMAND,
+            [
+              WORKER_PATH,
+            ],
+            {
+              windowsHide:
+                true,
+
+              stdio: [
+                "pipe",
+                "pipe",
+                "pipe",
+              ],
+            }
+          );
+
+
+        worker =
+          child;
+
+        attachWorker(
+          child
+        );
+
+
+        const startedAt =
+          Date.now();
+
+
+        const timer =
+          setInterval(
+            () => {
+              if (
+                worker === child &&
+                workerReady
+              ) {
+                clearInterval(
+                  timer
+                );
+
+                workerStartPromise =
+                  null;
+
+                resolve(
+                  child
+                );
+
+                return;
+              }
+
+
+              if (
+                worker !== child
+              ) {
+                clearInterval(
+                  timer
+                );
+
+                workerStartPromise =
+                  null;
+
+                reject(
+                  new Error(
+                    "LOCAL_TRANSCRIPTION_WORKER_FAILED"
+                  )
+                );
+
+                return;
+              }
+
+
+              if (
+                Date.now() -
+                  startedAt >
+                PROCESS_TIMEOUT_MS
+              ) {
+                clearInterval(
+                  timer
+                );
+
+                child.kill();
+
+                workerStartPromise =
+                  null;
+
+                reject(
+                  new Error(
+                    "LOCAL_TRANSCRIPTION_WORKER_START_TIMEOUT"
+                  )
+                );
+              }
+            },
+            50
+          );
+      }
+    );
+
+
+  return workerStartPromise;
+}
+
+
+async function transcribeLocalFile(
   filePath,
   language
 ) {
+  const child =
+    await ensureWorker();
+
+
+  const id =
+    crypto.randomUUID();
+
+
   return new Promise(
     (
       resolve,
       reject
     ) => {
-      const child =
-        spawn(
-          PYTHON_COMMAND,
-          [
-            WORKER_PATH.pathname,
-            "--audio",
-            filePath,
-            "--language",
-            language || "vi",
-          ],
-          {
-            windowsHide:
-              true,
-
-            stdio: [
-              "ignore",
-              "pipe",
-              "pipe",
-            ],
-          }
-        );
-
-
-      let stdout =
-        "";
-
-      let stderr =
-        "";
-
-      let settled =
-        false;
-
-
-      const finishReject =
-        error => {
-          if (settled) {
-            return;
-          }
-
-          settled =
-            true;
-
-          reject(
-            error
-          );
-        };
-
-
       const timer =
         setTimeout(
           () => {
-            child.kill();
+            pendingJobs.delete(
+              id
+            );
 
-            finishReject(
+            reject(
               new Error(
                 "LOCAL_TRANSCRIPTION_TIMEOUT"
               )
@@ -277,112 +631,58 @@ function runLocalWhisper(
         );
 
 
-      child.stdout.on(
-        "data",
-        chunk => {
-          stdout +=
-            chunk.toString();
+      pendingJobs.set(
+        id,
+        {
+          resolve,
+          reject,
+          timer,
         }
       );
 
 
-      child.stderr.on(
-        "data",
-        chunk => {
-          stderr +=
-            chunk.toString();
-        }
-      );
+      child.stdin.write(
+        JSON.stringify({
+          id,
 
+          audio:
+            filePath,
 
-      child.on(
-        "error",
+          language:
+            language ||
+            "vi",
+        }) +
+        "\n",
         error => {
-          clearTimeout(
-            timer
+          if (!error) {
+            return;
+          }
+
+
+          const pending =
+            pendingJobs.get(
+              id
+            );
+
+
+          if (!pending) {
+            return;
+          }
+
+
+          pendingJobs.delete(
+            id
           );
 
-          finishReject(
+          clearTimeout(
+            pending.timer
+          );
+
+          reject(
             new Error(
-              `LOCAL_TRANSCRIPTION_START_FAILED: ${error.message}`
+              `LOCAL_TRANSCRIPTION_WRITE_FAILED: ${error.message}`
             )
           );
-        }
-      );
-
-
-      child.on(
-        "close",
-        code => {
-          clearTimeout(
-            timer
-          );
-
-
-          if (settled) {
-            return;
-          }
-
-
-          if (code !== 0) {
-            finishReject(
-              new Error(
-                `LOCAL_TRANSCRIPTION_FAILED: ${stderr.trim() || `exit ${code}`}`
-              )
-            );
-
-            return;
-          }
-
-
-          try {
-            const data =
-              JSON.parse(
-                stdout.trim()
-              );
-
-
-            const text =
-              String(
-                data?.text ?? ""
-              ).trim();
-
-
-            if (!text) {
-              finishReject(
-                new Error(
-                  "TRANSCRIPTION_EMPTY"
-                )
-              );
-
-              return;
-            }
-
-
-            settled =
-              true;
-
-            resolve({
-              text,
-
-              model:
-                data.model ??
-                "local-whisper",
-
-              language:
-                data.language ??
-                language ??
-                "vi",
-            });
-
-          } catch (error) {
-
-            finishReject(
-              new Error(
-                `LOCAL_TRANSCRIPTION_INVALID_OUTPUT: ${error.message}`
-              )
-            );
-          }
         }
       );
     }
@@ -425,7 +725,7 @@ export async function transcribeVoiceUrl(
       );
 
 
-    return await runLocalWhisper(
+    return await transcribeLocalFile(
       filePath,
       language
     );
