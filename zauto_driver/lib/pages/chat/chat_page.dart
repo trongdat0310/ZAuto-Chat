@@ -2518,38 +2518,6 @@ class _ChatPageState extends State<ChatPage> {
 
           isPlaying: isActuallyPlaying,
 
-          transcript:
-              message['transcript']?.toString(),
-
-          transcriptionStatus:
-              message['transcriptionStatus']?.toString(),
-
-          onTranscribe:
-              widget.settingsController.settings.transcribeVoiceMessages
-                  ? () async {
-                      try {
-                        await backend.transcribeVoiceMessage(
-                          groupId: widget.groupId,
-                          id: message['id']?.toString(),
-                          msgId: message['msgId']?.toString(),
-                          cliMsgId: message['cliMsgId']?.toString(),
-                        );
-                      } catch (error) {
-                        if (!mounted) {
-                          return;
-                        }
-
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Không thể phiên âm: $error',
-                            ),
-                          ),
-                        );
-                      }
-                    }
-                  : null,
-
           onToggle: () {
             voiceController.toggle(url);
           },
