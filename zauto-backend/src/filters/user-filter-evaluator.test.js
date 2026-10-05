@@ -983,6 +983,59 @@ test(
 
 
 test(
+  "basic minimum price does not pass from address or year numbers",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "priced",
+
+            price:
+              300,
+          }),
+        ],
+      });
+
+
+    const addressResult =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "đón khách số 450 phố huế"
+      );
+
+
+    assert.equal(
+      addressResult.matched,
+      false
+    );
+
+
+    const yearResult =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "lịch chạy năm 2026"
+      );
+
+
+    assert.equal(
+      yearResult.matched,
+      false
+    );
+  }
+);
+
+
+test(
   "basic minimum price supports Vietnamese million shorthand",
   () => {
     const runtime =
