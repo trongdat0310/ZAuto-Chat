@@ -40,12 +40,6 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-const bool _latencyTraceEnabled =
-    bool.fromEnvironment(
-      'ZAUTO_LATENCY_TRACE',
-      defaultValue: false,
-    );
-
 class _HomePageState extends State<HomePage> {
   // THAY IP NAY BANG IP MAY TINH CUA BAN
   final BackendService backend = BackendService(baseUrl: AppConfig.backendUrl);
@@ -459,10 +453,6 @@ class _HomePageState extends State<HomePage> {
   void _logTripLatencyAfterRender(
     Map<String, dynamic> trip,
   ) {
-    if (!_latencyTraceEnabled) {
-      return;
-    }
-
     final rawTrace =
         trip['_latencyTrace'];
 
@@ -694,7 +684,7 @@ class _HomePageState extends State<HomePage> {
       activeTrips.add(newTrip);
     });
 
-    if (_latencyTraceEnabled) {
+    if (newTrip['_latencyTrace'] is Map) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
