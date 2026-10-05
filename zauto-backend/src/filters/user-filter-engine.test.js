@@ -1463,3 +1463,134 @@ for (
     }
   );
 }
+
+
+
+// ========================================
+// HOT PATH CACHE STRESS
+// ========================================
+
+test(
+  "hundreds of realtime messages reuse warmed runtime without recompiling",
+  () => {
+    const userId =
+      `test-filter-hot-path-${process.pid}`;
+
+    cleanupUserFilterTestData(
+      userId
+    );
+
+    resetUserFilterRuntimeTestMetrics();
+
+
+    try {
+      createUserFilterV2(
+        userId,
+        {
+          ...advancedFilter({
+            groups: ["group-a"],
+            show: ["vip"],
+          }),
+
+          name:
+            "group-a-vip",
+        }
+      );
+
+
+      let metrics =
+        getUserFilterRuntimeTestMetrics();
+
+
+      assert.equal(
+        metrics.compileDocumentCalls,
+        1
+      );
+
+
+      // Lan dau group-a tao group plan cu the.
+      const first =
+        evaluateUserMessage(
+          userId,
+          "VIP",
+          {
+            groupId:
+              "group-a",
+          }
+        );
+
+
+      assert.equal(
+        first.matched,
+        true
+      );
+
+
+      metrics =
+        getUserFilterRuntimeTestMetrics();
+
+
+      assert.equal(
+        metrics.compileDocumentCalls,
+        1
+      );
+
+      assert.equal(
+        metrics.groupPlanCacheMisses,
+        1
+      );
+
+
+      for (
+        let index = 0;
+        index < 500;
+        index += 1
+      ) {
+        const result =
+          evaluateUserMessage(
+            userId,
+            index % 2 === 0
+              ? "VIP"
+              : "cuốc thường",
+            {
+              groupId:
+                "group-a",
+            }
+          );
+
+
+        assert.equal(
+          typeof result.matched,
+          "boolean"
+        );
+      }
+
+
+      metrics =
+        getUserFilterRuntimeTestMetrics();
+
+
+      assert.equal(
+        metrics.compileDocumentCalls,
+        1
+      );
+
+      assert.equal(
+        metrics.groupPlanCacheMisses,
+        1
+      );
+
+      assert.equal(
+        metrics.groupPlanCacheHits,
+        500
+      );
+
+    } finally {
+      disableUserFilterRuntimeTestMetrics();
+
+      cleanupUserFilterTestData(
+        userId
+      );
+    }
+  }
+);
