@@ -166,10 +166,6 @@ import {
 } from "./realtime/ws-server.js";
 
 import {
-  enqueueVoiceTranscription,
-} from "./transcription/voice-transcription-queue.js";
-
-import {
   sendUserConversationMessage,
 } from "./conversations/conversation-send-service.js";
 
@@ -2715,125 +2711,6 @@ app.get(
             error?.message ??
             String(error),
         });
-    }
-  }
-);
-
-// ========================================
-// TRANSCRIBE VOICE MESSAGE ON DEMAND
-// ========================================
-
-app.post(
-  "/api/me/conversations/:groupId/messages/transcribe",
-
-  requireAuth,
-
-  (req, res) => {
-    try {
-      const groupId =
-        String(
-          req.params.groupId ??
-          ""
-        ).trim();
-
-      const id =
-        req.body?.id != null
-          ? String(req.body.id)
-          : null;
-
-      const msgId =
-        req.body?.msgId != null
-          ? String(req.body.msgId)
-          : null;
-
-      const cliMsgId =
-        req.body?.cliMsgId != null
-          ? String(req.body.cliMsgId)
-          : null;
-
-      const message =
-        findUserConversationMessage(
-          req.user.id,
-          groupId,
-          {
-            id,
-            msgId,
-            cliMsgId,
-          }
-        );
-
-      if (!message) {
-        return res.status(404).json({
-          success: false,
-          error: "Khong tim thay tin nhan.",
-        });
-      }
-
-      if (
-        message.mediaType !==
-          "voice" ||
-        !message.mediaUrl
-      ) {
-        return res.status(400).json({
-          success: false,
-          error: "Tin nhan khong phai voice hop le.",
-        });
-      }
-
-      const settings =
-        getUserMessageSettings(
-          req.user.id
-        );
-
-      if (
-        settings.showVoiceMessages !== true ||
-        settings.transcribeVoiceMessages !== true
-      ) {
-        return res.status(409).json({
-          success: false,
-          error: "Tinh nang phien am dang tat.",
-        });
-      }
-
-      if (
-        message.transcriptionStatus ===
-          "completed" &&
-        message.transcript
-      ) {
-        return res.json({
-          success: true,
-          queued: false,
-          completed: true,
-          message,
-        });
-      }
-
-      const queued =
-        enqueueVoiceTranscription(
-          req.user.id,
-          message
-        );
-
-      return res.json({
-        success: true,
-        queued,
-        completed: false,
-      });
-
-    } catch (error) {
-      console.error(
-        "[VOICE TRANSCRIPTION] REQUEST ERROR:",
-        req.user.id,
-        req.params.groupId,
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        error:
-          error?.message ??
-          String(error),
-      });
     }
   }
 );
