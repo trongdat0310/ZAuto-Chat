@@ -3,6 +3,19 @@ import os
 import sys
 
 
+# Windows terminals may default to a legacy code page (for example cp1252).
+# The worker protocol carries Vietnamese JSON, so force UTF-8 independently
+# of the terminal/code page used to launch the backend.
+if hasattr(sys.stdin, "reconfigure"):
+    sys.stdin.reconfigure(encoding="utf-8", errors="strict")
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="strict")
+
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def load_model():
     from faster_whisper import WhisperModel
 
