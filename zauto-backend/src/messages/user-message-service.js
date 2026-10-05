@@ -485,6 +485,28 @@ export async function ignoreUserMessage(
   userId,
   messageId
 ) {
+  if (
+    acceptInFlight.has(
+      acceptLockKey(
+        userId,
+        messageId
+      )
+    )
+  ) {
+    const error =
+      new Error(
+        "Cuoc dang duoc nhan."
+      );
+
+
+    error.code =
+      "MESSAGE_ACCEPT_IN_PROGRESS";
+
+
+    throw error;
+  }
+
+
   const message =
     getUserMessageById(
       userId,
