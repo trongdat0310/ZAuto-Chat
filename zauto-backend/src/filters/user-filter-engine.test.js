@@ -1169,3 +1169,297 @@ test(
     }
   }
 );
+
+
+
+// ========================================
+// PREVIEW <-> REALTIME DECISION PARITY
+//
+// Preview bo qua group scope/enabled co chu dich,
+// nhung loi evaluator cho cung filter + message
+// phai cho cung quyet dinh matched.
+// ========================================
+
+const parityCases = [
+  {
+    name:
+      "basic route accept",
+
+    filter:
+      basicFilter({
+        groups: ["g"],
+        pickup: "q1",
+        dropoff: "nội bài",
+      }),
+
+    message:
+      "Q1 đi Nội Bài",
+
+    expected:
+      true,
+  },
+  {
+    name:
+      "basic reverse route reject",
+
+    filter:
+      basicFilter({
+        groups: ["g"],
+        pickup: "q1",
+        dropoff: "nội bài",
+      }),
+
+    message:
+      "Nội Bài về Q1",
+
+    expected:
+      false,
+  },
+  {
+    name:
+      "basic round trip reject",
+
+    filter:
+      basicFilter({
+        groups: ["g"],
+        pickup: "q1",
+        dropoff: "nội bài",
+      }),
+
+    message:
+      "Q1 đi Nội Bài rồi về lại Q1",
+
+    expected:
+      false,
+  },
+  {
+    name:
+      "basic include accept",
+
+    filter:
+      basicFilter({
+        groups: ["g"],
+        include: "4c, vip",
+      }),
+
+    message:
+      "cần xe VIP",
+
+    expected:
+      true,
+  },
+  {
+    name:
+      "basic exclude reject",
+
+    filter:
+      basicFilter({
+        groups: ["g"],
+        include: "vip",
+        exclude: "ghép",
+      }),
+
+    message:
+      "VIP ghép khách",
+
+    expected:
+      false,
+  },
+  {
+    name:
+      "basic price accept",
+
+    filter:
+      basicFilter({
+        groups: ["g"],
+        price: 500,
+      }),
+
+    message:
+      "cuốc giá 650k",
+
+    expected:
+      true,
+  },
+  {
+    name:
+      "basic price reject",
+
+    filter:
+      basicFilter({
+        groups: ["g"],
+        price: 500,
+      }),
+
+    message:
+      "cuốc giá 450k",
+
+    expected:
+      false,
+  },
+  {
+    name:
+      "basic time accept",
+
+    filter:
+      basicFilter({
+        groups: ["g"],
+        time: "sáng",
+      }),
+
+    message:
+      "sáng mai 7h30 đi sân bay",
+
+    expected:
+      true,
+  },
+  {
+    name:
+      "advanced show accept",
+
+    filter:
+      advancedFilter({
+        groups: ["g"],
+        show: ["vip"],
+        hide: ["ghép"],
+      }),
+
+    message:
+      "VIP khách riêng",
+
+    expected:
+      true,
+  },
+  {
+    name:
+      "advanced hide reject",
+
+    filter:
+      advancedFilter({
+        groups: ["g"],
+        show: ["vip"],
+        hide: ["ghép"],
+      }),
+
+    message:
+      "VIP ghép khách",
+
+    expected:
+      false,
+  },
+  {
+    name:
+      "advanced catch all accept",
+
+    filter:
+      advancedFilter({
+        groups: ["g"],
+        show: [],
+        hide: ["ghép"],
+      }),
+
+    message:
+      "cuốc thường",
+
+    expected:
+      true,
+  },
+];
+
+
+for (
+  const [
+    index,
+    parityCase,
+  ]
+  of parityCases.entries()
+) {
+  test(
+    `preview realtime parity: ${parityCase.name}`,
+    () => {
+      const userId =
+        `test-filter-parity-${process.pid}-${index}`;
+
+      cleanupUserFilterTestData(
+        userId
+      );
+
+
+      try {
+        const input = {
+          ...parityCase.filter,
+
+          name:
+            `parity-${index}`,
+        };
+
+
+        createUserFilterV2(
+          userId,
+          input
+        );
+
+
+        const preview =
+          previewUserFilterV2(
+            input,
+            parityCase.message,
+            {
+              groupId:
+                "g",
+            }
+          );
+
+
+        const realtime =
+          evaluateUserMessage(
+            userId,
+            parityCase.message,
+            {
+              groupId:
+                "g",
+            }
+          );
+
+
+        assert.equal(
+          preview.matched,
+          parityCase.expected
+        );
+
+
+        assert.equal(
+          realtime.matched,
+          parityCase.expected
+        );
+
+
+        assert.equal(
+          preview.matched,
+          realtime.matched
+        );
+
+
+        if (
+          parityCase.expected ===
+            true
+        ) {
+          assert.equal(
+            preview.mode,
+            realtime.mode
+          );
+
+          assert.equal(
+            preview.reason,
+            realtime.reason
+          );
+        }
+
+      } finally {
+        cleanupUserFilterTestData(
+          userId
+        );
+      }
+    }
+  );
+}
