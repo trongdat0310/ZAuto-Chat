@@ -26,10 +26,6 @@ const DEFAULT_SETTINGS = {
 
   // Hien thi voice/audio trong hoi thoai.
   showVoiceMessages: true,
-
-  // Luu preference cho pipeline phien am.
-  // Engine speech-to-text se doc flag nay.
-  transcribeVoiceMessages: false,
 };
 
 
@@ -219,30 +215,6 @@ export function updateUserMessageSettings(
 
     next.showVoiceMessages =
       patch.showVoiceMessages;
-
-
-    // Khong cho transcribe=true khi voice bi an.
-    if (
-      patch.showVoiceMessages ===
-      false
-    ) {
-
-      next.transcribeVoiceMessages =
-        false;
-    }
-  }
-
-
-  if (
-    typeof patch.transcribeVoiceMessages ===
-    "boolean"
-  ) {
-
-    next.transcribeVoiceMessages =
-      next.showVoiceMessages ===
-        true
-        ? patch.transcribeVoiceMessages
-        : false;
   }
 
 
