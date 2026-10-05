@@ -1,28 +1,10 @@
-import argparse
 import json
 import os
 import sys
 
 
-def emit_error(message):
-    sys.stderr.write(str(message) + "\n")
-    sys.stderr.flush()
-    raise SystemExit(1)
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--audio", required=True)
-    parser.add_argument("--language", default="vi")
-    args = parser.parse_args()
-
-    try:
-        from faster_whisper import WhisperModel
-    except Exception as exc:
-        emit_error(
-            "faster-whisper is not installed: "
-            + str(exc)
-        )
+def load_model():
+    from faster_whisper import WhisperModel
 
     model_name = os.environ.get(
         "VOICE_TRANSCRIPTION_MODEL",
@@ -58,54 +40,114 @@ def main():
     except ValueError:
         cpu_threads = 0
 
+    model = WhisperModel(
+        model_name,
+        device=device,
+        compute_type=compute_type,
+        cpu_threads=cpu_threads,
+    )
+
+    return model, model_name
+
+
+def transcribe(model, model_name, audio, language):
+    segments, info = model.transcribe(
+        audio,
+        language=language or None,
+        beam_size=5,
+        vad_filter=True,
+        condition_on_previous_text=False,
+    )
+
+    parts = []
+
+    for segment in segments:
+        text = str(
+            segment.text or ""
+        ).strip()
+
+        if text:
+            parts.append(text)
+
+    return {
+        "text": " ".join(parts).strip(),
+        "model": model_name,
+        "language": getattr(
+            info,
+            "language",
+            language,
+        ),
+    }
+
+
+def emit(payload):
+    sys.stdout.write(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+        )
+        + "\n"
+    )
+    sys.stdout.flush()
+
+
+def main():
     try:
-        model = WhisperModel(
-            model_name,
-            device=device,
-            compute_type=compute_type,
-            cpu_threads=cpu_threads,
-        )
+        model, model_name = load_model()
+    except Exception as exc:
+        emit({
+            "type": "fatal",
+            "error": str(exc),
+        })
+        raise SystemExit(1)
 
-        segments, info = model.transcribe(
-            args.audio,
-            language=args.language or None,
-            beam_size=5,
-            vad_filter=True,
-            condition_on_previous_text=False,
-        )
+    emit({
+        "type": "ready",
+        "model": model_name,
+    })
 
-        parts = []
+    for raw_line in sys.stdin:
+        raw_line = raw_line.strip()
 
-        for segment in segments:
-            text = str(
-                segment.text or ""
+        if not raw_line:
+            continue
+
+        job_id = None
+
+        try:
+            job = json.loads(raw_line)
+            job_id = job.get("id")
+            audio = str(
+                job.get("audio") or ""
+            ).strip()
+            language = str(
+                job.get("language") or "vi"
             ).strip()
 
-            if text:
-                parts.append(text)
+            if not audio:
+                raise ValueError(
+                    "audio path is required"
+                )
 
-        transcript = " ".join(parts).strip()
-
-        result = {
-            "text": transcript,
-            "model": model_name,
-            "language": getattr(
-                info,
-                "language",
-                args.language,
-            ),
-        }
-
-        sys.stdout.write(
-            json.dumps(
-                result,
-                ensure_ascii=False,
+            result = transcribe(
+                model,
+                model_name,
+                audio,
+                language,
             )
-        )
-        sys.stdout.flush()
 
-    except Exception as exc:
-        emit_error(exc)
+            emit({
+                "type": "result",
+                "id": job_id,
+                **result,
+            })
+
+        except Exception as exc:
+            emit({
+                "type": "error",
+                "id": job_id,
+                "error": str(exc),
+            })
 
 
 if __name__ == "__main__":
