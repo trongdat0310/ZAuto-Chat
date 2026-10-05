@@ -21,8 +21,8 @@ def load_model():
 
     model_name = os.environ.get(
         "VOICE_TRANSCRIPTION_MODEL",
-        "small",
-    ).strip() or "small"
+        "medium",
+    ).strip() or "medium"
 
     device = os.environ.get(
         "VOICE_TRANSCRIPTION_DEVICE",
@@ -66,10 +66,13 @@ def load_model():
 def transcribe(model, model_name, audio, language):
     segments, info = model.transcribe(
         audio,
-        language=language or None,
+        language=language or "vi",
+        task="transcribe",
         beam_size=5,
+        temperature=0.0,
         vad_filter=True,
         condition_on_previous_text=False,
+        initial_prompt=None,
     )
 
     parts = []
