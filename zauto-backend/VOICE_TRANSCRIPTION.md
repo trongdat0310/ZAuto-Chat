@@ -1,26 +1,56 @@
-# Voice transcription
+# Voice transcription - local Whisper
 
-Voice transcription is optional and runs asynchronously after the Zalo voice
-message has already been stored and broadcast to Flutter.
+ZAuto transcribes voice messages locally with `faster-whisper`.
+There is no per-minute transcription API charge and no OpenAI API key is used.
 
-Required environment variable:
+## Install
 
-OPENAI_API_KEY=your_api_key_here
+Python 3.10+ is recommended.
 
-Optional environment variables:
+Windows:
 
-OPENAI_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe
-VOICE_TRANSCRIPTION_CONCURRENCY=2
-VOICE_TRANSCRIPTION_MAX_BYTES=20000000
-VOICE_TRANSCRIPTION_DOWNLOAD_TIMEOUT_MS=20000
-VOICE_TRANSCRIPTION_API_TIMEOUT_MS=45000
+    py -m pip install -r requirements-transcription.txt
 
-Behavior:
+If your `python` command does not point to the same Python installation, set:
 
-- If the user disables "Hiển thị tin nhắn thoại", voice messages are hidden and
-  transcription is disabled.
-- If the user enables voice but disables "Phiên âm tin nhắn thoại", no
-  transcription request is made.
-- If transcription is enabled but OPENAI_API_KEY is missing, voice playback
-  continues normally and the transcript status becomes unavailable.
-- Audio download and transcription never block the realtime message path.
+    VOICE_TRANSCRIPTION_PYTHON=C:\\Path\\To\\python.exe
+
+The first transcription starts a persistent Python worker and loads the model.
+On the first run, faster-whisper downloads the selected model files to the
+machine. Later jobs reuse the same loaded model.
+
+## Default CPU configuration
+
+    VOICE_TRANSCRIPTION_MODEL=small
+    VOICE_TRANSCRIPTION_DEVICE=cpu
+    VOICE_TRANSCRIPTION_COMPUTE_TYPE=int8
+    VOICE_TRANSCRIPTION_CONCURRENCY=1
+
+The defaults are designed to avoid competing with the realtime Node backend.
+
+Optional:
+
+    VOICE_TRANSCRIPTION_CPU_THREADS=0
+    VOICE_TRANSCRIPTION_MAX_BYTES=20000000
+    VOICE_TRANSCRIPTION_DOWNLOAD_TIMEOUT_MS=20000
+    VOICE_TRANSCRIPTION_PROCESS_TIMEOUT_MS=180000
+
+## NVIDIA GPU
+
+For a compatible CUDA setup you can use:
+
+    VOICE_TRANSCRIPTION_DEVICE=cuda
+    VOICE_TRANSCRIPTION_COMPUTE_TYPE=float16
+
+Then increase concurrency only after measuring server load.
+
+## Runtime behavior
+
+- Voice is stored and broadcast to Flutter before transcription begins.
+- Transcription runs asynchronously outside the realtime message path.
+- The model stays loaded in one persistent Python worker.
+- Temporary audio files are deleted after each job.
+- Turning off "Phiên âm tin nhắn thoại" prevents new transcription jobs.
+- Turning off "Hiển thị tin nhắn thoại" also disables transcription.
+- Transcripts are stored on the existing message and pushed to Flutter with
+  `conversation_message_updated`.
