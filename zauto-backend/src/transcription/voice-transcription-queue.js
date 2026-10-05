@@ -11,7 +11,6 @@ import {
 } from "../realtime/ws-server.js";
 
 import {
-  isVoiceTranscriptionConfigured,
   transcribeVoiceUrl,
 } from "./voice-transcription-provider.js";
 
@@ -23,7 +22,7 @@ const MAX_CONCURRENCY =
       4,
       Number(
         process.env.VOICE_TRANSCRIPTION_CONCURRENCY
-      ) || 2
+      ) || 1
     )
   );
 
@@ -100,42 +99,6 @@ async function processJob(
     settings.transcribeVoiceMessages !==
       true
   ) {
-    return;
-  }
-
-
-  if (
-    !isVoiceTranscriptionConfigured()
-  ) {
-    const updated =
-      updateConversationMessageTranscription(
-        userId,
-        message.groupId,
-        {
-          id:
-            message.id,
-
-          msgId:
-            message.msgId,
-
-          cliMsgId:
-            message.cliMsgId,
-
-          status:
-            "unavailable",
-
-          error:
-            "OPENAI_API_KEY_MISSING",
-        }
-      );
-
-
-    broadcastUpdated(
-      userId,
-      updated
-    );
-
-
     return;
   }
 
