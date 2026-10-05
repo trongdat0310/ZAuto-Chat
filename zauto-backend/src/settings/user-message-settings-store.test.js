@@ -110,3 +110,93 @@ test(
     }
   }
 );
+
+
+
+test(
+  "legacy transcription setting is removed from persisted settings",
+  () => {
+    const userId =
+      `test-message-settings-legacy-${process.pid}`;
+
+    cleanup(
+      userId
+    );
+
+
+    try {
+      const directory =
+        userDir(
+          userId
+        );
+
+
+      fs.mkdirSync(
+        directory,
+        {
+          recursive: true,
+        }
+      );
+
+
+      const file =
+        path.join(
+          directory,
+          "message-settings.json"
+        );
+
+
+      fs.writeFileSync(
+        file,
+        JSON.stringify(
+          {
+            showImages: true,
+            showVoiceMessages: true,
+            transcribeVoiceMessages: true,
+          },
+          null,
+          2
+        ),
+        "utf8"
+      );
+
+
+      const settings =
+        getUserMessageSettings(
+          userId
+        );
+
+
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(
+          settings,
+          "transcribeVoiceMessages"
+        ),
+        false
+      );
+
+
+      const saved =
+        JSON.parse(
+          fs.readFileSync(
+            file,
+            "utf8"
+          )
+        );
+
+
+      assert.equal(
+        Object.prototype.hasOwnProperty.call(
+          saved,
+          "transcribeVoiceMessages"
+        ),
+        false
+      );
+
+    } finally {
+      cleanup(
+        userId
+      );
+    }
+  }
+);
