@@ -56,6 +56,8 @@ class ChatPage extends StatefulWidget {
 
   final int? targetAcceptedAtMs;
 
+  final bool targetSelfOnly;
+
   final AppRealtimeService realtimeService;
 
   final SettingsController settingsController;
@@ -75,6 +77,7 @@ class ChatPage extends StatefulWidget {
     this.targetCliMsgId,
     this.targetReplyText,
     this.targetAcceptedAtMs,
+    this.targetSelfOnly = false,
   });
 
   @override
@@ -212,6 +215,8 @@ class _ChatPageState extends State<ChatPage> {
       targetReplyText: widget.targetReplyText,
 
       targetAcceptedAtMs: widget.targetAcceptedAtMs,
+
+      targetSelfOnly: widget.targetSelfOnly,
     );
 
     markReadController = ChatMarkReadController(
