@@ -270,6 +270,10 @@ class _HomePageState extends State<HomePage>
     final displaySeconds =
         widget.settingsController.settings.tripDisplaySeconds;
 
+    final reconcileStartedAtMs =
+        DateTime.now()
+            .millisecondsSinceEpoch;
+
     try {
       final pending =
           await backend.getRecentPendingTrips(
@@ -330,6 +334,17 @@ class _HomePageState extends State<HomePage>
                   'accepted' ||
               status ==
                   'ignored'
+            ) {
+              return false;
+            }
+
+            final addedAtMs =
+                trip['_addedAtMs'];
+
+            if (
+              addedAtMs is int &&
+              addedAtMs >
+                  reconcileStartedAtMs
             ) {
               return false;
             }
@@ -444,6 +459,9 @@ class _HomePageState extends State<HomePage>
 
           restored['_uiStatus'] =
               'new';
+
+          restored['_addedAtMs'] =
+              nowMs;
 
           restored['_expiresAtMs'] =
               nowMs +
@@ -1178,6 +1196,10 @@ class _HomePageState extends State<HomePage>
 
     // Trang thai rieng cho UI.
     newTrip['_uiStatus'] = 'new';
+
+    newTrip['_addedAtMs'] =
+        DateTime.now()
+            .millisecondsSinceEpoch;
 
     // ========================================
     // COUNTDOWN RIENG CUA CUOC
