@@ -145,6 +145,37 @@ class MessageApi extends BackendApiBase {
     return Map<String, dynamic>.from(decoded);
   }
 
+  Future<Map<String, dynamic>> transcribeVoiceMessage({
+    required String groupId,
+    String? id,
+    String? msgId,
+    String? cliMsgId,
+  }) async {
+    final safeId = id?.trim() ?? '';
+    final safeMsgId = msgId?.trim() ?? '';
+    final safeCliMsgId = cliMsgId?.trim() ?? '';
+
+    if (safeId.isEmpty && safeMsgId.isEmpty && safeCliMsgId.isEmpty) {
+      throw Exception('Tin nhắn voice thiếu ID');
+    }
+
+    final encodedGroupId = Uri.encodeComponent(groupId);
+
+    final decoded = await postJson(
+      Uri.parse(
+        '$baseUrl/api/me/conversations/'
+        '$encodedGroupId/messages/transcribe',
+      ),
+      body: {
+        'id': safeId.isEmpty ? null : safeId,
+        'msgId': safeMsgId.isEmpty ? null : safeMsgId,
+        'cliMsgId': safeCliMsgId.isEmpty ? null : safeCliMsgId,
+      },
+    );
+
+    return Map<String, dynamic>.from(decoded);
+  }
+
   Future<void> sendConversationMessage({
     required String groupId,
     required String text,
