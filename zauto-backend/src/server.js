@@ -1645,6 +1645,10 @@ app.get(
     res.json({
       success: true,
 
+      serverNow:
+        new Date()
+          .toISOString(),
+
       count:
         messages.length,
 
