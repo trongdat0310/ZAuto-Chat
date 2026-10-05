@@ -278,6 +278,18 @@ function collectThousands(
     }
 
 
+    if (
+      isLikelyNonPriceBareNumber(
+        text,
+        start,
+        end,
+        value
+      )
+    ) {
+      continue;
+    }
+
+
     addCandidate(
       candidates,
       spans,
@@ -353,6 +365,81 @@ function collectFormattedVnd(
       pattern.lastIndex
     );
   }
+}
+
+
+// ========================================
+// BARE NUMBER CONTEXT
+//
+// So khong co don vi la truong hop mo ho nhat.
+// Chi loai khi ngu canh ro rang cho thay day KHONG
+// phai gia: nam, dia chi, quang duong, ma/chuyen...
+// ========================================
+
+function isLikelyNonPriceBareNumber(
+  text,
+  start,
+  end,
+  value
+) {
+  // Nam 4 chu so rat de xuat hien trong tin,
+  // khong duoc coi la gia nghin.
+  if (
+    value >= 1900 &&
+    value <= 2100
+  ) {
+    return true;
+  }
+
+
+  const left =
+    text
+      .slice(
+        Math.max(
+          0,
+          start - 24
+        ),
+        start
+      )
+      .trimEnd();
+
+
+  const right =
+    text
+      .slice(
+        end,
+        Math.min(
+          text.length,
+          end + 24
+        )
+      )
+      .trimStart();
+
+
+  // Ngu canh truoc so:
+  // "so 123", "ngo 123", "duong 32",
+  // "ma 300", "chuyen 300", "ql 18"...
+  if (
+    /(?:^|\s)(?:so|nha|ngo|ngach|hem|duong|pho|ql|quoc lo|tinh lo|tl|ma|code|chuyen|bien|bien so)\s*$/.test(
+      left
+    )
+  ) {
+    return true;
+  }
+
+
+  // Don vi / y nghia sau so:
+  // "300 km", "20 nguoi", "30 phut"...
+  if (
+    /^(?:km|m|met|meter|phut|p|gio|h|nguoi|khach|cho|chuyen|lan|km2)\b/.test(
+      right
+    )
+  ) {
+    return true;
+  }
+
+
+  return false;
 }
 
 
