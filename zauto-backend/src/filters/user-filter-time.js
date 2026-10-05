@@ -404,6 +404,86 @@ function compileOneTimeRule(
 }
 
 
+function looksLikeTimeSyntax(
+  rawRule
+) {
+  const text =
+    normalizeFilterText(
+      rawRule
+    );
+
+
+  if (!text) {
+    return false;
+  }
+
+
+  return (
+    /^(sau|truoc)\s+\d/.test(
+      text
+    ) ||
+    /\d\s*:\s*\d/.test(
+      text
+    ) ||
+    /\d\s*h\s*\d*/.test(
+      text
+    ) ||
+    /^\d{1,3}\s*-\s*\d{1,3}\s*(?:p|ph|phut)?$/.test(
+      text
+    ) ||
+    /^\d{1,3}\s*(?:p|ph|phut)$/.test(
+      text
+    )
+  );
+}
+
+
+export function validateTimeRulesInput(
+  rawValue
+) {
+  const parts =
+    String(
+      rawValue ?? ""
+    )
+      .split(",")
+      .map(
+        value =>
+          value.trim()
+      )
+      .filter(Boolean);
+
+
+  const invalid =
+    [];
+
+
+  for (
+    const part of parts
+  ) {
+    const compiled =
+      compileOneTimeRule(
+        part
+      );
+
+
+    if (
+      compiled?.kind ===
+        "keyword" &&
+      looksLikeTimeSyntax(
+        part
+      )
+    ) {
+      invalid.push(
+        part
+      );
+    }
+  }
+
+
+  return invalid;
+}
+
+
 export function compileTimeRules(
   rawValue
 ) {
