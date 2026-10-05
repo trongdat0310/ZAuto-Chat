@@ -49,6 +49,10 @@ function advancedFilter(
 function basicFilter(
   id,
   {
+    pickup = "",
+    dropoff = "",
+    include = "",
+    exclude = "",
     price = null,
     time = "",
   } = {}
@@ -69,20 +73,18 @@ function basicFilter(
       [],
 
     basic: {
-      pickup:
-        "",
+      pickup,
 
-      dropoff:
-        "",
+      dropoff,
 
       acceptBothDirections:
         false,
 
       includeKeywords:
-        "",
+        include,
 
       excludeKeywords:
-        "",
+        exclude,
 
       minimumPrice:
         price,
@@ -166,6 +168,86 @@ function buildBasicWorkload(
 
     message:
       "cuốc tối nay 20h giá 1tr2",
+  };
+}
+
+
+function buildAdvancedNoMatchWorkload(
+  count
+) {
+  const filters =
+    [];
+
+
+  for (
+    let index = 0;
+    index < count;
+    index += 1
+  ) {
+    filters.push(
+      advancedFilter(
+        `advanced-no-match-${index + 1}`,
+        `never-${index + 1}`
+      )
+    );
+  }
+
+
+  return {
+    filters,
+
+    message:
+      "Q1 đi Nội Bài xe 4c giá 650k sáng mai 7h",
+  };
+}
+
+
+function buildFullBasicWorkload(
+  count
+) {
+  const filters =
+    [];
+
+
+  for (
+    let index = 0;
+    index < count;
+    index += 1
+  ) {
+    filters.push(
+      basicFilter(
+        `full-basic-${index + 1}`,
+        {
+          pickup:
+            "q1",
+
+          dropoff:
+            "nội bài",
+
+          include:
+            index === count - 1
+              ? "4c"
+              : `never-${index + 1}`,
+
+          exclude:
+            "ghép",
+
+          price:
+            500,
+
+          time:
+            "sáng",
+        }
+      )
+    );
+  }
+
+
+  return {
+    filters,
+
+    message:
+      "sáng mai 7h30 Q1 đi Nội Bài xe 4c giá 650k",
   };
 }
 
@@ -395,6 +477,23 @@ for (
   );
 
 
+  const advancedNoMatch =
+    buildAdvancedNoMatchWorkload(
+      count
+    );
+
+  cases.push(
+    runCase({
+      name:
+        `advanced-${count}-no-match`,
+
+      ...advancedNoMatch,
+
+      iterations,
+    })
+  );
+
+
   const basic =
     buildBasicWorkload(
       count
@@ -406,6 +505,23 @@ for (
         `basic-price-time-${count}`,
 
       ...basic,
+
+      iterations,
+    })
+  );
+
+
+  const fullBasic =
+    buildFullBasicWorkload(
+      count
+    );
+
+  cases.push(
+    runCase({
+      name:
+        `basic-full-${count}-match-last`,
+
+      ...fullBasic,
 
       iterations,
     })
