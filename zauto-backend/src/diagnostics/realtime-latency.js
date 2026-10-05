@@ -31,6 +31,12 @@ export function createRealtimeLatencyTrace() {
     filterPerfMs:
       null,
 
+    dedupeDoneAtMs:
+      null,
+
+    dedupePerfMs:
+      null,
+
     tripCreatedAtMs:
       null,
 
@@ -62,9 +68,11 @@ export function markRealtimeLatencyTrace(
   const perfKey =
     key === "filterDoneAtMs"
       ? "filterPerfMs"
-      : key === "tripCreatedAtMs"
-        ? "tripPerfMs"
-        : null;
+      : key === "dedupeDoneAtMs"
+        ? "dedupePerfMs"
+        : key === "tripCreatedAtMs"
+          ? "tripPerfMs"
+          : null;
 
 
   if (perfKey) {
