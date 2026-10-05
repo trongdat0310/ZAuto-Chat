@@ -1882,6 +1882,21 @@ app.post(
       }
 
 
+      if (
+        error.code ===
+        "MESSAGE_ACCEPT_IN_PROGRESS"
+      ) {
+        return res
+          .status(409)
+          .json({
+            success: false,
+
+            error:
+              "Cuoc dang duoc nhan.",
+          });
+      }
+
+
       res
         .status(500)
         .json({
