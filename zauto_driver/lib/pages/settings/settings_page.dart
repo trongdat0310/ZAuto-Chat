@@ -140,6 +140,14 @@ class _SettingsPageState extends State<SettingsPage> {
 
       final savedSeconds = rawWindow is num ? rawWindow.toInt() : null;
 
+      final nextTranscribeVoiceMessages =
+          showVoiceMessages =
+              settings['showVoiceMessages'] != false;
+
+      final transcribeEnabled =
+          nextTranscribeVoiceMessages &&
+          settings['transcribeVoiceMessages'] == true;
+
       setState(() {
         showImages =
             settings['showImages'] != false;
@@ -148,16 +156,20 @@ class _SettingsPageState extends State<SettingsPage> {
             settings['deduplicateMessages'] != false;
 
         showVoiceMessages =
-            settings['showVoiceMessages'] != false;
+            nextTranscribeVoiceMessages;
 
         transcribeVoiceMessages =
-            showVoiceMessages &&
-            settings['transcribeVoiceMessages'] == true;
+            transcribeEnabled;
 
         if (savedSeconds == 5 || savedSeconds == 10 || savedSeconds == 15) {
           currentTripDisplaySeconds = savedSeconds!;
         }
       });
+
+      await widget.settingsController
+          .updateTranscribeVoiceMessages(
+        transcribeEnabled,
+      );
 
       if (savedSeconds == 5 || savedSeconds == 10 || savedSeconds == 15) {
         await widget.settingsController.updateTripDisplaySeconds(savedSeconds!);
@@ -289,6 +301,11 @@ class _SettingsPageState extends State<SettingsPage> {
             setState(() {
               transcribeVoiceMessages = value;
             });
+
+            void widget.settingsController
+                .updateTranscribeVoiceMessages(
+              value,
+            );
           },
         );
       },
