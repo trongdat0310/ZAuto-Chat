@@ -244,7 +244,7 @@ class _HomePageState extends State<HomePage> {
       ).clamp(
         0,
         widget.settingsController.settings.tripDisplaySeconds,
-      );
+      ).toInt();
     }
 
 
@@ -275,7 +275,7 @@ class _HomePageState extends State<HomePage> {
     ).clamp(
       0,
       widget.settingsController.settings.tripDisplaySeconds,
-    );
+    ).toInt();
   }
 
 
@@ -339,7 +339,7 @@ class _HomePageState extends State<HomePage> {
         ).clamp(
           0,
           widget.settingsController.settings.tripDisplaySeconds,
-        );
+        ).toInt();
   }
 
 
