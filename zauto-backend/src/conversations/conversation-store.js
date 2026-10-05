@@ -3660,6 +3660,131 @@ export function getUserConversationMessagesPage(
 }
 
 // ========================================
+// UPDATE VOICE TRANSCRIPTION
+// ========================================
+
+export function updateConversationMessageTranscription(
+  userId,
+  groupId,
+  {
+    id = null,
+    msgId = null,
+    cliMsgId = null,
+    transcript = null,
+    status = null,
+    error = null,
+  } = {}
+) {
+  const file =
+    groupMessageFile(
+      userId,
+      groupId
+    );
+
+
+  const messages =
+    readJson(
+      file,
+      []
+    );
+
+
+  const index =
+    messages.findIndex(
+      item => {
+        if (
+          id &&
+          item.id ===
+            String(id)
+        ) {
+          return true;
+        }
+
+        if (
+          msgId &&
+          item.msgId ===
+            String(msgId)
+        ) {
+          return true;
+        }
+
+        if (
+          cliMsgId &&
+          item.cliMsgId ===
+            String(cliMsgId)
+        ) {
+          return true;
+        }
+
+        return false;
+      }
+    );
+
+
+  if (index < 0) {
+    return null;
+  }
+
+
+  const current =
+    messages[index];
+
+
+  if (
+    current.mediaType !==
+      "voice"
+  ) {
+    return null;
+  }
+
+
+  const cleanTranscript =
+    typeof transcript ===
+      "string"
+      ? transcript.trim()
+      : null;
+
+
+  const next = {
+    ...current,
+
+    transcript:
+      cleanTranscript ||
+      null,
+
+    transcriptionStatus:
+      status ??
+      current.transcriptionStatus ??
+      null,
+
+    transcriptionError:
+      error
+        ? String(error)
+        : null,
+
+    transcribedAt:
+      status === "completed"
+        ? new Date().toISOString()
+        : current.transcribedAt ??
+          null,
+  };
+
+
+  messages[index] =
+    next;
+
+
+  writeJsonAtomic(
+    file,
+    messages
+  );
+
+
+  return next;
+}
+
+
+// ========================================
 // FIND EXACT SOURCE MESSAGE
 // DUNG CHO LICH SU NHAN SAU NAY
 // ========================================
