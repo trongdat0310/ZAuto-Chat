@@ -11,6 +11,8 @@ class ChatTargetController {
 
   final int? targetAcceptedAtMs;
 
+  final bool targetSelfOnly;
+
   int? targetIndex;
 
   String? targetErrorReason;
@@ -30,6 +32,7 @@ class ChatTargetController {
     required this.targetCliMsgId,
     this.targetReplyText,
     this.targetAcceptedAtMs,
+    this.targetSelfOnly = false,
   });
 
   // ========================================
@@ -310,6 +313,13 @@ class ChatTargetController {
 
     if (safeTargetMsgId.isNotEmpty) {
       return messages.indexWhere((message) {
+        if (
+          targetSelfOnly &&
+          message['isSelf'] != true
+        ) {
+          return false;
+        }
+
         final messageMsgId = message['msgId']?.toString().trim() ?? '';
 
         return messageMsgId.isNotEmpty && messageMsgId == safeTargetMsgId;
@@ -318,6 +328,13 @@ class ChatTargetController {
 
     if (safeTargetCliMsgId.isNotEmpty) {
       return messages.indexWhere((message) {
+        if (
+          targetSelfOnly &&
+          message['isSelf'] != true
+        ) {
+          return false;
+        }
+
         final messageCliMsgId = message['cliMsgId']?.toString().trim() ?? '';
 
         return messageCliMsgId.isNotEmpty &&
