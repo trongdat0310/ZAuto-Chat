@@ -4536,6 +4536,101 @@ app.delete(
 // START SERVER
 // ========================================
 
+function listenHttpServer(
+  httpServer
+) {
+  return new Promise(
+    (
+      resolve,
+      reject
+    ) => {
+
+      const onError =
+        error => {
+
+          httpServer.off(
+            "listening",
+            onListening
+          );
+
+          reject(error);
+        };
+
+
+      const onListening =
+        () => {
+
+          httpServer.off(
+            "error",
+            onError
+          );
+
+          resolve();
+        };
+
+
+      httpServer.once(
+        "error",
+        onError
+      );
+
+
+      httpServer.once(
+        "listening",
+        onListening
+      );
+
+
+      httpServer.listen(
+        PORT,
+        "0.0.0.0"
+      );
+    }
+  );
+}
+
+
+function logListenError(
+  error
+) {
+  if (
+    error?.code ===
+    "EADDRINUSE"
+  ) {
+
+    console.error("");
+    console.error(
+      `[SERVER] Khong the khoi dong: cong ${PORT} dang duoc su dung.`
+    );
+
+    console.error(
+      "[SERVER] Co the mot ZAUTO backend khac van dang chay."
+    );
+
+    console.error(
+      "[SERVER] Windows: netstat -ano | findstr :" +
+      PORT
+    );
+
+    console.error(
+      "[SERVER] Sau do dung: taskkill /PID <PID> /F"
+    );
+
+    return;
+  }
+
+
+  console.error(
+    "[SERVER] Khong the mo cong HTTP:"
+  );
+
+  console.error(
+    error?.message ??
+    error
+  );
+}
+
+
 async function startServer() {
   console.log("");
   console.log("==============================");
@@ -4543,42 +4638,81 @@ async function startServer() {
   console.log("==============================");
   console.log("");
 
+
+  // ========================================
+  // HTTP + WEBSOCKET FIRST
+  //
+  // Phai chi khoi dong watchdog/Zalo workers
+  // sau khi bind port thanh cong.
+  // ========================================
+
+  const httpServer =
+    http.createServer(app);
+
+
+  initWebSocket(
+    httpServer
+  );
+
+
   try {
+
+    await listenHttpServer(
+      httpServer
+    );
+
+  } catch (error) {
+
+    logListenError(
+      error
+    );
+
+
+    process.exitCode =
+      1;
+
+    return;
+  }
+
+
+  console.log("");
+  console.log(
+    `[SERVER] Running on http://localhost:${PORT}`
+  );
+
+  console.log(
+    `[SERVER] WebSocket: ws://localhost:${PORT}/ws`
+  );
+
+  console.log(
+    `[SERVER] Health: http://localhost:${PORT}/health`
+  );
+
+  console.log(
+    `[SERVER] Zalo: http://localhost:${PORT}/api/zalo/status`
+  );
+
+
+  try {
+
     initFirebaseAdmin();
+
 
     console.log(
       "[SERVER] Firebase ready"
     );
 
+
     console.log(
       "[SERVER] Per-user Zalo mode enabled"
     );
+
 
     // ========================================
     // NETWORK WATCHDOG
     // ========================================
 
     startNetworkWatchdog();
-
-    // ========================================
-    // NETWORK WATCHDOG STATUS
-    // ========================================
-
-    app.get(
-      "/api/me/network/status",
-
-      requireAuth,
-
-      (req, res) => {
-
-        res.json({
-          success: true,
-
-          network:
-            getNetworkWatchdogStatus(),
-        });
-      }
-    );
 
 
     // ========================================
@@ -4595,41 +4729,18 @@ async function startServer() {
           );
         }
       );
+
   } catch (error) {
+
     console.error(
-      "[SERVER] Startup error:"
+      "[SERVER] Startup service error:"
     );
 
-    console.error(error);
+    console.error(
+      error
+    );
   }
-
-  const httpServer =
-    http.createServer(app);
-
-  initWebSocket(httpServer);
-
-  httpServer.listen(
-    PORT,
-    "0.0.0.0",
-    () => {
-      console.log("");
-      console.log(
-        `[SERVER] Running on http://localhost:${PORT}`
-      );
-
-      console.log(
-        `[SERVER] WebSocket: ws://localhost:${PORT}/ws`
-      );
-
-      console.log(
-        `[SERVER] Health: http://localhost:${PORT}/health`
-      );
-
-      console.log(
-        `[SERVER] Zalo: http://localhost:${PORT}/api/zalo/status`
-      );
-    }
-  );
 }
+
 
 startServer();
