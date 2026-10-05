@@ -878,6 +878,9 @@ class _MessagesPageState extends State<MessagesPage>
 
           targetAcceptedAtMs:
               acceptedAtMs,
+
+          targetSelfOnly:
+              true,
         ),
       ),
     );
