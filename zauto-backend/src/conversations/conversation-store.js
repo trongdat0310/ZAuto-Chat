@@ -2152,12 +2152,6 @@ export function saveConversationMessage(
         null,
 
 
-      mediaFileSize:
-        genericMedia
-          ?.mediaFileSize ??
-        null,
-
-
       fileName:
         genericMedia
           ?.fileName ??
@@ -2225,11 +2219,25 @@ export function saveConversationMessage(
       mediaFileSize:
         voiceMedia
           ?.mediaFileSize ??
+        genericMedia
+          ?.mediaFileSize ??
         null,
 
       waveformSamples:
         voiceMedia
           ?.waveformSamples ??
+        null,
+
+      transcript:
+        null,
+
+      transcriptionStatus:
+        null,
+
+      transcriptionError:
+        null,
+
+      transcribedAt:
         null,
 
     content:
