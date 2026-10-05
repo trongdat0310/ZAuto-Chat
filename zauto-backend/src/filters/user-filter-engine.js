@@ -10,7 +10,6 @@ import {
 
 import {
   compileUserFilterDocument,
-  getCompiledGroupPlan,
   getUserFilterGroupPlan,
   warmUserFilterRuntime,
 } from "./user-filter-runtime.js";
@@ -627,4 +626,5 @@ export function previewUserFilterV2(
       1,
 
     checks,
-  };}
+  };
+}
