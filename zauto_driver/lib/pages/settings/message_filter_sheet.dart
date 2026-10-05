@@ -349,7 +349,7 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
                   title: const Text('Phiên âm tin nhắn thoại'),
 
                   subtitle: const Text(
-                    'Lưu lựa chọn phiên âm cho voice/audio',
+                    'Tự động chuyển nội dung voice thành văn bản',
                   ),
 
                   onChanged: showVoiceMessages
