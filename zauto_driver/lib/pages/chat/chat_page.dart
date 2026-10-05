@@ -2512,6 +2512,12 @@ class _ChatPageState extends State<ChatPage> {
 
           isPlaying: isActuallyPlaying,
 
+          transcript:
+              message['transcript']?.toString(),
+
+          transcriptionStatus:
+              message['transcriptionStatus']?.toString(),
+
           onToggle: () {
             voiceController.toggle(url);
           },
