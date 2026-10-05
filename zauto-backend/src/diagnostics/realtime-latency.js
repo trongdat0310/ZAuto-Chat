@@ -4,13 +4,27 @@ import {
 } from "node:perf_hooks";
 
 
-export const realtimeLatencyTraceEnabled =
-  process.env.ZAUTO_LATENCY_TRACE ===
-  "1";
+export function isRealtimeLatencyTraceEnabled() {
+  const value =
+    String(
+      process.env.ZAUTO_LATENCY_TRACE ??
+      ""
+    )
+      .trim()
+      .toLowerCase();
+
+
+  return (
+    value === "1" ||
+    value === "true" ||
+    value === "yes" ||
+    value === "on"
+  );
+}
 
 
 export function createRealtimeLatencyTrace() {
-  if (!realtimeLatencyTraceEnabled) {
+  if (!isRealtimeLatencyTraceEnabled()) {
     return null;
   }
 
