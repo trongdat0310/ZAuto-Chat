@@ -240,6 +240,27 @@ app.get("/api/zalo/status", (req, res) => {
   res.json(getZaloStatus());
 });
 
+
+// ========================================
+// CURRENT USER NETWORK STATUS
+// ========================================
+
+app.get(
+  "/api/me/network/status",
+
+  requireAuth,
+
+  (req, res) => {
+
+    res.json({
+      success: true,
+
+      network:
+        getNetworkWatchdogStatus(),
+    });
+  }
+);
+
 // ========================================
 // GROUPS
 // ========================================
