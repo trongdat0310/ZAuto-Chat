@@ -377,6 +377,92 @@ export function getUserFilterDocumentV2(
 }
 
 
+export function createUserFilterV2(
+  userId,
+  input
+) {
+  const source =
+    input &&
+    typeof input === "object"
+      ? {
+          ...input,
+        }
+      : {};
+
+
+  // CREATE khong bao gio duoc phep dung id tu client
+  // de bien thanh UPDATE/upsert.
+  delete source.id;
+
+
+  return saveUserFilterV2(
+    userId,
+    source
+  );
+}
+
+
+export function updateUserFilterV2(
+  userId,
+  filterId,
+  input
+) {
+  const id =
+    String(
+      filterId ?? ""
+    ).trim();
+
+
+  if (!id) {
+    throw new Error(
+      "ID bo loc khong hop le."
+    );
+  }
+
+
+  const document =
+    getUserFilterDocument(
+      userId
+    );
+
+
+  const exists =
+    document.filters.some(
+      filter =>
+        filter.id ===
+          id
+    );
+
+
+  if (!exists) {
+    const error =
+      new Error(
+        "Khong tim thay bo loc."
+      );
+
+
+    error.code =
+      "FILTER_NOT_FOUND";
+
+
+    throw error;
+  }
+
+
+  return saveUserFilterV2(
+    userId,
+    {
+      ...(input &&
+      typeof input === "object"
+        ? input
+        : {}),
+
+      id,
+    }
+  );
+}
+
+
 export function saveUserFilterV2(
   userId,
   input
