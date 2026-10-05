@@ -29,9 +29,6 @@ class SettingsService {
   static const _speechRateKey =
       'speech_rate';
 
-  static const _transcribeVoiceMessagesKey =
-      'transcribe_voice_messages';
-
   Future<AppSettings>
   load() async {
 
@@ -90,12 +87,6 @@ class SettingsService {
         _speechRateKey,
       ) ??
           0.45,
-
-      transcribeVoiceMessages:
-      prefs.getBool(
-        _transcribeVoiceMessagesKey,
-      ) ??
-          false,
 
     );
   }
@@ -179,11 +170,6 @@ class SettingsService {
     await prefs.setDouble(
       _speechRateKey,
       settings.speechRate,
-    );
-
-    await prefs.setBool(
-      _transcribeVoiceMessagesKey,
-      settings.transcribeVoiceMessages,
     );
 
   }
