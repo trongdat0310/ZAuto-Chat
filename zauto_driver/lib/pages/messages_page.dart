@@ -744,108 +744,145 @@ class _MessagesPageState extends State<MessagesPage>
   }
 
   Future<void> openAcceptedTrip(Map<String, dynamic> trip) async {
-    // Ho tro ca record moi va record cu.
     final groupId = firstNonEmptyString([
       trip['sourceThreadId'],
       trip['groupId'],
       trip['threadId'],
-    ]); // ========================================
-    // TARGET CUA LICH SU NHAN
-    //
-    // Neu co replyZaloMessageId:
-    // -> day la tin "Nhan" cua chinh minh.
-    // -> TUYET DOI KHONG dung cliMsgId cua tin goc.
-    //
-    // Chi fallback ve source message
-    // neu cuoc cu KHONG co replyZaloMessageId.
-    // ========================================
+    ]);
 
-    final replyMsgId = firstNonEmptyString([trip['replyZaloMessageId']]);
 
-    final replyCliMsgId = firstNonEmptyString([trip['replyZaloCliMessageId']]);
+    final replyMsgId =
+        firstNonEmptyString([
+      trip['replyZaloMessageId'],
+    ]);
 
-    final String? msgId;
 
-    final String? cliMsgId;
+    final replyCliMsgId =
+        firstNonEmptyString([
+      trip['replyZaloCliMessageId'],
+    ]);
 
-    if (replyMsgId != null && replyMsgId.isNotEmpty) {
-      // ========================================
-      // CUOC MOI:
-      // NHAY DEN TIN "NHAN"
-      // ========================================
 
-      msgId = replyMsgId;
+    final replyText =
+        firstNonEmptyString([
+      trip['replyText'],
+    ]);
 
-      // Co thi dung.
-      // Khong co thi de null.
-      //
-      // KHONG fallback sang sourceCliMsgId.
-      cliMsgId = replyCliMsgId;
-    } else {
-      // ========================================
-      // CUOC CU:
-      // CHUA LUU replyZaloMessageId
-      // -> fallback ve tin nguoi gui.
-      // ========================================
 
-      msgId = firstNonEmptyString([
-        trip['sourceMsgId'],
-        trip['zaloMessageId'],
-        trip['msgId'],
-      ]);
+    final acceptedAt =
+        DateTime.tryParse(
+      trip['acceptedAt']
+              ?.toString() ??
+          '',
+    );
 
-      cliMsgId = firstNonEmptyString([
-        trip['sourceCliMsgId'],
-        trip['clientMessageId'],
-        trip['cliMsgId'],
-      ]);
-    }
+
+    final acceptedAtMs =
+        acceptedAt
+            ?.millisecondsSinceEpoch;
+
 
     final groupName =
-        firstNonEmptyString([trip['groupName'], trip['sourceGroupName']]) ??
+        firstNonEmptyString([
+          trip['groupName'],
+          trip['sourceGroupName'],
+        ]) ??
         'Nhóm Zalo';
 
-    if (groupId == null || groupId.isEmpty) {
-      await showMessageNotFound('Không còn thông tin nhóm của cuốc này.');
 
-      return;
-    }
-
-    final groupAvatar = _getGroupAvatar(groupId);
-
-    if ((msgId == null || msgId.isEmpty) &&
-        (cliMsgId == null || cliMsgId.isEmpty)) {
+    if (
+      groupId == null ||
+      groupId.isEmpty
+    ) {
       await showMessageNotFound(
-        'Cuốc này không còn thông tin liên kết tới tin nhắn Zalo gốc.',
+        'Không còn thông tin nhóm của cuốc này.',
       );
 
       return;
     }
 
+
+    // ========================================
+    // TARGET LICH SU NHAN
+    //
+    // Uu tien bat ky ID nao cua tin "Nhan"
+    // do chinh user gui.
+    //
+    // Neu Zalo khong tra reply ID:
+    // fallback bang isSelf + replyText + acceptedAt
+    // trong ChatTargetController.
+    //
+    // TUYET DOI KHONG fallback ve sourceMsgId
+    // cua tin khach.
+    // ========================================
+
+    final hasReplyId =
+        replyMsgId != null ||
+        replyCliMsgId != null;
+
+
+    final hasSafeFallback =
+        replyText != null &&
+        acceptedAtMs != null;
+
+
+    if (
+      !hasReplyId &&
+      !hasSafeFallback
+    ) {
+      await showMessageNotFound(
+        'Cuốc này không còn đủ thông tin để xác định tin Nhận của bạn.',
+      );
+
+      return;
+    }
+
+
+    final groupAvatar =
+        _getGroupAvatar(
+      groupId,
+    );
+
+
     if (!mounted) {
       return;
     }
 
+
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ChatPage(
-          realtimeService: widget.realtimeService,
+          realtimeService:
+              widget.realtimeService,
 
-          settingsController: widget.settingsController,
+          settingsController:
+              widget.settingsController,
 
-          groupId: groupId,
+          groupId:
+              groupId,
 
-          groupName: groupName,
+          groupName:
+              groupName,
 
-          groupAvatar: groupAvatar,
+          groupAvatar:
+              groupAvatar,
 
-          targetMsgId: msgId,
+          targetMsgId:
+              replyMsgId,
 
-          targetCliMsgId: cliMsgId,
+          targetCliMsgId:
+              replyCliMsgId,
+
+          targetReplyText:
+              replyText,
+
+          targetAcceptedAtMs:
+              acceptedAtMs,
         ),
       ),
     );
   }
+
 
   Future<void> showMessageNotFound(String detail) async {
     if (!mounted) {
