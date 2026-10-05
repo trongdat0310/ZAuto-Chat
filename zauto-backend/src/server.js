@@ -1782,6 +1782,23 @@ app.post(
       }
 
 
+      if (
+        error.code ===
+        "SOURCE_MESSAGE_UNAVAILABLE"
+      ) {
+
+        return res
+          .status(409)
+          .json({
+            success:
+              false,
+
+            error:
+              "Tin nhan goc chua san sang de tra loi. Vui long thu lai.",
+          });
+      }
+
+
       console.error(
         "[ME ACCEPT] ERROR:",
         error
