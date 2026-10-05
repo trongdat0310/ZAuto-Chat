@@ -221,34 +221,6 @@ class SettingsController
     await save();
   }
 
-  Future<void> updateTranscribeVoiceMessages(
-      bool value,
-      ) async {
-
-
-    if (
-      _settings.transcribeVoiceMessages ==
-      value
-    ) {
-      return;
-    }
-
-
-    _settings =
-        _settings.copyWith(
-          transcribeVoiceMessages:
-          value,
-        );
-
-
-    notifyListeners();
-
-
-    await save();
-  }
-
-
-
   Future<void> updateSpeechRate(
       double value,
       ) async {
