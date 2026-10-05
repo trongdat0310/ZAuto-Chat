@@ -141,6 +141,38 @@ class ChatVoiceController extends ChangeNotifier {
   }
 
   // ========================================
+  // STOP + RESET
+  //
+  // Dung khi vao/roi mot group de bao dam
+  // player native khong giu audio cu.
+  // ========================================
+
+  Future<void> stopAndReset() async {
+    if (_disposed) {
+      return;
+    }
+
+    try {
+      await _player.stop();
+    } catch (_) {
+      // Ignore native player stop failures during route teardown.
+    }
+
+    if (_disposed) {
+      return;
+    }
+
+    _playingUrl = null;
+
+    _position = Duration.zero;
+
+    _duration = Duration.zero;
+
+    notifyListeners();
+  }
+
+
+  // ========================================
   // HELPERS
   // ========================================
 
@@ -189,6 +221,16 @@ class ChatVoiceController extends ChangeNotifier {
     _position = Duration.zero;
 
     _duration = Duration.zero;
+
+    // Stop native playback first. AudioPlayer.dispose() alone may
+    // finish asynchronously on Android and briefly keep old audio alive.
+    unawaited(
+      _player
+          .stop()
+          .catchError(
+            (_) {},
+          ),
+    );
 
     if (positionSubscription != null) {
       unawaited(positionSubscription.cancel());
