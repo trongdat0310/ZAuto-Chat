@@ -1878,69 +1878,6 @@ export function saveConversationMessage(
     {};
 
     // ========================================
-    // DEBUG VOICE PAYLOAD
-    // TAM THOI DE XAC DINH CAU TRUC AUDIO
-    // ========================================
-
-    const debugMsgType =
-      String(
-        data?.msgType ??
-        ""
-      )
-        .trim()
-        .toLowerCase();
-
-
-    if (
-      debugMsgType ===
-        "chat.voice" ||
-      debugMsgType ===
-        "chat.voice.msg" ||
-      debugMsgType ===
-        "chat.audio" ||
-      debugMsgType ===
-        "31"
-    ) {
-
-      console.log(
-        "\n========================================"
-      );
-
-      console.log(
-        "[VOICE DEBUG]"
-      );
-
-      console.log({
-        msgId:
-          data?.msgId ??
-          null,
-
-        cliMsgId:
-          data?.cliMsgId ??
-          null,
-
-        msgType:
-          data?.msgType ??
-          null,
-
-        content:
-          data?.content ??
-          null,
-
-        rawData:
-          data,
-      });
-
-      console.log(
-        "[VOICE DEBUG END]"
-      );
-
-      console.log(
-        "========================================\n"
-      );
-    }
-
-    // ========================================
     // BO QUA EVENT KHONG PHAI MESSAGE HIEN THI
     //
     // QUAN TRONG:
@@ -2271,40 +2208,6 @@ export function saveConversationMessage(
   messages.push(
     record
   );
-
-  // ========================================
-  // DEBUG VOICE RECORD DA LUU
-  // ========================================
-
-  if (
-    record.msgType ===
-    "chat.voice"
-  ) {
-
-    console.log(
-      "[VOICE SAVED]",
-      {
-        msgId:
-          record.msgId,
-
-        mediaType:
-          record.mediaType,
-
-        mediaUrl:
-          record.mediaUrl,
-
-        mediaDuration:
-          record.mediaDuration,
-
-        mediaFileSize:
-          record.mediaFileSize,
-
-        waveformSamples:
-          record.waveformSamples,
-      }
-    );
-  }
-
 
   messages.sort(
     (a, b) =>
