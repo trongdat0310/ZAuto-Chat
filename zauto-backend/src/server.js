@@ -84,7 +84,8 @@ import {
   getUserFilterSettings,
   saveUserFilterSettings,
   getUserFilterDocumentV2,
-  saveUserFilterV2,
+  createUserFilterV2,
+  updateUserFilterV2,
   reorderUserFiltersV2,
   deleteUserFilterV2,
   previewUserFilterV2,
@@ -1339,7 +1340,7 @@ app.post(
     try {
 
       const filter =
-        saveUserFilterV2(
+        createUserFilterV2(
           req.user.id,
           req.body
         );
@@ -1383,14 +1384,10 @@ app.put(
     try {
 
       const filter =
-        saveUserFilterV2(
+        updateUserFilterV2(
           req.user.id,
-          {
-            ...req.body,
-
-            id:
-              req.params.filterId,
-          }
+          req.params.filterId,
+          req.body
         );
 
 
@@ -1409,7 +1406,12 @@ app.put(
 
 
       res
-        .status(400)
+        .status(
+          error?.code ===
+            "FILTER_NOT_FOUND"
+            ? 404
+            : 400
+        )
         .json({
           success: false,
 
