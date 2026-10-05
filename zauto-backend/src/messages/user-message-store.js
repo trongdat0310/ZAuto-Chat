@@ -542,6 +542,7 @@ export function saveUserMessage(
     sourceThreadId = null,
     sourceMsgId = null,
     sourceCliMsgId = null,
+    sourceQuote = null,
 
     content,
   }
@@ -709,6 +710,53 @@ export function saveUserMessage(
         ? String(
             sourceTimestamp
           )
+        : null,
+
+
+    // ========================================
+    // SNAPSHOT QUOTE ZALO GOC
+    //
+    // Dung khi user bam NHAN nhanh hon luc
+    // conversation store kip luu message goc.
+    // ========================================
+
+    sourceQuote:
+      sourceQuote &&
+      typeof sourceQuote ===
+        "object"
+        ? {
+            content:
+              sourceQuote.content ??
+              null,
+
+            msgType:
+              sourceQuote.msgType ??
+              null,
+
+            propertyExt:
+              sourceQuote.propertyExt ??
+              null,
+
+            uidFrom:
+              sourceQuote.uidFrom ??
+              null,
+
+            msgId:
+              sourceQuote.msgId ??
+              null,
+
+            cliMsgId:
+              sourceQuote.cliMsgId ??
+              null,
+
+            ts:
+              sourceQuote.ts ??
+              null,
+
+            ttl:
+              sourceQuote.ttl ??
+              0,
+          }
         : null,
 
 
