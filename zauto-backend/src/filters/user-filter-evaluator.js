@@ -705,6 +705,38 @@ export function evaluateBasicFilter(
         }
       );
     }
+
+
+    // Khi user TAT "Nhan ca hai chieu",
+    // tin co ca chieu nguoc (dropoff -> pickup)
+    // la cuoc hai chieu/khu hoi va phai bi bo qua.
+    const reverseDirectionMatched =
+      findOrderedKeywordPair(
+        basic.dropoffMatchers,
+        basic.pickupMatchers,
+        context.text
+      ) !== null;
+
+
+    if (
+      reverseDirectionMatched
+    ) {
+      return rejected(
+        filter,
+        "basic_round_trip_detected",
+        {
+          details: {
+            pickup:
+              pickup?.matcher?.source ??
+              null,
+
+            dropoff:
+              dropoff?.matcher?.source ??
+              null,
+          },
+        }
+      );
+    }
   }
 
 
@@ -1058,9 +1090,19 @@ export function evaluateBasicFilterDiagnostics(
       ) !== null;
 
 
+    const reverseDirectionMatched =
+      directionMatched &&
+      findOrderedKeywordPair(
+        basic.dropoffMatchers,
+        basic.pickupMatchers,
+        context.text
+      ) !== null;
+
+
     addCheck(
       "direction",
-      directionMatched
+      directionMatched &&
+      !reverseDirectionMatched
         ? "pass"
         : "fail",
       {
@@ -1069,6 +1111,9 @@ export function evaluateBasicFilterDiagnostics(
 
         dropoff:
           dropoff.matcher.source,
+
+        roundTripDetected:
+          reverseDirectionMatched,
       }
     );
   }
