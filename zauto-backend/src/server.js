@@ -178,6 +178,10 @@ import {
   deleteUserConversationMessage,
 } from "./conversations/conversation-delete-service.js";
 
+import {
+  isRealtimeLatencyTraceEnabled,
+} from "./diagnostics/realtime-latency.js";
+
 dotenv.config();
 
 // ========================================
@@ -4642,6 +4646,13 @@ async function startServer() {
 
   console.log(
     `[SERVER] Zalo: http://localhost:${PORT}/api/zalo/status`
+  );
+
+  console.log(
+    "[LATENCY TRACE]",
+    isRealtimeLatencyTraceEnabled()
+      ? "ENABLED"
+      : "DISABLED"
   );
 
 
