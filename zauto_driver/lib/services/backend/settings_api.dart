@@ -61,8 +61,6 @@ class SettingsApi extends BackendApiBase {
     int? dedupeWindowSeconds,
 
     bool? showVoiceMessages,
-
-    bool? transcribeVoiceMessages,
   }) async {
     final body = <String, dynamic>{};
 
@@ -80,10 +78,6 @@ class SettingsApi extends BackendApiBase {
 
     if (showVoiceMessages != null) {
       body['showVoiceMessages'] = showVoiceMessages;
-    }
-
-    if (transcribeVoiceMessages != null) {
-      body['transcribeVoiceMessages'] = transcribeVoiceMessages;
     }
 
     final decoded = await patchJson(
