@@ -59,6 +59,9 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
   Future<void> _handleTranscriptButton() async {
     if (_hasTranscript) {
       setState(() {
+        // Neu dang mo thi thu gon.
+        // Neu da thu gon thi icon phien am se mo lai
+        // transcript da co, khong goi Whisper lan nua.
         _expanded = !_expanded;
       });
 
@@ -201,10 +204,8 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
                               ),
                             )
                           : Icon(
-                              _hasTranscript
-                                  ? (_expanded
-                                        ? Icons.keyboard_arrow_up_rounded
-                                        : Icons.keyboard_arrow_down_rounded)
+                              _hasTranscript && _expanded
+                                  ? Icons.keyboard_arrow_up_rounded
                                   : Icons.translate_rounded,
 
                               size: 24,
