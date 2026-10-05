@@ -40,7 +40,8 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage>
+    with WidgetsBindingObserver {
   // THAY IP NAY BANG IP MAY TINH CUA BAN
   final BackendService backend = BackendService(baseUrl: AppConfig.backendUrl);
 
@@ -79,9 +80,17 @@ class _HomePageState extends State<HomePage> {
 
   bool notificationInitialized = false;
 
+  Future<void>? _reconcileFuture;
+
+  bool _reconcilePending = false;
+
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addObserver(
+      this,
+    );
 
     speechService.initialize();
 
@@ -108,6 +117,10 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           connectionStatus = 'Đã kết nối realtime';
         });
+
+        unawaited(
+          _reconcileActiveTrips(),
+        );
       },
 
       onAuthError: () {
@@ -189,6 +202,286 @@ class _HomePageState extends State<HomePage> {
 
     realtimeHandler.start();
   }
+
+  @override
+  void didChangeAppLifecycleState(
+    AppLifecycleState state,
+  ) {
+    super.didChangeAppLifecycleState(
+      state,
+    );
+
+    if (
+      state !=
+      AppLifecycleState.resumed
+    ) {
+      return;
+    }
+
+    // Neu stream tung dung vi lifecycle/he thong,
+    // start() la idempotent.
+    widget.realtimeService.start();
+
+    unawaited(
+      _reconcileActiveTrips(),
+    );
+  }
+
+
+  Future<void> _reconcileActiveTrips() {
+    _reconcilePending = true;
+
+    final running =
+        _reconcileFuture;
+
+    if (running != null) {
+      return running;
+    }
+
+    final future =
+        _drainTripReconcile();
+
+    _reconcileFuture =
+        future;
+
+    return future;
+  }
+
+
+  Future<void> _drainTripReconcile() async {
+    try {
+      while (
+        _reconcilePending &&
+        mounted
+      ) {
+        _reconcilePending =
+            false;
+
+        await _reconcileActiveTripsOnce();
+      }
+    } finally {
+      _reconcileFuture =
+          null;
+    }
+  }
+
+
+  Future<void> _reconcileActiveTripsOnce() async {
+    final displaySeconds =
+        widget.settingsController.settings.tripDisplaySeconds;
+
+    try {
+      final pending =
+          await backend.getRecentPendingTrips(
+        displaySeconds:
+            displaySeconds,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+
+      final nowMs =
+          DateTime.now()
+              .millisecondsSinceEpoch;
+
+
+      final pendingById =
+          <String, Map<String, dynamic>>{};
+
+
+      for (
+        final incoming in pending
+      ) {
+        final id =
+            incoming['id']
+                ?.toString()
+                .trim() ??
+            '';
+
+        if (id.isEmpty) {
+          continue;
+        }
+
+        pendingById[id] =
+            incoming;
+      }
+
+
+      setState(() {
+        // Cuoc local dang NEW nhung backend khong con
+        // pending/hoac da het cua so hien thi -> bo.
+        // Cuoc dang accepting/ignoring giu nguyen
+        // cho request local ket thuc.
+        activeTrips.removeWhere(
+          (trip) {
+            final status =
+                trip['_uiStatus']
+                    ?.toString() ??
+                'new';
+
+            if (
+              status ==
+                  'accepting' ||
+              status ==
+                  'ignoring' ||
+              status ==
+                  'accepted' ||
+              status ==
+                  'ignored'
+            ) {
+              return false;
+            }
+
+            final id =
+                trip['id']
+                    ?.toString()
+                    .trim() ??
+                '';
+
+            return (
+              id.isEmpty ||
+              !pendingById.containsKey(
+                id,
+              )
+            );
+          },
+        );
+
+
+        for (
+          final entry
+          in pendingById.entries
+        ) {
+          final id =
+              entry.key;
+
+          final incoming =
+              entry.value;
+
+          final remainingMs =
+              incoming['_reconcileRemainingMs'];
+
+          if (
+            remainingMs is! int ||
+            remainingMs <=
+                0
+          ) {
+            continue;
+          }
+
+
+          final existingIndex =
+              activeTrips.indexWhere(
+            (trip) =>
+                trip['id']
+                    ?.toString() ==
+                id,
+          );
+
+
+          if (
+            existingIndex >=
+            0
+          ) {
+            final existing =
+                activeTrips[
+                    existingIndex];
+
+            final status =
+                existing['_uiStatus']
+                    ?.toString() ??
+                'new';
+
+
+            // Khong pha state cua request dang chay.
+            if (
+              status ==
+                  'accepting' ||
+              status ==
+                  'ignoring' ||
+              status ==
+                  'accepted' ||
+              status ==
+                  'ignored'
+            ) {
+              continue;
+            }
+
+
+            existing.addAll(
+              incoming,
+            );
+
+            existing['_uiStatus'] =
+                'new';
+
+            existing['_expiresAtMs'] =
+                nowMs +
+                remainingMs;
+
+            existing['_pausedRemainingMs'] =
+                null;
+
+            existing['_remainingSeconds'] =
+                (
+                  (remainingMs + 999) ~/
+                  1000
+                ).clamp(
+                  0,
+                  displaySeconds,
+                ).toInt();
+
+            continue;
+          }
+
+
+          final restored =
+              Map<String, dynamic>.from(
+            incoming,
+          );
+
+          restored['_uiStatus'] =
+              'new';
+
+          restored['_expiresAtMs'] =
+              nowMs +
+              remainingMs;
+
+          restored['_pausedRemainingMs'] =
+              null;
+
+          restored['_remainingSeconds'] =
+              (
+                (remainingMs + 999) ~/
+                1000
+              ).clamp(
+                0,
+                displaySeconds,
+              ).toInt();
+
+
+          // Reconcile KHONG phat lai notification/audio.
+          // User co the da nhan push khi app background.
+          activeTrips.add(
+            restored,
+          );
+        }
+      });
+
+
+      _ensureTripCountdownTimer();
+
+      _stopTripCountdownTimerIfIdle();
+
+    } catch (error) {
+      debugPrint(
+        'HOME TRIP RECONCILE ERROR: $error',
+      );
+    }
+  }
+
 
   @override
   void didChangeDependencies() {
@@ -619,6 +912,13 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(
+      this,
+    );
+
+    _reconcilePending =
+        false;
+
     realtimeHandler.dispose();
 
     tripCountdownTimer?.cancel();
