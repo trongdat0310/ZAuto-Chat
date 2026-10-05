@@ -119,8 +119,10 @@ class HomeRealtimeHandler {
           if (rawTrace is Map) {
             data['_latencyTrace'] = <String, dynamic>{
               ...Map<String, dynamic>.from(rawTrace),
-              'flutterReceivedAtMs':
-                  DateTime.now().millisecondsSinceEpoch,
+
+              'flutterHomeReceivedAtMs':
+                  DateTime.now()
+                      .millisecondsSinceEpoch,
             };
           }
         }
