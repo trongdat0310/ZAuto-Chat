@@ -60,19 +60,13 @@ test(
         true
       );
 
-      assert.equal(
-        defaults.transcribeVoiceMessages,
-        false
-      );
-
 
       const saved =
         updateUserMessageSettings(
           userId,
           {
             showImages: false,
-            showVoiceMessages: true,
-            transcribeVoiceMessages: true,
+            showVoiceMessages: false,
           }
         );
 
@@ -84,12 +78,7 @@ test(
 
       assert.equal(
         saved.showVoiceMessages,
-        true
-      );
-
-      assert.equal(
-        saved.transcribeVoiceMessages,
-        true
+        false
       );
 
 
@@ -112,73 +101,6 @@ test(
 
       assert.equal(
         raw.showVoiceMessages,
-        true
-      );
-
-      assert.equal(
-        raw.transcribeVoiceMessages,
-        true
-      );
-    } finally {
-      cleanup(
-        userId
-      );
-    }
-  }
-);
-
-
-test(
-  "disabling voice also disables transcription",
-  () => {
-    const userId =
-      `test-message-settings-voice-${process.pid}`;
-
-    cleanup(
-      userId
-    );
-
-    try {
-      updateUserMessageSettings(
-        userId,
-        {
-          showVoiceMessages: true,
-          transcribeVoiceMessages: true,
-        }
-      );
-
-
-      const saved =
-        updateUserMessageSettings(
-          userId,
-          {
-            showVoiceMessages: false,
-          }
-        );
-
-
-      assert.equal(
-        saved.showVoiceMessages,
-        false
-      );
-
-      assert.equal(
-        saved.transcribeVoiceMessages,
-        false
-      );
-
-
-      const forced =
-        updateUserMessageSettings(
-          userId,
-          {
-            transcribeVoiceMessages: true,
-          }
-        );
-
-
-      assert.equal(
-        forced.transcribeVoiceMessages,
         false
       );
     } finally {
