@@ -1516,6 +1516,40 @@ async function processMessage(
                   zaloData.cliMsgId
                 )
               : null,
+
+          sourceQuote: {
+            content:
+              zaloData.content ??
+              null,
+
+            msgType:
+              zaloData.msgType ??
+              null,
+
+            propertyExt:
+              zaloData.propertyExt ??
+              null,
+
+            uidFrom:
+              zaloData.uidFrom ??
+              null,
+
+            msgId:
+              zaloData.msgId ??
+              null,
+
+            cliMsgId:
+              zaloData.cliMsgId ??
+              null,
+
+            ts:
+              zaloData.ts ??
+              null,
+
+            ttl:
+              zaloData.ttl ??
+              0,
+          },
         }
       );
 
