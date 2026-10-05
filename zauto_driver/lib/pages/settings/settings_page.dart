@@ -140,12 +140,11 @@ class _SettingsPageState extends State<SettingsPage> {
 
       final savedSeconds = rawWindow is num ? rawWindow.toInt() : null;
 
-      final nextTranscribeVoiceMessages =
-          showVoiceMessages =
-              settings['showVoiceMessages'] != false;
+      final nextShowVoiceMessages =
+          settings['showVoiceMessages'] != false;
 
       final transcribeEnabled =
-          nextTranscribeVoiceMessages &&
+          nextShowVoiceMessages &&
           settings['transcribeVoiceMessages'] == true;
 
       setState(() {
@@ -156,7 +155,7 @@ class _SettingsPageState extends State<SettingsPage> {
             settings['deduplicateMessages'] != false;
 
         showVoiceMessages =
-            nextTranscribeVoiceMessages;
+            nextShowVoiceMessages;
 
         transcribeVoiceMessages =
             transcribeEnabled;
@@ -302,7 +301,7 @@ class _SettingsPageState extends State<SettingsPage> {
               transcribeVoiceMessages = value;
             });
 
-            void widget.settingsController
+            widget.settingsController
                 .updateTranscribeVoiceMessages(
               value,
             );
