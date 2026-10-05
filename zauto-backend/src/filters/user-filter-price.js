@@ -278,18 +278,6 @@ function collectThousands(
     }
 
 
-    if (
-      isLikelyNonPriceBareNumber(
-        text,
-        start,
-        end,
-        value
-      )
-    ) {
-      continue;
-    }
-
-
     addCandidate(
       candidates,
       spans,
@@ -550,6 +538,18 @@ function collectBareThousands(
 
     if (
       !Number.isFinite(
+        value
+      )
+    ) {
+      continue;
+    }
+
+
+    if (
+      isLikelyNonPriceBareNumber(
+        text,
+        start,
+        end,
         value
       )
     ) {
