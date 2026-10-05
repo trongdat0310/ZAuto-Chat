@@ -204,6 +204,25 @@ export function initWebSocket(
 
 
   wss.on(
+    "error",
+
+    (error) => {
+
+      // HTTP server startup errors nhu
+      // EADDRINUSE se duoc server.js xu ly.
+      // Handler nay ngan EventEmitter nem
+      // "Unhandled 'error' event".
+      console.error(
+        "[WS] SERVER ERROR:",
+        error?.code ??
+        error?.message ??
+        error
+      );
+    }
+  );
+
+
+  wss.on(
     "connection",
 
     (socket, request) => {
