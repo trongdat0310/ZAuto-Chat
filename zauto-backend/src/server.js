@@ -516,6 +516,29 @@ app.post(
           req.params.id
         );
 
+      const ignoredMessageId =
+        String(
+          req.params.id
+        );
+
+
+      broadcastUserEvent(
+        req.user.id,
+        "trip_ignored",
+        {
+          messageId:
+            ignoredMessageId,
+        }
+      );
+
+
+      console.log(
+        "[TRIP IGNORED REALTIME]",
+        req.user.id,
+        ignoredMessageId
+      );
+
+
       res.json({
         success: true,
 
