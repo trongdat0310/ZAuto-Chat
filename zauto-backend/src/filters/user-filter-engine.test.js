@@ -7,11 +7,13 @@ import {
 } from "node:url";
 
 import {
+  createUserFilterV2,
   deleteUserFilterV2,
   evaluateUserMessage,
   previewUserFilterV2,
   reorderUserFiltersV2,
   saveUserFilterV2,
+  updateUserFilterV2,
 } from "./user-filter-engine.js";
 
 import {
@@ -908,6 +910,259 @@ test(
     } finally {
       disableUserFilterRuntimeTestMetrics();
 
+      cleanupUserFilterTestData(
+        userId
+      );
+    }
+  }
+);
+
+
+
+test(
+  "create ignores client supplied id and never overwrites existing filter",
+  () => {
+    const userId =
+      `test-filter-create-semantics-${process.pid}`;
+
+    cleanupUserFilterTestData(
+      userId
+    );
+
+
+    try {
+      const first =
+        createUserFilterV2(
+          userId,
+          {
+            ...advancedFilter({
+              show: ["vip"],
+            }),
+            id: "client-id",
+            name: "first",
+          }
+        );
+
+
+      const second =
+        createUserFilterV2(
+          userId,
+          {
+            ...advancedFilter({
+              show: ["airport"],
+            }),
+            id: first.id,
+            name: "second",
+          }
+        );
+
+
+      assert.notEqual(
+        first.id,
+        second.id
+      );
+
+
+      assert.equal(
+        evaluateUserMessage(
+          userId,
+          "VIP"
+        ).matched,
+        true
+      );
+
+
+      assert.equal(
+        evaluateUserMessage(
+          userId,
+          "airport"
+        ).matched,
+        true
+      );
+
+    } finally {
+      cleanupUserFilterTestData(
+        userId
+      );
+    }
+  }
+);
+
+
+test(
+  "update rejects stale or missing filter id",
+  () => {
+    const userId =
+      `test-filter-update-semantics-${process.pid}`;
+
+    cleanupUserFilterTestData(
+      userId
+    );
+
+
+    try {
+      assert.throws(
+        () => {
+          updateUserFilterV2(
+            userId,
+            "missing-filter",
+            advancedFilter({
+              show: ["vip"],
+            })
+          );
+        },
+        error =>
+          error?.code ===
+            "FILTER_NOT_FOUND"
+      );
+
+    } finally {
+      cleanupUserFilterTestData(
+        userId
+      );
+    }
+  }
+);
+
+
+test(
+  "reorder changes realtime short circuit priority",
+  () => {
+    const userId =
+      `test-filter-priority-${process.pid}`;
+
+    cleanupUserFilterTestData(
+      userId
+    );
+
+
+    try {
+      const first =
+        createUserFilterV2(
+          userId,
+          {
+            ...advancedFilter({
+              show: ["vip"],
+            }),
+            name: "first",
+          }
+        );
+
+
+      const second =
+        createUserFilterV2(
+          userId,
+          {
+            ...advancedFilter({
+              show: ["vip"],
+            }),
+            name: "second",
+          }
+        );
+
+
+      const before =
+        evaluateUserMessage(
+          userId,
+          "VIP"
+        );
+
+
+      assert.equal(
+        before.filterId,
+        first.id
+      );
+
+
+      reorderUserFiltersV2(
+        userId,
+        [
+          second.id,
+          first.id,
+        ]
+      );
+
+
+      const after =
+        evaluateUserMessage(
+          userId,
+          "VIP"
+        );
+
+
+      assert.equal(
+        after.filterId,
+        second.id
+      );
+
+    } finally {
+      cleanupUserFilterTestData(
+        userId
+      );
+    }
+  }
+);
+
+
+test(
+  "disabling higher priority filter allows next matching filter",
+  () => {
+    const userId =
+      `test-filter-disable-priority-${process.pid}`;
+
+    cleanupUserFilterTestData(
+      userId
+    );
+
+
+    try {
+      const first =
+        createUserFilterV2(
+          userId,
+          {
+            ...advancedFilter({
+              show: ["vip"],
+            }),
+            name: "first",
+          }
+        );
+
+
+      const second =
+        createUserFilterV2(
+          userId,
+          {
+            ...advancedFilter({
+              show: ["vip"],
+            }),
+            name: "second",
+          }
+        );
+
+
+      updateUserFilterV2(
+        userId,
+        first.id,
+        {
+          ...first,
+          enabled: false,
+        }
+      );
+
+
+      const result =
+        evaluateUserMessage(
+          userId,
+          "VIP"
+        );
+
+
+      assert.equal(
+        result.filterId,
+        second.id
+      );
+
+    } finally {
       cleanupUserFilterTestData(
         userId
       );
