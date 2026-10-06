@@ -282,6 +282,58 @@ void main() {
 
 
   test(
+    'photo retry reuses request id and releases sending state after failure',
+    () async {
+      final backend = FakeBackendService();
+
+      backend.photoError = Exception('upload interrupted');
+
+      final controller = ChatActionsController(
+        backend: backend,
+        groupId: 'group-a',
+      );
+
+      addTearDown(controller.dispose);
+
+
+      await expectLater(
+        controller.sendPhotos(
+          filePaths: const <String>['a.jpg', 'b.jpg'],
+        ),
+        throwsException,
+      );
+
+
+      expect(
+        controller.sendingPhoto,
+        isFalse,
+      );
+
+
+      final sent = await controller.sendPhotos(
+        filePaths: const <String>['a.jpg', 'b.jpg'],
+      );
+
+
+      expect(
+        sent,
+        isTrue,
+      );
+
+      expect(
+        backend.photoRequestIds.length,
+        2,
+      );
+
+      expect(
+        backend.photoRequestIds[1],
+        backend.photoRequestIds[0],
+      );
+    },
+  );
+
+
+  test(
     'reply target is cleared when realtime marks it unavailable',
     () {
       final controller = ChatReplyController();
