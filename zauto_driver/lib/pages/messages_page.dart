@@ -1436,7 +1436,11 @@ class _MessagesPageState extends State<MessagesPage>
               radius: 27,
 
               backgroundImage: avatar != null && avatar.isNotEmpty
-                  ? NetworkImage(avatar)
+                  ? ResizeImage.resizeIfNeeded(
+                      128,
+                      128,
+                      NetworkImage(avatar),
+                    )
                   : null,
 
               child: avatar == null || avatar.isEmpty
