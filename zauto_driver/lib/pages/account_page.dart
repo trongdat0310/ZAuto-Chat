@@ -258,6 +258,8 @@ class _AccountPageState extends State<AccountPage> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final colorScheme = Theme.of(context).colorScheme;
+
             // ========================================
             // PASSWORD RULE STATES
             // ========================================
@@ -286,7 +288,9 @@ class _AccountPageState extends State<AccountPage> {
 
                     size: 17,
 
-                    color: passed ? Colors.green : Colors.grey,
+                    color: passed
+                        ? colorScheme.primary
+                        : colorScheme.onSurfaceVariant,
                   ),
 
                   const SizedBox(width: 5),
@@ -297,7 +301,9 @@ class _AccountPageState extends State<AccountPage> {
                     style: TextStyle(
                       fontSize: 12,
 
-                      color: passed ? Colors.green : Colors.grey.shade700,
+                      color: passed
+                          ? colorScheme.primary
+                          : colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -731,6 +737,8 @@ class _AccountPageState extends State<AccountPage> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final colorScheme = Theme.of(context).colorScheme;
+
             Future<void> submit() async {
               if (deleting) {
                 return;
@@ -789,13 +797,16 @@ class _AccountPageState extends State<AccountPage> {
                 vertical: 24,
               ),
 
-              title: const Row(
+              title: Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded, color: Colors.red),
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: colorScheme.error,
+                  ),
 
-                  SizedBox(width: 10),
+                  const SizedBox(width: 10),
 
-                  Expanded(child: Text('Xóa tài khoản?')),
+                  const Expanded(child: Text('Xóa tài khoản?')),
                 ],
               ),
 
@@ -926,7 +937,10 @@ class _AccountPageState extends State<AccountPage> {
                 FilledButton(
                   onPressed: deleting ? null : submit,
 
-                  style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: colorScheme.error,
+                    foregroundColor: colorScheme.onError,
+                  ),
 
                   child: Text(deleting ? 'ĐANG XÓA...' : 'XÓA TÀI KHOẢN'),
                 ),
