@@ -63,6 +63,10 @@ class _MessagesPageState extends State<MessagesPage>
 
   bool _pendingShowError = false;
 
+  final Set<String> _pinningGroupIds = <String>{};
+
+  final Set<String> _deletingGroupIds = <String>{};
+
   @override
   void initState() {
     super.initState();
@@ -494,9 +498,16 @@ class _MessagesPageState extends State<MessagesPage>
       return;
     }
 
+    if (_pinningGroupIds.contains(groupId) ||
+        _deletingGroupIds.contains(groupId)) {
+      return;
+    }
+
     final currentlyPinned = conversation['pinned'] == true;
 
     final nextPinned = !currentlyPinned;
+
+    _pinningGroupIds.add(groupId);
 
     // ========================================
     // OPTIMISTIC UI
@@ -543,6 +554,12 @@ class _MessagesPageState extends State<MessagesPage>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Không thể cập nhật ghim: $error')),
       );
+    } finally {
+      _pinningGroupIds.remove(groupId);
+
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
@@ -789,6 +806,13 @@ class _MessagesPageState extends State<MessagesPage>
 
     final name = conversation['name']?.toString() ?? 'Nhóm Zalo';
 
+    final groupId = conversation['groupId']?.toString().trim() ?? '';
+
+    final actionBusy =
+        groupId.isNotEmpty &&
+        (_pinningGroupIds.contains(groupId) ||
+            _deletingGroupIds.contains(groupId));
+
     await showDialog<void>(
       context: context,
 
@@ -890,11 +914,15 @@ class _MessagesPageState extends State<MessagesPage>
                       vertical: 5,
                     ),
 
-                    onTap: () {
-                      Navigator.of(dialogContext).pop();
+                    enabled: !actionBusy,
 
-                      toggleConversationPin(conversation);
-                    },
+                    onTap: actionBusy
+                        ? null
+                        : () {
+                            Navigator.of(dialogContext).pop();
+
+                            toggleConversationPin(conversation);
+                          },
                   ),
 
                   // ========================================
@@ -903,21 +931,21 @@ class _MessagesPageState extends State<MessagesPage>
                   ListTile(
                     minLeadingWidth: 34,
 
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.delete_outline_rounded,
 
                       size: 28,
 
-                      color: Colors.red,
+                      color: colorScheme.error,
                     ),
 
-                    title: const Text(
+                    title: Text(
                       'Xóa',
 
                       style: TextStyle(
                         fontSize: 18,
 
-                        color: Colors.red,
+                        color: colorScheme.error,
 
                         fontWeight: FontWeight.w400,
                       ),
@@ -929,11 +957,15 @@ class _MessagesPageState extends State<MessagesPage>
                       vertical: 5,
                     ),
 
-                    onTap: () {
-                      Navigator.of(dialogContext).pop();
+                    enabled: !actionBusy,
 
-                      _confirmDeleteConversation(conversation);
-                    },
+                    onTap: actionBusy
+                        ? null
+                        : () {
+                            Navigator.of(dialogContext).pop();
+
+                            _confirmDeleteConversation(conversation);
+                          },
                   ),
 
                   const SizedBox(height: 8),
@@ -950,6 +982,8 @@ class _MessagesPageState extends State<MessagesPage>
     Map<String, dynamic> conversation,
   ) async {
     final name = conversation['name']?.toString() ?? 'nhóm này';
+
+    final colorScheme = Theme.of(context).colorScheme;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -972,7 +1006,10 @@ class _MessagesPageState extends State<MessagesPage>
             ),
 
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              style: FilledButton.styleFrom(
+                backgroundColor: colorScheme.error,
+                foregroundColor: colorScheme.onError,
+              ),
 
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
@@ -999,6 +1036,17 @@ class _MessagesPageState extends State<MessagesPage>
       return;
     }
 
+    if (_deletingGroupIds.contains(groupId) ||
+        _pinningGroupIds.contains(groupId)) {
+      return;
+    }
+
+    _deletingGroupIds.add(groupId);
+
+    if (mounted) {
+      setState(() {});
+    }
+
     try {
       await backend.deleteConversation(groupId: groupId);
 
@@ -1022,6 +1070,12 @@ class _MessagesPageState extends State<MessagesPage>
 
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Xóa thất bại: $error')));
+    } finally {
+      _deletingGroupIds.remove(groupId);
+
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
@@ -1047,6 +1101,11 @@ class _MessagesPageState extends State<MessagesPage>
     final notifying = enabledGroupIds.contains(groupId);
 
     final pinned = conversation['pinned'] == true;
+
+    final actionBusy =
+        groupId.isNotEmpty &&
+        (_pinningGroupIds.contains(groupId) ||
+            _deletingGroupIds.contains(groupId));
 
     // ========================================
     // UNREAD
@@ -1173,21 +1232,31 @@ class _MessagesPageState extends State<MessagesPage>
 
                           visualDensity: VisualDensity.compact,
 
-                          onPressed: () {
-                            toggleConversationPin(conversation);
-                          },
+                          onPressed: actionBusy
+                              ? null
+                              : () {
+                                  toggleConversationPin(conversation);
+                                },
 
-                          icon: Icon(
-                            pinned
-                                ? Icons.push_pin_rounded
-                                : Icons.push_pin_outlined,
+                          icon: actionBusy
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Icon(
+                                  pinned
+                                      ? Icons.push_pin_rounded
+                                      : Icons.push_pin_outlined,
 
                             size: 18,
 
-                            color: pinned
-                                ? colorScheme.primary
-                                : colorScheme.onSurfaceVariant,
-                          ),
+                                  color: pinned
+                                      ? colorScheme.primary
+                                      : colorScheme.onSurfaceVariant,
+                                ),
                         ),
                       ),
 
