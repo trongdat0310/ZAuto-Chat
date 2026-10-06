@@ -52,6 +52,22 @@ class BackendApiBase {
     return _handleResponse(response);
   }
 
+  Future<http.Response> sendMultipartRequest(
+    http.MultipartRequest request,
+  ) async {
+    final streamed = await _withNetworkHandling(
+      request
+          .send()
+          .timeout(requestTimeout),
+    );
+
+    return _withNetworkHandling(
+      http.Response
+          .fromStream(streamed)
+          .timeout(requestTimeout),
+    );
+  }
+
   Future<dynamic> patchJson(Uri uri, {Object? body}) async {
     final response = await _withNetworkHandling(
       http
