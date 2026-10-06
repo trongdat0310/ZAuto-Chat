@@ -197,6 +197,10 @@ class _ChatPageState extends State<ChatPage> {
       groupId: widget.groupId,
     );
 
+    realtimeConnected = widget.realtimeService.isConnected;
+
+    realtimeAuthFailed = widget.realtimeService.hasAuthFailed;
+
     mediaController = ChatMediaController();
 
     replyController = ChatReplyController();
