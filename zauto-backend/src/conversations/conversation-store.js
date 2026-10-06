@@ -3101,7 +3101,11 @@ export function setUserConversationPinned(
     );
 
 
-  if (!conversation) {
+  if (
+    !conversation ||
+    conversation.hidden ===
+      true
+  ) {
 
     return null;
   }
