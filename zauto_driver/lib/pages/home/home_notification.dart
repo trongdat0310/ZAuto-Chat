@@ -42,16 +42,28 @@ class HomeNotificationHandler {
 
     _initialized = true;
 
-    await setupLocalNotifications(context);
+    try {
+      await setupLocalNotifications(context);
 
+      if (_disposed) {
+        return;
+      }
+
+      await setupPushNotifications();
+    } catch (_) {
+      if (!_disposed) {
+        _initialized = false;
+      }
+
+      rethrow;
+    }
+  }
+
+  Future<void> handleTripNotificationSpeech(Map<String, dynamic> data) async {
     if (_disposed) {
       return;
     }
 
-    await setupPushNotifications();
-  }
-
-  Future<void> handleTripNotificationSpeech(Map<String, dynamic> data) async {
     final settings = settingsController.settings;
 
     final groupId = data['groupId']?.toString();
@@ -71,6 +83,10 @@ class HomeNotificationHandler {
 
     if (settings.playTripSound && !isOpeningChat) {
       await audioService.playTripSound();
+
+      if (_disposed) {
+        return;
+      }
     }
 
     // ========================================
