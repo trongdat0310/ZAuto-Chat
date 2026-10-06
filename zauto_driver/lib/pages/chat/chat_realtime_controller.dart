@@ -225,12 +225,20 @@ class ChatRealtimeController {
     // ========================================
 
     if (rawMessage is! Map) {
+      // Receiving a valid realtime event proves the shared stream
+      // is alive even if a previous disconnected event was stale.
+      onConnected();
+
       onReloadRequested(false);
 
       return;
     }
 
     final incoming = Map<String, dynamic>.from(rawMessage);
+
+    // A message delivered by the realtime stream is a stronger health
+    // signal than an older disconnected event. Clear stale reconnect UI.
+    onConnected();
 
     // ========================================
     // DAY MESSAGE VE CHATP PAGE
