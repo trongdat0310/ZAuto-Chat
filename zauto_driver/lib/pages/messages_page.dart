@@ -55,6 +55,10 @@ class _MessagesPageState extends State<MessagesPage>
 
   bool realtimeAuthFailed = false;
 
+  bool realtimeConnected = false;
+
+  String? loadError;
+
   Future<void>? _loadFuture;
 
   bool _loadPending = false;
@@ -115,6 +119,12 @@ class _MessagesPageState extends State<MessagesPage>
         if (type == 'authenticated') {
           realtimeAuthFailed = false;
 
+          if (mounted) {
+            setState(() {
+              realtimeConnected = true;
+            });
+          }
+
           // ========================================
           // SAU RECONNECT:
           // LAY LAI CONVERSATION STATE
@@ -129,7 +139,23 @@ class _MessagesPageState extends State<MessagesPage>
         if (type == 'auth_error') {
           realtimeAuthFailed = true;
 
+          if (mounted) {
+            setState(() {
+              realtimeConnected = false;
+            });
+          }
+
           debugPrint('MESSAGES REALTIME AUTH ERROR');
+
+          return;
+        }
+
+        if (type == 'realtime_disconnected') {
+          if (mounted) {
+            setState(() {
+              realtimeConnected = false;
+            });
+          }
 
           return;
         }
@@ -385,6 +411,12 @@ class _MessagesPageState extends State<MessagesPage>
   }
 
   Future<void> _drainLoadQueue() async {
+    if (showLoading && mounted) {
+      setState(() {
+        loadError = null;
+      });
+    }
+
     try {
       while (_loadPending && mounted && !realtimeDisposed) {
         final showLoading = _pendingShowLoading;
@@ -517,6 +549,8 @@ class _MessagesPageState extends State<MessagesPage>
       }
 
       setState(() {
+        loadError = null;
+
         acceptedTrips = acceptedResult;
 
         conversations = reconciledConversations;
@@ -532,9 +566,23 @@ class _MessagesPageState extends State<MessagesPage>
         return;
       }
 
+      final message = error.toString().replaceFirst('Exception: ', '').trim();
+
       if (loading) {
         setState(() {
           loading = false;
+
+          if (conversations.isEmpty && acceptedTrips.isEmpty) {
+            loadError = message.isEmpty
+                ? 'Không thể tải dữ liệu tin nhắn.'
+                : message;
+          }
+        });
+      } else if (conversations.isEmpty && acceptedTrips.isEmpty) {
+        setState(() {
+          loadError = message.isEmpty
+              ? 'Không thể tải dữ liệu tin nhắn.'
+              : message;
         });
       }
 
@@ -1837,9 +1885,86 @@ class _MessagesPageState extends State<MessagesPage>
       return const SafeArea(child: Center(child: CircularProgressIndicator()));
     }
 
+    if (loadError != null &&
+        conversations.isEmpty &&
+        acceptedTrips.isEmpty) {
+      return SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.cloud_off_outlined, size: 58),
+                const SizedBox(height: 14),
+                const Text(
+                  'Không thể tải tin nhắn',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  loadError!,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () {
+                    loadData();
+                  },
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Thử lại'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return SafeArea(
       child: Column(
         children: [
+          if (!realtimeConnected)
+            Material(
+              color: realtimeAuthFailed
+                  ? Theme.of(context).colorScheme.errorContainer
+                  : Theme.of(context).colorScheme.surfaceContainerHigh,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    if (!realtimeAuthFailed)
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      Icon(
+                        Icons.error_outline_rounded,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        realtimeAuthFailed
+                            ? 'Phiên realtime không hợp lệ.'
+                            : 'Đang kết nối lại realtime...',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
           // ========================================
           // TOP TABS
           // ========================================
