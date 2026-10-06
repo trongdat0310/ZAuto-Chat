@@ -777,6 +777,25 @@ export function syncConversationGroups(
           old?.pinnedAt ??
           null,
 
+        // ========================================
+        // LOCAL DELETE STATE
+        //
+        // Khi user xoa conversation trong app,
+        // manual group sync khong duoc lam no
+        // xuat hien lai ngay lap tuc.
+        //
+        // Tin nhan moi se bo hidden o
+        // saveConversationMessage().
+        // ========================================
+
+        hidden:
+          old?.hidden ===
+          true,
+
+        deletedAt:
+          old?.deletedAt ??
+          null,
+
         lastMessageId:
           old?.lastMessageId ??
           null,
@@ -2356,6 +2375,12 @@ export function saveConversationMessage(
       pinnedAt:
         null,
 
+      hidden:
+        false,
+
+      deletedAt:
+        null,
+
       lastIsSelf:
         null,
 
@@ -2406,6 +2431,27 @@ export function saveConversationMessage(
   if (groupName) {
     conversation.name =
       groupName;
+  }
+
+
+  // ========================================
+  // CONVERSATION DA BI XOA TRUOC DO
+  //
+  // Chi message moi that su moi dua no
+  // tro lai danh sach Messages.
+  // ========================================
+
+  if (
+    conversation.hidden ===
+    true
+  ) {
+
+    conversation.hidden =
+      false;
+
+
+    conversation.deletedAt =
+      null;
   }
 
   // ========================================
@@ -3271,6 +3317,29 @@ export function getUserConversationList(
     }
 
     // ========================================
+    // LOCAL DELETE MIGRATION
+    // ========================================
+
+    if (
+      !Object.prototype
+        .hasOwnProperty
+        .call(
+          conversation,
+          "hidden"
+        )
+    ) {
+
+      conversation.hidden =
+        false;
+
+      conversation.deletedAt =
+        null;
+
+      changed =
+        true;
+    }
+
+    // ========================================
     // unreadCount
     // ========================================
 
@@ -3348,8 +3417,16 @@ export function getUserConversationList(
   }
 
 
+  const visibleConversations =
+    conversations.filter(
+      item =>
+        item?.hidden !==
+        true
+    );
+
+
   return sortConversations(
-    conversations
+    visibleConversations
   );
 }
 
@@ -3898,25 +3975,18 @@ export function deleteUserConversation(
     );
 
 
-  const beforeLength =
-    conversations.length;
-
-
-  const filtered =
-    conversations.filter(
+  const conversation =
+    conversations.find(
       item =>
         String(
           item?.groupId ??
           ""
-        ) !==
+        ) ===
         safeGroupId
     );
 
 
-  if (
-    filtered.length ===
-    beforeLength
-  ) {
+  if (!conversation) {
 
     return {
       deleted:
@@ -3928,14 +3998,124 @@ export function deleteUserConversation(
   }
 
 
+  const now =
+    new Date()
+      .toISOString();
+
+
+  // ========================================
+  // AN CONVERSATION KHOI APP
+  //
+  // Khong roi nhom Zalo.
+  // Khong xoa tin nhan tren Zalo.
+  //
+  // Giu mot tombstone nhe trong index de:
+  // - manual sync khong lam conversation song lai
+  // - message moi co the dua conversation tro lai
+  // ========================================
+
+  conversation.hidden =
+    true;
+
+
+  conversation.deletedAt =
+    now;
+
+
+  conversation.pinned =
+    false;
+
+
+  conversation.pinnedAt =
+    null;
+
+
+  conversation.lastMessageId =
+    null;
+
+
+  conversation.lastCliMsgId =
+    null;
+
+
+  conversation.lastContent =
+    null;
+
+
+  conversation.lastSenderName =
+    null;
+
+
+  conversation.lastIsSelf =
+    null;
+
+
+  conversation.lastMsgType =
+    null;
+
+
+  conversation.lastMessageAt =
+    null;
+
+
+  conversation.unreadCount =
+    0;
+
+
+  conversation.lastReadAt =
+    now;
+
+
+  conversation.lastReadMessageId =
+    null;
+
+
+  conversation.lastReadCliMsgId =
+    null;
+
+
+  conversation.lastReadMessageAt =
+    null;
+
+
+  conversation.updatedAt =
+    now;
+
+
+  // ========================================
+  // XOA LOCAL CHAT HISTORY
+  //
+  // Day chi la file cache/history cua ZAUTO.
+  // Tin nhan tren Zalo khong bi dong toi.
+  // ========================================
+
+  const messageFile =
+    groupMessageFile(
+      userId,
+      safeGroupId
+    );
+
+
+  if (
+    fs.existsSync(
+      messageFile
+    )
+  ) {
+
+    fs.unlinkSync(
+      messageFile
+    );
+  }
+
+
   sortConversations(
-    filtered
+    conversations
   );
 
 
   writeJsonAtomic(
     file,
-    filtered
+    conversations
   );
 
 
