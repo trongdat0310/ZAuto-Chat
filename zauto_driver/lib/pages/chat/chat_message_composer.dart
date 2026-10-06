@@ -172,22 +172,24 @@ class ChatMessageComposer extends StatelessWidget {
 
                     height: 46,
 
-                    child: IconButton(
-                      tooltip: 'Gửi ảnh',
+                    child: ExcludeFocus(
+                      child: IconButton(
+                        tooltip: 'Gửi ảnh',
 
-                      onPressed: disabled || sendingMessage || sendingPhoto
-                          ? null
-                          : onPickPhoto,
+                        onPressed: disabled || sendingMessage || sendingPhoto
+                            ? null
+                            : onPickPhoto,
 
-                      icon: sendingPhoto
-                          ? const SizedBox(
-                              width: 20,
+                        icon: sendingPhoto
+                            ? const SizedBox(
+                                width: 20,
 
-                              height: 20,
+                                height: 20,
 
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.photo_outlined),
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.photo_outlined),
+                      ),
                     ),
                   ),
 
@@ -262,24 +264,26 @@ class ChatMessageComposer extends StatelessWidget {
 
                     height: 46,
 
-                    child: IconButton.filled(
-                      onPressed:
-                          disabled ||
-                              sendingMessage ||
-                              sendingPhoto ||
-                              !canSendMessage
-                          ? null
-                          : onSend,
+                    child: ExcludeFocus(
+                      child: IconButton.filled(
+                        onPressed:
+                            disabled ||
+                                sendingMessage ||
+                                sendingPhoto ||
+                                !canSendMessage
+                            ? null
+                            : onSend,
 
-                      icon: sendingMessage
-                          ? const SizedBox(
-                              width: 20,
+                        icon: sendingMessage
+                            ? const SizedBox(
+                                width: 20,
 
-                              height: 20,
+                                height: 20,
 
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.send_rounded),
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.send_rounded),
+                      ),
                     ),
                   ),
                 ],
