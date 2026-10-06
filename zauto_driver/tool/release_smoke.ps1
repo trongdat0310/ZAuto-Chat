@@ -187,8 +187,15 @@ $deviceLines | ForEach-Object { Write-Host "  $_" }
 
 Write-Step "Installing release APK"
 
-$installOutput = & $adb install -r $resolvedApk 2>&1
-$installExitCode = $LASTEXITCODE
+$previousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+
+try {
+    $installOutput = & $adb install -r $resolvedApk 2>&1
+    $installExitCode = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+}
 
 $installOutput | ForEach-Object {
     Write-Host $_
