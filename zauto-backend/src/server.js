@@ -3756,8 +3756,12 @@ app.post(
               error?.code ===
                 "WORKER_NOT_READY"
                 ? 503
-                : error?.code ===
-                    "INVALID_GROUP_ID"
+                : (
+                    error?.code ===
+                      "INVALID_GROUP_ID" ||
+                    error?.code ===
+                      "INVALID_CLIENT_REQUEST_ID"
+                  )
                   ? 400
                   : 500;
 
@@ -4081,12 +4085,31 @@ app.post(
             );
 
 
+            const status =
+              error?.code ===
+                "WORKER_NOT_READY"
+                ? 503
+                : (
+                    error?.code ===
+                      "INVALID_GROUP_ID" ||
+                    error?.code ===
+                      "INVALID_CLIENT_REQUEST_ID" ||
+                    error?.code ===
+                      "NO_PHOTOS" ||
+                    error?.code ===
+                      "TOO_MANY_PHOTOS" ||
+                    error?.code ===
+                      "INVALID_PHOTO_DATA" ||
+                    error?.code ===
+                      "INVALID_PHOTO_DIMENSIONS"
+                  )
+                  ? 400
+                  : 500;
+
+
             return res
               .status(
-                error?.code ===
-                  "WORKER_NOT_READY"
-                  ? 503
-                  : 500
+                status
               )
               .json({
                 success:
