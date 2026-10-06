@@ -185,7 +185,7 @@ class _HomePageState extends State<HomePage>
         }
 
         setState(() {
-          connectionStatus = 'Mất kết nối';
+          connectionStatus = 'Đang kết nối lại...';
         });
       },
 
@@ -195,7 +195,7 @@ class _HomePageState extends State<HomePage>
         }
 
         setState(() {
-          connectionStatus = 'Backend đã ngắt kết nối';
+          connectionStatus = 'Kết nối realtime đã dừng';
         });
       },
     );
@@ -1416,8 +1416,8 @@ class _HomePageState extends State<HomePage>
                       shape: BoxShape.circle,
 
                       color: connectionStatus == 'Đã kết nối realtime'
-                          ? Colors.green
-                          : Colors.grey,
+                          ? colorScheme.primary
+                          : colorScheme.onSurfaceVariant,
                     ),
                   ),
 
