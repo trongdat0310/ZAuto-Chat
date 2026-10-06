@@ -870,3 +870,111 @@ test(
   }
 );
 
+test(
+  "revived conversation does not expose history from before local delete",
+  () => {
+    const userId =
+      `test-conversation-delete-cutoff-${process.pid}`;
+
+    const groupId =
+      "group-delete-cutoff";
+
+    cleanup(userId);
+
+    try {
+      saveConversationMessage(
+        userId,
+        {
+          groupName: "Delete Cutoff Group",
+          message: textMessage({
+            groupId,
+            msgId: "old-1",
+            cliMsgId: "old-cli-1",
+            content: "old message",
+            timestamp: Date.now() - 10000,
+          }),
+        }
+      );
+
+      const deleted =
+        deleteUserConversation(
+          userId,
+          groupId
+        );
+
+      assert.equal(
+        deleted.deleted,
+        true
+      );
+
+      // Simulate Zalo history sync repopulating the local message file
+      // after the user deleted the conversation.
+      saveConversationMessage(
+        userId,
+        {
+          groupName: "Delete Cutoff Group",
+          message: textMessage({
+            groupId,
+            msgId: "old-replayed",
+            cliMsgId: "old-replayed-cli",
+            content: "old replayed message",
+            timestamp: Date.now() - 5000,
+          }),
+        }
+      );
+
+      saveConversationMessage(
+        userId,
+        {
+          groupName: "Delete Cutoff Group",
+          message: textMessage({
+            groupId,
+            msgId: "new-1",
+            cliMsgId: "new-cli-1",
+            content: "new message",
+            timestamp: Date.now() + 1000,
+          }),
+        }
+      );
+
+      const visible =
+        getUserConversationMessages(
+          userId,
+          groupId,
+          {
+            limit: 100,
+          }
+        );
+
+      assert.deepEqual(
+        visible.map(
+          item => item.content
+        ),
+        [
+          "new message",
+        ]
+      );
+
+      const page =
+        getUserConversationMessagesPage(
+          userId,
+          groupId,
+          {
+            limit: 50,
+          }
+        );
+
+      assert.deepEqual(
+        page.messages.map(
+          item => item.content
+        ),
+        [
+          "new message",
+        ]
+      );
+    } finally {
+      cleanup(userId);
+    }
+  }
+);
+
