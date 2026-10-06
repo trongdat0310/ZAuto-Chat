@@ -329,6 +329,8 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _confirmDeleteMessage(Map<String, dynamic> message) async {
+    final colorScheme = Theme.of(context).colorScheme;
+
     final confirmed = await showDialog<bool>(
       context: context,
 
@@ -350,6 +352,11 @@ class _ChatPageState extends State<ChatPage> {
             ),
 
             FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: colorScheme.error,
+                foregroundColor: colorScheme.onError,
+              ),
+
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
               },
