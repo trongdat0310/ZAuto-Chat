@@ -1,0 +1,107 @@
+# ZAutoChat.Pro Android Release Checklist
+
+## 1. Quality gates
+
+Run from `zauto_driver`:
+
+```powershell
+flutter clean
+flutter pub get
+flutter analyze
+flutter test
+```
+
+Run backend tests from `zauto-backend`:
+
+```powershell
+npm test
+```
+
+All commands must pass before producing a release artifact.
+
+## 2. Production application ID
+
+The Android application ID is currently:
+
+```text
+com.example.zauto_driver
+```
+
+Firebase `android/app/google-services.json` currently uses the same package name.
+
+Do not change only one side. When assigning the final production package ID:
+
+1. Change `applicationId` and `namespace` in `android/app/build.gradle.kts`.
+2. Register the exact same Android package in Firebase.
+3. Download the new `google-services.json`.
+4. Replace `android/app/google-services.json`.
+5. Re-run `flutter analyze`, `flutter test`, and a release build.
+
+## 3. Release signing
+
+Copy:
+
+```text
+android/key.properties.example
+```
+
+to:
+
+```text
+android/key.properties
+```
+
+and fill in the real upload-keystore values.
+
+Never commit:
+
+- `android/key.properties`
+- `*.jks`
+- `*.keystore`
+- passwords
+
+The release Gradle configuration does not silently fall back to the debug signing key.
+
+## 4. Version
+
+Update `pubspec.yaml` before publishing:
+
+```yaml
+version: 1.0.0+1
+```
+
+Increment the build number for every uploaded Android release.
+
+## 5. Build
+
+APK:
+
+```powershell
+flutter build apk --release
+```
+
+App Bundle for Google Play:
+
+```powershell
+flutter build appbundle --release
+```
+
+## 6. Smoke test the release build
+
+Verify on a real device:
+
+- login/logout
+- Zalo link/relink
+- Home realtime reconnect
+- notification listener
+- foreground push notification
+- Messages pin/unpin/delete
+- unread/read sync
+- Chat text send
+- reply
+- recall/delete
+- photo album send
+- image/video/file open
+- background -> foreground
+- network off -> on
+- app restart
