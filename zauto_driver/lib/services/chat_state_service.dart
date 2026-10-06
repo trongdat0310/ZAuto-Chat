@@ -16,12 +16,9 @@ class ChatStateService {
       return;
     }
 
-    // Neu cung group duoc mo lai o route moi,
-    // route moi phai tro thanh route hien tai.
-    _openGroupIds.removeWhere(
-      (item) => item == safeGroupId,
-    );
-
+    // Moi ChatPage la mot route rieng.
+    // Cho phep cung group ton tai nhieu lan
+    // neu route bi push lap.
     _openGroupIds.add(safeGroupId);
   }
 
@@ -32,12 +29,14 @@ class ChatStateService {
       return;
     }
 
-    // Chi remove route/group dang dong.
-    // Neu con ChatPage khac ben duoi,
+    // Chi remove instance gan nhat cua route/group
+    // dang dong. Neu con ChatPage khac ben duoi,
     // group do se tu tro thanh current.
-    _openGroupIds.removeWhere(
-      (item) => item == safeGroupId,
-    );
+    final index = _openGroupIds.lastIndexOf(safeGroupId);
+
+    if (index >= 0) {
+      _openGroupIds.removeAt(index);
+    }
   }
 
   bool isOpeningGroup(String groupId) {
