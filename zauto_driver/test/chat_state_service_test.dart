@@ -80,7 +80,7 @@ void main() {
 
 
   test(
-    'opening same group again does not leave duplicate stack entries',
+    'closing duplicated top route restores the route below it',
     () {
       service.openGroup('group-a');
 
@@ -101,6 +101,30 @@ void main() {
       expect(
         service.currentGroupId,
         'group-b',
+      );
+    },
+  );
+
+
+  test(
+    'same group can be stacked twice without losing underlying route',
+    () {
+      service.openGroup('group-a');
+
+      service.openGroup('group-a');
+
+
+      service.closeGroup('group-a');
+
+
+      expect(
+        service.currentGroupId,
+        'group-a',
+      );
+
+      expect(
+        service.isOpeningGroup('group-a'),
+        isTrue,
       );
     },
   );
