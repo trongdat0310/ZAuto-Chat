@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
-import '../controllers/settings_controller.dart';
 import '../services/backend_service.dart';
 import 'chat/chat_page.dart';
 import '../services/app_realtime_service.dart';
@@ -11,14 +10,11 @@ import 'dart:async';
 class MessagesPage extends StatefulWidget {
   final VoidCallback onOpenSettings;
   final AppRealtimeService realtimeService;
-  final SettingsController settingsController;
 
   const MessagesPage({
     super.key,
 
     required this.realtimeService,
-
-    required this.settingsController,
 
     required this.onOpenSettings,
   });
@@ -53,10 +49,6 @@ class _MessagesPageState extends State<MessagesPage>
 
   Timer? realtimeRefreshTimer;
 
-  Timer? realtimeConversationRefreshTimer;
-
-  Timer? realtimeAcceptedRefreshTimer;
-
   bool realtimeStarted = false;
 
   bool realtimeDisposed = false;
@@ -70,6 +62,10 @@ class _MessagesPageState extends State<MessagesPage>
   bool _pendingShowLoading = false;
 
   bool _pendingShowError = false;
+
+  final Set<String> _pinningGroupIds = <String>{};
+
+  final Set<String> _deletingGroupIds = <String>{};
 
   @override
   void initState() {
@@ -141,22 +137,8 @@ class _MessagesPageState extends State<MessagesPage>
         // ========================================
 
         if (type == 'trip_accepted') {
-          scheduleAcceptedTripsRefresh();
+          scheduleRealtimeRefresh();
 
-          return;
-        }
-
-        // ========================================
-        // NEW TRIP
-        //
-        // HomePage da nhan payload realtime truc tiep.
-        // MessagesPage khong can reload 3 API.
-        //
-        // Conversation store se phat rieng
-        // "conversation_message" de cap nhat danh sach chat.
-        // ========================================
-
-        if (type == 'new_trip') {
           return;
         }
 
@@ -164,16 +146,17 @@ class _MessagesPageState extends State<MessagesPage>
         // CONVERSATION STATE THAY DOI
         // ========================================
 
-        if (type == 'conversation_message' ||
-            type == 'conversation_message_updated' ||
-            type == 'conversation_read' ||
-            type == 'conversation_pinned' ||
-            type == 'conversation_deleted' ||
-            type == 'conversation_history_synced') {
-          scheduleConversationRefresh();
-
+        if (type != 'conversation_message' &&
+            type != 'conversation_message_updated' &&
+            type != 'conversation_read' &&
+            type != 'conversation_pinned' &&
+            type != 'conversation_deleted' &&
+            type != 'new_trip' &&
+            type != 'conversation_history_synced') {
           return;
         }
+
+        scheduleRealtimeRefresh();
       },
 
       onError: (Object error) {
@@ -202,76 +185,6 @@ class _MessagesPageState extends State<MessagesPage>
         debugPrint('MESSAGES REALTIME STREAM DONE');
       },
     );
-  }
-
-  void scheduleConversationRefresh() {
-    if (realtimeDisposed) {
-      return;
-    }
-
-    realtimeConversationRefreshTimer?.cancel();
-
-    realtimeConversationRefreshTimer =
-        Timer(const Duration(milliseconds: 100), () async {
-      realtimeConversationRefreshTimer = null;
-
-      if (realtimeDisposed || !mounted) {
-        return;
-      }
-
-      try {
-        final result =
-            await backend.getConversations();
-
-        if (realtimeDisposed || !mounted) {
-          return;
-        }
-
-        setState(() {
-          conversations = result;
-        });
-      } catch (error) {
-        debugPrint(
-          'MESSAGES CONVERSATION '
-          'REFRESH ERROR: $error',
-        );
-      }
-    });
-  }
-
-  void scheduleAcceptedTripsRefresh() {
-    if (realtimeDisposed) {
-      return;
-    }
-
-    realtimeAcceptedRefreshTimer?.cancel();
-
-    realtimeAcceptedRefreshTimer =
-        Timer(const Duration(milliseconds: 100), () async {
-      realtimeAcceptedRefreshTimer = null;
-
-      if (realtimeDisposed || !mounted) {
-        return;
-      }
-
-      try {
-        final result =
-            await backend.getAcceptedTrips();
-
-        if (realtimeDisposed || !mounted) {
-          return;
-        }
-
-        setState(() {
-          acceptedTrips = result;
-        });
-      } catch (error) {
-        debugPrint(
-          'MESSAGES ACCEPTED TRIPS '
-          'REFRESH ERROR: $error',
-        );
-      }
-    });
   }
 
   void scheduleRealtimeRefresh() {
@@ -585,9 +498,16 @@ class _MessagesPageState extends State<MessagesPage>
       return;
     }
 
+    if (_pinningGroupIds.contains(groupId) ||
+        _deletingGroupIds.contains(groupId)) {
+      return;
+    }
+
     final currentlyPinned = conversation['pinned'] == true;
 
     final nextPinned = !currentlyPinned;
+
+    _pinningGroupIds.add(groupId);
 
     // ========================================
     // OPTIMISTIC UI
@@ -634,6 +554,12 @@ class _MessagesPageState extends State<MessagesPage>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Không thể cập nhật ghim: $error')),
       );
+    } finally {
+      _pinningGroupIds.remove(groupId);
+
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
@@ -691,8 +617,6 @@ class _MessagesPageState extends State<MessagesPage>
         builder: (_) => ChatPage(
           realtimeService: widget.realtimeService,
 
-          settingsController: widget.settingsController,
-
           groupId: groupId,
 
           groupName: groupName,
@@ -744,148 +668,106 @@ class _MessagesPageState extends State<MessagesPage>
   }
 
   Future<void> openAcceptedTrip(Map<String, dynamic> trip) async {
+    // Ho tro ca record moi va record cu.
     final groupId = firstNonEmptyString([
       trip['sourceThreadId'],
       trip['groupId'],
       trip['threadId'],
-    ]);
+    ]); // ========================================
+    // TARGET CUA LICH SU NHAN
+    //
+    // Neu co replyZaloMessageId:
+    // -> day la tin "Nhan" cua chinh minh.
+    // -> TUYET DOI KHONG dung cliMsgId cua tin goc.
+    //
+    // Chi fallback ve source message
+    // neu cuoc cu KHONG co replyZaloMessageId.
+    // ========================================
 
+    final replyMsgId = firstNonEmptyString([trip['replyZaloMessageId']]);
 
-    final replyMsgId =
-        firstNonEmptyString([
-      trip['replyZaloMessageId'],
-    ]);
+    final replyCliMsgId = firstNonEmptyString([trip['replyZaloCliMessageId']]);
 
+    final String? msgId;
 
-    final replyCliMsgId =
-        firstNonEmptyString([
-      trip['replyZaloCliMessageId'],
-    ]);
+    final String? cliMsgId;
 
+    if (replyMsgId != null && replyMsgId.isNotEmpty) {
+      // ========================================
+      // CUOC MOI:
+      // NHAY DEN TIN "NHAN"
+      // ========================================
 
-    final replyText =
-        firstNonEmptyString([
-      trip['replyText'],
-    ]);
+      msgId = replyMsgId;
 
+      // Co thi dung.
+      // Khong co thi de null.
+      //
+      // KHONG fallback sang sourceCliMsgId.
+      cliMsgId = replyCliMsgId;
+    } else {
+      // ========================================
+      // CUOC CU:
+      // CHUA LUU replyZaloMessageId
+      // -> fallback ve tin nguoi gui.
+      // ========================================
 
-    final acceptedAt =
-        DateTime.tryParse(
-      trip['acceptedAt']
-              ?.toString() ??
-          '',
-    );
+      msgId = firstNonEmptyString([
+        trip['sourceMsgId'],
+        trip['zaloMessageId'],
+        trip['msgId'],
+      ]);
 
-
-    final acceptedAtMs =
-        acceptedAt
-            ?.millisecondsSinceEpoch;
-
+      cliMsgId = firstNonEmptyString([
+        trip['sourceCliMsgId'],
+        trip['clientMessageId'],
+        trip['cliMsgId'],
+      ]);
+    }
 
     final groupName =
-        firstNonEmptyString([
-          trip['groupName'],
-          trip['sourceGroupName'],
-        ]) ??
+        firstNonEmptyString([trip['groupName'], trip['sourceGroupName']]) ??
         'Nhóm Zalo';
 
-
-    if (
-      groupId == null ||
-      groupId.isEmpty
-    ) {
-      await showMessageNotFound(
-        'Không còn thông tin nhóm của cuốc này.',
-      );
+    if (groupId == null || groupId.isEmpty) {
+      await showMessageNotFound('Không còn thông tin nhóm của cuốc này.');
 
       return;
     }
 
+    final groupAvatar = _getGroupAvatar(groupId);
 
-    // ========================================
-    // TARGET LICH SU NHAN
-    //
-    // Uu tien bat ky ID nao cua tin "Nhan"
-    // do chinh user gui.
-    //
-    // Neu Zalo khong tra reply ID:
-    // fallback bang isSelf + replyText + acceptedAt
-    // trong ChatTargetController.
-    //
-    // TUYET DOI KHONG fallback ve sourceMsgId
-    // cua tin khach.
-    // ========================================
-
-    final hasReplyId =
-        replyMsgId != null ||
-        replyCliMsgId != null;
-
-
-    final hasSafeFallback =
-        replyText != null &&
-        acceptedAtMs != null;
-
-
-    if (
-      !hasReplyId &&
-      !hasSafeFallback
-    ) {
+    if ((msgId == null || msgId.isEmpty) &&
+        (cliMsgId == null || cliMsgId.isEmpty)) {
       await showMessageNotFound(
-        'Cuốc này không còn đủ thông tin để xác định tin Nhận của bạn.',
+        'Cuốc này không còn thông tin liên kết tới tin nhắn Zalo gốc.',
       );
 
       return;
     }
-
-
-    final groupAvatar =
-        _getGroupAvatar(
-      groupId,
-    );
-
 
     if (!mounted) {
       return;
     }
 
-
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ChatPage(
-          realtimeService:
-              widget.realtimeService,
+          realtimeService: widget.realtimeService,
 
-          settingsController:
-              widget.settingsController,
+          groupId: groupId,
 
-          groupId:
-              groupId,
+          groupName: groupName,
 
-          groupName:
-              groupName,
+          groupAvatar: groupAvatar,
 
-          groupAvatar:
-              groupAvatar,
+          targetMsgId: msgId,
 
-          targetMsgId:
-              replyMsgId,
-
-          targetCliMsgId:
-              replyCliMsgId,
-
-          targetReplyText:
-              replyText,
-
-          targetAcceptedAtMs:
-              acceptedAtMs,
-
-          targetSelfOnly:
-              true,
+          targetCliMsgId: cliMsgId,
         ),
       ),
     );
   }
-
 
   Future<void> showMessageNotFound(String detail) async {
     if (!mounted) {
@@ -923,6 +805,13 @@ class _MessagesPageState extends State<MessagesPage>
     final pinned = conversation['pinned'] == true;
 
     final name = conversation['name']?.toString() ?? 'Nhóm Zalo';
+
+    final groupId = conversation['groupId']?.toString().trim() ?? '';
+
+    final actionBusy =
+        groupId.isNotEmpty &&
+        (_pinningGroupIds.contains(groupId) ||
+            _deletingGroupIds.contains(groupId));
 
     await showDialog<void>(
       context: context,
@@ -1025,11 +914,15 @@ class _MessagesPageState extends State<MessagesPage>
                       vertical: 5,
                     ),
 
-                    onTap: () {
-                      Navigator.of(dialogContext).pop();
+                    enabled: !actionBusy,
 
-                      toggleConversationPin(conversation);
-                    },
+                    onTap: actionBusy
+                        ? null
+                        : () {
+                            Navigator.of(dialogContext).pop();
+
+                            toggleConversationPin(conversation);
+                          },
                   ),
 
                   // ========================================
@@ -1038,21 +931,21 @@ class _MessagesPageState extends State<MessagesPage>
                   ListTile(
                     minLeadingWidth: 34,
 
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.delete_outline_rounded,
 
                       size: 28,
 
-                      color: Colors.red,
+                      color: colorScheme.error,
                     ),
 
-                    title: const Text(
+                    title: Text(
                       'Xóa',
 
                       style: TextStyle(
                         fontSize: 18,
 
-                        color: Colors.red,
+                        color: colorScheme.error,
 
                         fontWeight: FontWeight.w400,
                       ),
@@ -1064,11 +957,15 @@ class _MessagesPageState extends State<MessagesPage>
                       vertical: 5,
                     ),
 
-                    onTap: () {
-                      Navigator.of(dialogContext).pop();
+                    enabled: !actionBusy,
 
-                      _confirmDeleteConversation(conversation);
-                    },
+                    onTap: actionBusy
+                        ? null
+                        : () {
+                            Navigator.of(dialogContext).pop();
+
+                            _confirmDeleteConversation(conversation);
+                          },
                   ),
 
                   const SizedBox(height: 8),
@@ -1085,6 +982,8 @@ class _MessagesPageState extends State<MessagesPage>
     Map<String, dynamic> conversation,
   ) async {
     final name = conversation['name']?.toString() ?? 'nhóm này';
+
+    final colorScheme = Theme.of(context).colorScheme;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1107,7 +1006,10 @@ class _MessagesPageState extends State<MessagesPage>
             ),
 
             FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              style: FilledButton.styleFrom(
+                backgroundColor: colorScheme.error,
+                foregroundColor: colorScheme.onError,
+              ),
 
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
@@ -1134,6 +1036,17 @@ class _MessagesPageState extends State<MessagesPage>
       return;
     }
 
+    if (_deletingGroupIds.contains(groupId) ||
+        _pinningGroupIds.contains(groupId)) {
+      return;
+    }
+
+    _deletingGroupIds.add(groupId);
+
+    if (mounted) {
+      setState(() {});
+    }
+
     try {
       await backend.deleteConversation(groupId: groupId);
 
@@ -1157,6 +1070,12 @@ class _MessagesPageState extends State<MessagesPage>
 
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Xóa thất bại: $error')));
+    } finally {
+      _deletingGroupIds.remove(groupId);
+
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
@@ -1182,6 +1101,11 @@ class _MessagesPageState extends State<MessagesPage>
     final notifying = enabledGroupIds.contains(groupId);
 
     final pinned = conversation['pinned'] == true;
+
+    final actionBusy =
+        groupId.isNotEmpty &&
+        (_pinningGroupIds.contains(groupId) ||
+            _deletingGroupIds.contains(groupId));
 
     // ========================================
     // UNREAD
@@ -1308,21 +1232,31 @@ class _MessagesPageState extends State<MessagesPage>
 
                           visualDensity: VisualDensity.compact,
 
-                          onPressed: () {
-                            toggleConversationPin(conversation);
-                          },
+                          onPressed: actionBusy
+                              ? null
+                              : () {
+                                  toggleConversationPin(conversation);
+                                },
 
-                          icon: Icon(
-                            pinned
-                                ? Icons.push_pin_rounded
-                                : Icons.push_pin_outlined,
+                          icon: actionBusy
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Icon(
+                                  pinned
+                                      ? Icons.push_pin_rounded
+                                      : Icons.push_pin_outlined,
 
                             size: 18,
 
-                            color: pinned
-                                ? colorScheme.primary
-                                : colorScheme.onSurfaceVariant,
-                          ),
+                                  color: pinned
+                                      ? colorScheme.primary
+                                      : colorScheme.onSurfaceVariant,
+                                ),
                         ),
                       ),
 
@@ -1601,14 +1535,7 @@ class _MessagesPageState extends State<MessagesPage>
 
             leading: const CircleAvatar(child: Icon(Icons.local_taxi)),
 
-            title: Text(
-              content,
-
-              maxLines: 2,
-
-              overflow: TextOverflow.ellipsis,
-
-            ),
+            title: Text(content, maxLines: 2, overflow: TextOverflow.ellipsis),
 
             subtitle: Text(
               '$groupName\n'
@@ -1676,8 +1603,6 @@ class _MessagesPageState extends State<MessagesPage>
     }
 
     realtimeRefreshTimer?.cancel();
-    realtimeConversationRefreshTimer?.cancel();
-    realtimeAcceptedRefreshTimer?.cancel();
     realtimeRefreshTimer = null;
 
     tabController.dispose();
