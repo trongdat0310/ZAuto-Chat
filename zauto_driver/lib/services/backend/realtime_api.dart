@@ -211,6 +211,8 @@ class RealtimeApi {
                 '-> stop reconnect',
               );
 
+              await auth.invalidateSession();
+
               return;
             }
           } catch (error) {
