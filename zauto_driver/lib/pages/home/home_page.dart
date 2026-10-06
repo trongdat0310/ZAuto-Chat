@@ -939,6 +939,8 @@ class _HomePageState extends State<HomePage>
 
     realtimeHandler.dispose();
 
+    notificationHandler.dispose();
+
     tripCountdownTimer?.cancel();
 
     tripCountdownTimer = null;
