@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -32,9 +33,25 @@ class _AuthGateState extends State<AuthGate> {
 
   Map<String, dynamic>? user;
 
+  StreamSubscription<void>? _sessionInvalidatedSubscription;
+
   @override
   void initState() {
     super.initState();
+
+    _sessionInvalidatedSubscription =
+        auth.sessionInvalidated.listen(
+      (_) {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          user = null;
+          loading = false;
+        });
+      },
+    );
 
     refreshAuth();
   }
@@ -134,6 +151,24 @@ class _AuthGateState extends State<AuthGate> {
       user = null;
     });
   }
+
+  @override
+  void dispose() {
+    final subscription =
+        _sessionInvalidatedSubscription;
+
+    _sessionInvalidatedSubscription =
+        null;
+
+    if (subscription != null) {
+      unawaited(
+        subscription.cancel(),
+      );
+    }
+
+    super.dispose();
+  }
+
 
   @override
   Widget build(BuildContext context) {
