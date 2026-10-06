@@ -79,6 +79,10 @@ class _MessagesPageState extends State<MessagesPage>
 
     tabController = TabController(length: 3, vsync: this);
 
+    realtimeConnected = widget.realtimeService.isConnected;
+
+    realtimeAuthFailed = widget.realtimeService.hasAuthFailed;
+
     searchController.addListener(() {
       if (!mounted) {
         return;
