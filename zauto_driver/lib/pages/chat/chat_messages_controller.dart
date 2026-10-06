@@ -660,7 +660,9 @@ class ChatMessagesController {
     }
 
     if (messages.isEmpty) {
-      messages = page.messages;
+      messages = page.messages
+          .where(shouldDisplayMessage)
+          .toList();
 
       hasMoreOlder = page.hasBefore;
 
