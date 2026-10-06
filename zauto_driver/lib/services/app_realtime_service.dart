@@ -16,6 +16,8 @@ class AppRealtimeService {
 
   bool _disposed = false;
 
+  int _sourceGeneration = 0;
+
   AppRealtimeService({required String baseUrl})
     : _backend = BackendService(baseUrl: baseUrl);
 
@@ -41,11 +43,13 @@ class AppRealtimeService {
 
     _started = true;
 
+    final generation = ++_sourceGeneration;
+
     debugPrint('APP REALTIME START');
 
     _subscription = _backend.connectRealtime().listen(
       (event) {
-        if (_disposed) {
+        if (_disposed || generation != _sourceGeneration) {
           return;
         }
 
@@ -89,7 +93,7 @@ class AppRealtimeService {
       },
 
       onError: (Object error, StackTrace stackTrace) {
-        if (_disposed) {
+        if (_disposed || generation != _sourceGeneration) {
           return;
         }
 
@@ -102,7 +106,7 @@ class AppRealtimeService {
       },
 
       onDone: () {
-        if (_disposed) {
+        if (_disposed || generation != _sourceGeneration) {
           return;
         }
 
@@ -129,6 +133,8 @@ class AppRealtimeService {
 
     _started = false;
 
+    _sourceGeneration += 1;
+
     final subscription = _subscription;
 
     _subscription = null;
@@ -154,6 +160,8 @@ class AppRealtimeService {
     _disposed = true;
 
     _started = false;
+
+    _sourceGeneration += 1;
 
     final subscription = _subscription;
 
