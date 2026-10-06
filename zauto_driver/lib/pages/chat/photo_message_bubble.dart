@@ -128,6 +128,10 @@ class PhotoMessageBubble extends StatelessWidget {
               fallback: const Center(
                 child: Icon(Icons.broken_image_outlined, size: 32),
               ),
+
+              cacheWidth: (displayWidth * 2.5).round(),
+
+              cacheHeight: (displayHeight * 2.5).round(),
             ),
           ),
         ),
@@ -191,6 +195,10 @@ class PhotoMessageBubble extends StatelessWidget {
                   fallback: const Center(
                     child: Icon(Icons.broken_image_outlined),
                   ),
+
+                  cacheWidth: (width * 2.5).round(),
+
+                  cacheHeight: (height * 2.5).round(),
                 ),
 
                 if (extraCount > 0)
@@ -347,10 +355,16 @@ class _RetryNetworkImage extends StatefulWidget {
 
   final Widget fallback;
 
+  final int? cacheWidth;
+
+  final int? cacheHeight;
+
   const _RetryNetworkImage({
     required this.url,
     required this.fit,
     required this.fallback,
+    this.cacheWidth,
+    this.cacheHeight,
   });
 
   @override
@@ -422,6 +436,10 @@ class _RetryNetworkImageState extends State<_RetryNetworkImage> {
       key: ValueKey('${widget.url}-$_reloadToken'),
 
       fit: widget.fit,
+
+      cacheWidth: widget.cacheWidth,
+
+      cacheHeight: widget.cacheHeight,
 
       errorBuilder: (context, error, stackTrace) {
         _scheduleRetry();
