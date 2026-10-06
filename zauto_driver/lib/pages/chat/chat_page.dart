@@ -112,6 +112,12 @@ class _ChatPageState extends State<ChatPage> {
 
   bool hasDeferredNewMessages = false;
 
+  bool realtimeConnected = false;
+
+  bool realtimeAuthFailed = false;
+
+  String? initialLoadError;
+
   void _removeMessageFromUi(Map<String, dynamic> message) {
     if (!mounted) {
       return;
@@ -222,6 +228,40 @@ class _ChatPageState extends State<ChatPage> {
 
       onMessage: (incoming) {
         upsertRealtimeMessage(incoming);
+      },
+
+      onConnected: () {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          realtimeConnected = true;
+
+          realtimeAuthFailed = false;
+        });
+      },
+
+      onDisconnected: () {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          realtimeConnected = false;
+        });
+      },
+
+      onAuthError: () {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          realtimeConnected = false;
+
+          realtimeAuthFailed = true;
+        });
       },
     );
 
@@ -1015,6 +1055,10 @@ class _ChatPageState extends State<ChatPage> {
       return;
     }
 
+    setState(() {
+      initialLoadError = null;
+    });
+
     // ========================================
     // loadInitial() CHAY DONG BO DEN
     // await DAU TIEN.
@@ -1083,13 +1127,14 @@ class _ChatPageState extends State<ChatPage> {
         return;
       }
 
+      final message = error.toString().replaceFirst('Exception: ', '').trim();
+
       setState(() {
         targetController.finishSeeking();
-      });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể tải hội thoại: $error')),
-      );
+        initialLoadError =
+            message.isEmpty ? 'Không thể tải hội thoại.' : message;
+      });
     }
   }
 
@@ -3015,7 +3060,9 @@ class _ChatPageState extends State<ChatPage> {
 
   Widget _buildMessageComposer() {
     final disabled =
-        messagesController.loading || targetController.seekingTarget;
+        messagesController.loading ||
+        targetController.seekingTarget ||
+        realtimeAuthFailed;
 
     // ========================================
     // COMPOSER UI
@@ -3090,12 +3137,87 @@ class _ChatPageState extends State<ChatPage> {
 
       body: Column(
         children: [
+          if (!realtimeConnected)
+            Material(
+              color: realtimeAuthFailed
+                  ? Theme.of(context).colorScheme.errorContainer
+                  : Theme.of(context).colorScheme.surfaceContainerHigh,
+              child: SafeArea(
+                top: false,
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      if (!realtimeAuthFailed)
+                        const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      else
+                        Icon(
+                          Icons.error_outline_rounded,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          realtimeAuthFailed
+                              ? 'Phiên realtime không hợp lệ. Vui lòng đăng nhập lại.'
+                              : 'Đang kết nối lại realtime...',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
           // ========================================
           // KHU VUC NOI DUNG CHAT
           // ========================================
 
           Expanded(
-            child: Stack(
+            child: initialLoadError != null &&
+                    !messagesController.loading &&
+                    messagesController.messages.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.cloud_off_outlined, size: 56),
+                          const SizedBox(height: 14),
+                          const Text(
+                            'Không thể tải hội thoại',
+                            style: TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            initialLoadError!,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton.icon(
+                            onPressed: loadMessages,
+                            icon: const Icon(Icons.refresh_rounded),
+                            label: const Text('Thử lại'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : Stack(
               children: [
                 Positioned.fill(
                   child: ChatBackground(
