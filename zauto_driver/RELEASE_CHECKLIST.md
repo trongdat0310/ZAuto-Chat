@@ -39,7 +39,20 @@ Do not change only one side. When assigning the final production package ID:
 
 ## 3. Release signing
 
-Copy:
+Recommended setup from `zauto_driver`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tool\setup_release_signing.ps1
+```
+
+The script creates local-only:
+
+- `android/app/zautochat-upload.jks`
+- `android/key.properties`
+
+Both are ignored by Git.
+
+You can also configure signing manually by copying:
 
 ```text
 android/key.properties.example
@@ -51,7 +64,7 @@ to:
 android/key.properties
 ```
 
-and fill in the real upload-keystore values.
+and filling in the real upload-keystore values.
 
 Never commit:
 
@@ -59,6 +72,8 @@ Never commit:
 - `*.jks`
 - `*.keystore`
 - passwords
+
+Back up the upload keystore securely. Future updates must be signed with the same key.
 
 The release Gradle configuration does not silently fall back to the debug signing key.
 
