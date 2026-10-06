@@ -8,6 +8,7 @@ const MAX_ENTRIES =
 // userId:requestId -> {
 //   promise,
 //   result,
+//   completed,
 //   completedAt,
 // }
 const sends =
@@ -26,8 +27,8 @@ function cleanupExpired() {
     of sends
   ) {
     if (
-      entry.result !==
-        undefined &&
+      entry.completed ===
+        true &&
       now -
         Number(
           entry.completedAt ??
@@ -186,6 +187,9 @@ export async function runConversationSendOnce(
     result:
       undefined,
 
+    completed:
+      false,
+
     completedAt:
       null,
   };
@@ -221,6 +225,9 @@ export async function runConversationSendOnce(
 
           entry.result =
             result;
+
+          entry.completed =
+            true;
 
           entry.completedAt =
             Date.now();
