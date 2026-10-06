@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -21,6 +22,12 @@ class HomeNotificationHandler {
 
   final SpeechService speechService;
 
+  StreamSubscription<RemoteMessage>? _foregroundMessageSubscription;
+
+  bool _initialized = false;
+
+  bool _disposed = false;
+
   HomeNotificationHandler({
     required this.settingsController,
     required this.backend,
@@ -29,7 +36,17 @@ class HomeNotificationHandler {
   });
 
   Future<void> initialize(BuildContext context) async {
+    if (_disposed || _initialized) {
+      return;
+    }
+
+    _initialized = true;
+
     await setupLocalNotifications(context);
+
+    if (_disposed) {
+      return;
+    }
 
     await setupPushNotifications();
   }
@@ -71,11 +88,23 @@ class HomeNotificationHandler {
   }
 
   Future<void> setupPushNotifications() async {
+    if (_disposed || _foregroundMessageSubscription != null) {
+      return;
+    }
+
     // ========================================
     // APP DANG MO
+    //
+    // CHI MOT LISTENER TON TAI CHO MOI
+    // HomeNotificationHandler.
     // ========================================
 
-    FirebaseMessaging.onMessage.listen((RemoteMessage remoteMessage) async {
+    _foregroundMessageSubscription =
+        FirebaseMessaging.onMessage.listen((RemoteMessage remoteMessage) async {
+      if (_disposed) {
+        return;
+      }
+
       final data = remoteMessage.data;
 
       if (data['type'] != 'new_trip') {
@@ -108,6 +137,9 @@ class HomeNotificationHandler {
     BuildContext context,
     NotificationResponse response,
   ) async {
+    if (_disposed) {
+      return;
+    }
     final payload = response.payload;
 
     if (payload == null) {
@@ -152,6 +184,22 @@ class HomeNotificationHandler {
       }
     } catch (error) {
       debugPrint('Notification action error: $error');
+    }
+  }
+
+  void dispose() {
+    if (_disposed) {
+      return;
+    }
+
+    _disposed = true;
+
+    final subscription = _foregroundMessageSubscription;
+
+    _foregroundMessageSubscription = null;
+
+    if (subscription != null) {
+      unawaited(subscription.cancel());
     }
   }
 }
