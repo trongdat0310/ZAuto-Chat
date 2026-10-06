@@ -791,27 +791,6 @@ async function storeConversationEvent(
     )
   ) {
 
-    console.log(
-      "[CONVERSATION] SKIP NON-DISPLAY EVENT:",
-      {
-        threadId:
-          groupId,
-
-        msgType:
-          data?.msgType ??
-          null,
-
-        msgId:
-          data?.msgId ??
-          null,
-
-        cliMsgId:
-          data?.cliMsgId ??
-          null,
-      }
-    );
-
-
     return null;
   }
 
@@ -921,16 +900,6 @@ async function storeConversationEvent(
 
     return null;
   }
-
-
-  console.log(
-    "[CONVERSATION] SAVED:",
-    userId,
-    groupId,
-    saved.msgId ??
-    saved.cliMsgId ??
-    saved.id
-  );
 
 
   // ========================================
