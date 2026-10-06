@@ -489,7 +489,9 @@ class _MessagesPageState extends State<MessagesPage>
 
               final local = _findLocalConversation(groupId);
 
-              copy['pinnedAt'] = pendingPin ? local?['pinnedAt'] : null;
+              copy['pinnedAt'] = pendingPin
+                  ? (local == null ? null : local['pinnedAt'])
+                  : null;
             }
 
             return copy;
