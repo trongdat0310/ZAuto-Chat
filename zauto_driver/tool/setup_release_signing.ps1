@@ -92,9 +92,7 @@ Write-Host "Keystore: $KeystorePath"
 Write-Host "Alias: $Alias"
 Write-Host "key.properties: $keyPropertiesPath"
 
-if (Test-Path $KeystorePath) {
-    throw "Keystore already exists: $KeystorePath. Refusing to overwrite it."
-}
+$keystoreExists = Test-Path $KeystorePath
 
 if (Test-Path $keyPropertiesPath) {
     throw "android/key.properties already exists. Back it up or delete it before generating a new signing identity."
@@ -120,37 +118,55 @@ if ($keyPassword.Length -lt 6) {
     throw "Key password must be at least 6 characters."
 }
 
-Write-Step "Generating upload keystore"
+if ($keystoreExists) {
+    Write-Step "Reusing existing upload keystore"
 
-$keytoolArgs = @(
-    "-genkeypair",
-    "-v",
-    "-keystore", $KeystorePath,
-    "-storepass", $storePassword,
-    "-keypass", $keyPassword,
-    "-alias", $Alias,
-    "-keyalg", "RSA",
-    "-keysize", "2048",
-    "-validity", "10000",
-    "-dname", "CN=ZAutoChat Pro, OU=Mobile, O=ZAutoChat, L=Unknown, ST=Unknown, C=VN"
-)
+    $verifyArgs = @(
+        "-list",
+        "-keystore", $KeystorePath,
+        "-storepass", $storePassword,
+        "-alias", $Alias
+    )
 
-& $keytool @keytoolArgs
+    & $keytool @verifyArgs | Out-Null
 
-if ($LASTEXITCODE -ne 0) {
-    throw "keytool failed to generate the keystore."
+    if ($LASTEXITCODE -ne 0) {
+        throw "Existing keystore could not be opened with this password/alias."
+    }
+
+    Write-Host "Existing keystore verified." -ForegroundColor Green
+} else {
+    Write-Step "Generating upload keystore"
+
+    $keytoolArgs = @(
+        "-genkeypair",
+        "-v",
+        "-keystore", $KeystorePath,
+        "-storepass", $storePassword,
+        "-keypass", $keyPassword,
+        "-alias", $Alias,
+        "-keyalg", "RSA",
+        "-keysize", "2048",
+        "-validity", "10000",
+        "-dname", "CN=ZAutoChat Pro, OU=Mobile, O=ZAutoChat, L=Unknown, ST=Unknown, C=VN"
+    )
+
+    & $keytool @keytoolArgs
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "keytool failed to generate the keystore."
+    }
 }
 
-$relativeStorePath = [System.IO.Path]::GetRelativePath(
-    (Join-Path $projectRoot "android\app"),
-    $KeystorePath
-).Replace("\", "/")
+# Use an absolute path for compatibility with Windows PowerShell / older .NET.
+# Gradle accepts absolute storeFile paths.
+$storeFileValue = $KeystorePath.Replace("\", "/")
 
 $properties = @(
     "storePassword=$storePassword",
     "keyPassword=$keyPassword",
     "keyAlias=$Alias",
-    "storeFile=$relativeStorePath"
+    "storeFile=$storeFileValue"
 ) -join [Environment]::NewLine
 
 Set-Content -Path $keyPropertiesPath -Value $properties -Encoding ASCII
