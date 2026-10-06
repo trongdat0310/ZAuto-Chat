@@ -86,7 +86,30 @@ App Bundle for Google Play:
 flutter build appbundle --release
 ```
 
-## 6. Smoke test the release build
+## 6. Verify, install and launch the release APK
+
+Connect a real Android device with USB debugging enabled, then run from `zauto_driver`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tool\release_smoke.ps1
+```
+
+The script checks:
+
+- the release APK exists
+- APK signature validity with `apksigner`
+- an authorized ADB device is connected
+- APK installation succeeds
+- the launcher activity starts
+- the application process remains alive after launch
+
+To verify the signature only:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tool\release_smoke.ps1 -SkipInstall
+```
+
+## 7. Manual smoke test on the installed release build
 
 Verify on a real device:
 
@@ -105,3 +128,10 @@ Verify on a real device:
 - background -> foreground
 - network off -> on
 - app restart
+
+If a release-only crash occurs, capture logs with:
+
+```powershell
+adb logcat -c
+adb logcat | Select-String "zauto|flutter|AndroidRuntime|FATAL EXCEPTION"
+```
