@@ -1,7 +1,8 @@
 param(
     [string]$ApkPath = "build\app\outputs\flutter-apk\app-release.apk",
     [string]$PackageName = "com.example.zauto_driver",
-    [switch]$SkipInstall
+    [switch]$SkipInstall,
+    [switch]$ReplaceExisting
 )
 
 $ErrorActionPreference = "Stop"
@@ -186,9 +187,52 @@ $deviceLines | ForEach-Object { Write-Host "  $_" }
 
 Write-Step "Installing release APK"
 
-& $adb install -r $resolvedApk
-if ($LASTEXITCODE -ne 0) {
-    throw "adb install failed."
+$installOutput = & $adb install -r $resolvedApk 2>&1
+$installExitCode = $LASTEXITCODE
+
+$installOutput | ForEach-Object {
+    Write-Host $_
+}
+
+if ($installExitCode -ne 0) {
+    $installText = ($installOutput | Out-String)
+
+    $signatureMismatch =
+        $installText -match "INSTALL_FAILED_UPDATE_INCOMPATIBLE" -or
+        $installText -match "signatures do not match"
+
+    if ($signatureMismatch) {
+        Write-Host ""
+        Write-Host "Existing app uses a different signing key." -ForegroundColor Yellow
+
+        if (-not $ReplaceExisting) {
+            Write-Host ""
+            Write-Host "The current app must be uninstalled before this release-signed build can be installed." -ForegroundColor Yellow
+            Write-Host "WARNING: uninstalling removes this app's local data on the device." -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "Run again with:" -ForegroundColor Cyan
+            Write-Host "  powershell -ExecutionPolicy Bypass -File .\tool\release_smoke.ps1 -ReplaceExisting"
+            throw "APK install blocked by signing-key mismatch."
+        }
+
+        Write-Step "Removing differently signed existing app"
+
+        & $adb uninstall $PackageName | Out-Host
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to uninstall existing package: $PackageName"
+        }
+
+        Write-Step "Installing release APK after uninstall"
+
+        & $adb install $resolvedApk | Out-Host
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "APK install failed after removing the old package."
+        }
+    } else {
+        throw "adb install failed."
+    }
 }
 
 Write-Host "Install: OK" -ForegroundColor Green
