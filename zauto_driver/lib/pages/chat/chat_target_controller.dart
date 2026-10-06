@@ -7,6 +7,12 @@ class ChatTargetController {
 
   final String? targetCliMsgId;
 
+  final String? targetReplyText;
+
+  final int? targetAcceptedAtMs;
+
+  final bool targetSelfOnly;
+
   int? targetIndex;
 
   String? targetErrorReason;
@@ -24,6 +30,9 @@ class ChatTargetController {
   ChatTargetController({
     required this.targetMsgId,
     required this.targetCliMsgId,
+    this.targetReplyText,
+    this.targetAcceptedAtMs,
+    this.targetSelfOnly = false,
   });
 
   // ========================================
@@ -35,7 +44,15 @@ class ChatTargetController {
 
     final safeTargetCliMsgId = targetCliMsgId?.trim() ?? '';
 
-    return safeTargetMsgId.isNotEmpty || safeTargetCliMsgId.isNotEmpty;
+    final safeReplyText =
+        targetReplyText?.trim() ?? '';
+
+    return safeTargetMsgId.isNotEmpty ||
+        safeTargetCliMsgId.isNotEmpty ||
+        (
+          safeReplyText.isNotEmpty &&
+          targetAcceptedAtMs != null
+        );
   }
 
   // ========================================
@@ -296,6 +313,13 @@ class ChatTargetController {
 
     if (safeTargetMsgId.isNotEmpty) {
       return messages.indexWhere((message) {
+        if (
+          targetSelfOnly &&
+          message['isSelf'] != true
+        ) {
+          return false;
+        }
+
         final messageMsgId = message['msgId']?.toString().trim() ?? '';
 
         return messageMsgId.isNotEmpty && messageMsgId == safeTargetMsgId;
@@ -304,6 +328,13 @@ class ChatTargetController {
 
     if (safeTargetCliMsgId.isNotEmpty) {
       return messages.indexWhere((message) {
+        if (
+          targetSelfOnly &&
+          message['isSelf'] != true
+        ) {
+          return false;
+        }
+
         final messageCliMsgId = message['cliMsgId']?.toString().trim() ?? '';
 
         return messageCliMsgId.isNotEmpty &&
@@ -311,7 +342,115 @@ class ChatTargetController {
       });
     }
 
-    return -1;
+    // ========================================
+    // FALLBACK AN TOAN CHO LICH SU NHAN CU
+    //
+    // Chi tim tin do CHINH USER gui,
+    // noi dung dung replyText va gan acceptedAt nhat.
+    // Tuyet doi khong fallback sang tin cua khach.
+    // ========================================
+
+    final safeReplyText =
+        targetReplyText?.trim() ?? '';
+
+    final acceptedAtMs =
+        targetAcceptedAtMs;
+
+
+    if (
+      safeReplyText.isEmpty ||
+      acceptedAtMs == null
+    ) {
+      return -1;
+    }
+
+
+    const maxDistanceMs =
+        Duration(minutes: 2)
+            .inMilliseconds;
+
+    var bestIndex =
+        -1;
+
+    int? bestDistance;
+
+
+    for (
+      var index = 0;
+      index < messages.length;
+      index += 1
+    ) {
+      final message =
+          messages[index];
+
+
+      if (
+        message['isSelf'] !=
+        true
+      ) {
+        continue;
+      }
+
+
+      final content =
+          message['content']
+              ?.toString()
+              .trim() ??
+          '';
+
+
+      if (
+        content !=
+        safeReplyText
+      ) {
+        continue;
+      }
+
+
+      final timestamp =
+          int.tryParse(
+        message['timestamp']
+                ?.toString() ??
+            '',
+      );
+
+
+      if (
+        timestamp == null
+      ) {
+        continue;
+      }
+
+
+      final distance =
+          (timestamp -
+                  acceptedAtMs)
+              .abs();
+
+
+      if (
+        distance >
+        maxDistanceMs
+      ) {
+        continue;
+      }
+
+
+      if (
+        bestDistance == null ||
+        distance <
+            bestDistance
+      ) {
+        bestIndex =
+            index;
+
+        bestDistance =
+            distance;
+      }
+    }
+
+
+    return bestIndex;
   }
 
   // ========================================

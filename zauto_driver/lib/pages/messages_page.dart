@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
+import '../controllers/settings_controller.dart';
 import '../services/backend_service.dart';
 import 'chat/chat_page.dart';
 import '../services/app_realtime_service.dart';
@@ -10,11 +11,14 @@ import 'dart:async';
 class MessagesPage extends StatefulWidget {
   final VoidCallback onOpenSettings;
   final AppRealtimeService realtimeService;
+  final SettingsController settingsController;
 
   const MessagesPage({
     super.key,
 
     required this.realtimeService,
+
+    required this.settingsController,
 
     required this.onOpenSettings,
   });
@@ -48,6 +52,10 @@ class _MessagesPageState extends State<MessagesPage>
   StreamSubscription<Map<String, dynamic>>? realtimeSubscription;
 
   Timer? realtimeRefreshTimer;
+
+  Timer? realtimeConversationRefreshTimer;
+
+  Timer? realtimeAcceptedRefreshTimer;
 
   bool realtimeStarted = false;
 
@@ -133,8 +141,22 @@ class _MessagesPageState extends State<MessagesPage>
         // ========================================
 
         if (type == 'trip_accepted') {
-          scheduleRealtimeRefresh();
+          scheduleAcceptedTripsRefresh();
 
+          return;
+        }
+
+        // ========================================
+        // NEW TRIP
+        //
+        // HomePage da nhan payload realtime truc tiep.
+        // MessagesPage khong can reload 3 API.
+        //
+        // Conversation store se phat rieng
+        // "conversation_message" de cap nhat danh sach chat.
+        // ========================================
+
+        if (type == 'new_trip') {
           return;
         }
 
@@ -142,17 +164,16 @@ class _MessagesPageState extends State<MessagesPage>
         // CONVERSATION STATE THAY DOI
         // ========================================
 
-        if (type != 'conversation_message' &&
-            type != 'conversation_message_updated' &&
-            type != 'conversation_read' &&
-            type != 'conversation_pinned' &&
-            type != 'conversation_deleted' &&
-            type != 'new_trip' &&
-            type != 'conversation_history_synced') {
+        if (type == 'conversation_message' ||
+            type == 'conversation_message_updated' ||
+            type == 'conversation_read' ||
+            type == 'conversation_pinned' ||
+            type == 'conversation_deleted' ||
+            type == 'conversation_history_synced') {
+          scheduleConversationRefresh();
+
           return;
         }
-
-        scheduleRealtimeRefresh();
       },
 
       onError: (Object error) {
@@ -181,6 +202,76 @@ class _MessagesPageState extends State<MessagesPage>
         debugPrint('MESSAGES REALTIME STREAM DONE');
       },
     );
+  }
+
+  void scheduleConversationRefresh() {
+    if (realtimeDisposed) {
+      return;
+    }
+
+    realtimeConversationRefreshTimer?.cancel();
+
+    realtimeConversationRefreshTimer =
+        Timer(const Duration(milliseconds: 100), () async {
+      realtimeConversationRefreshTimer = null;
+
+      if (realtimeDisposed || !mounted) {
+        return;
+      }
+
+      try {
+        final result =
+            await backend.getConversations();
+
+        if (realtimeDisposed || !mounted) {
+          return;
+        }
+
+        setState(() {
+          conversations = result;
+        });
+      } catch (error) {
+        debugPrint(
+          'MESSAGES CONVERSATION '
+          'REFRESH ERROR: $error',
+        );
+      }
+    });
+  }
+
+  void scheduleAcceptedTripsRefresh() {
+    if (realtimeDisposed) {
+      return;
+    }
+
+    realtimeAcceptedRefreshTimer?.cancel();
+
+    realtimeAcceptedRefreshTimer =
+        Timer(const Duration(milliseconds: 100), () async {
+      realtimeAcceptedRefreshTimer = null;
+
+      if (realtimeDisposed || !mounted) {
+        return;
+      }
+
+      try {
+        final result =
+            await backend.getAcceptedTrips();
+
+        if (realtimeDisposed || !mounted) {
+          return;
+        }
+
+        setState(() {
+          acceptedTrips = result;
+        });
+      } catch (error) {
+        debugPrint(
+          'MESSAGES ACCEPTED TRIPS '
+          'REFRESH ERROR: $error',
+        );
+      }
+    });
   }
 
   void scheduleRealtimeRefresh() {
@@ -600,6 +691,8 @@ class _MessagesPageState extends State<MessagesPage>
         builder: (_) => ChatPage(
           realtimeService: widget.realtimeService,
 
+          settingsController: widget.settingsController,
+
           groupId: groupId,
 
           groupName: groupName,
@@ -651,106 +744,148 @@ class _MessagesPageState extends State<MessagesPage>
   }
 
   Future<void> openAcceptedTrip(Map<String, dynamic> trip) async {
-    // Ho tro ca record moi va record cu.
     final groupId = firstNonEmptyString([
       trip['sourceThreadId'],
       trip['groupId'],
       trip['threadId'],
-    ]); // ========================================
-    // TARGET CUA LICH SU NHAN
-    //
-    // Neu co replyZaloMessageId:
-    // -> day la tin "Nhan" cua chinh minh.
-    // -> TUYET DOI KHONG dung cliMsgId cua tin goc.
-    //
-    // Chi fallback ve source message
-    // neu cuoc cu KHONG co replyZaloMessageId.
-    // ========================================
+    ]);
 
-    final replyMsgId = firstNonEmptyString([trip['replyZaloMessageId']]);
 
-    final replyCliMsgId = firstNonEmptyString([trip['replyZaloCliMessageId']]);
+    final replyMsgId =
+        firstNonEmptyString([
+      trip['replyZaloMessageId'],
+    ]);
 
-    final String? msgId;
 
-    final String? cliMsgId;
+    final replyCliMsgId =
+        firstNonEmptyString([
+      trip['replyZaloCliMessageId'],
+    ]);
 
-    if (replyMsgId != null && replyMsgId.isNotEmpty) {
-      // ========================================
-      // CUOC MOI:
-      // NHAY DEN TIN "NHAN"
-      // ========================================
 
-      msgId = replyMsgId;
+    final replyText =
+        firstNonEmptyString([
+      trip['replyText'],
+    ]);
 
-      // Co thi dung.
-      // Khong co thi de null.
-      //
-      // KHONG fallback sang sourceCliMsgId.
-      cliMsgId = replyCliMsgId;
-    } else {
-      // ========================================
-      // CUOC CU:
-      // CHUA LUU replyZaloMessageId
-      // -> fallback ve tin nguoi gui.
-      // ========================================
 
-      msgId = firstNonEmptyString([
-        trip['sourceMsgId'],
-        trip['zaloMessageId'],
-        trip['msgId'],
-      ]);
+    final acceptedAt =
+        DateTime.tryParse(
+      trip['acceptedAt']
+              ?.toString() ??
+          '',
+    );
 
-      cliMsgId = firstNonEmptyString([
-        trip['sourceCliMsgId'],
-        trip['clientMessageId'],
-        trip['cliMsgId'],
-      ]);
-    }
+
+    final acceptedAtMs =
+        acceptedAt
+            ?.millisecondsSinceEpoch;
+
 
     final groupName =
-        firstNonEmptyString([trip['groupName'], trip['sourceGroupName']]) ??
+        firstNonEmptyString([
+          trip['groupName'],
+          trip['sourceGroupName'],
+        ]) ??
         'Nhóm Zalo';
 
-    if (groupId == null || groupId.isEmpty) {
-      await showMessageNotFound('Không còn thông tin nhóm của cuốc này.');
 
-      return;
-    }
-
-    final groupAvatar = _getGroupAvatar(groupId);
-
-    if ((msgId == null || msgId.isEmpty) &&
-        (cliMsgId == null || cliMsgId.isEmpty)) {
+    if (
+      groupId == null ||
+      groupId.isEmpty
+    ) {
       await showMessageNotFound(
-        'Cuốc này không còn thông tin liên kết tới tin nhắn Zalo gốc.',
+        'Không còn thông tin nhóm của cuốc này.',
       );
 
       return;
     }
 
+
+    // ========================================
+    // TARGET LICH SU NHAN
+    //
+    // Uu tien bat ky ID nao cua tin "Nhan"
+    // do chinh user gui.
+    //
+    // Neu Zalo khong tra reply ID:
+    // fallback bang isSelf + replyText + acceptedAt
+    // trong ChatTargetController.
+    //
+    // TUYET DOI KHONG fallback ve sourceMsgId
+    // cua tin khach.
+    // ========================================
+
+    final hasReplyId =
+        replyMsgId != null ||
+        replyCliMsgId != null;
+
+
+    final hasSafeFallback =
+        replyText != null &&
+        acceptedAtMs != null;
+
+
+    if (
+      !hasReplyId &&
+      !hasSafeFallback
+    ) {
+      await showMessageNotFound(
+        'Cuốc này không còn đủ thông tin để xác định tin Nhận của bạn.',
+      );
+
+      return;
+    }
+
+
+    final groupAvatar =
+        _getGroupAvatar(
+      groupId,
+    );
+
+
     if (!mounted) {
       return;
     }
 
+
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ChatPage(
-          realtimeService: widget.realtimeService,
+          realtimeService:
+              widget.realtimeService,
 
-          groupId: groupId,
+          settingsController:
+              widget.settingsController,
 
-          groupName: groupName,
+          groupId:
+              groupId,
 
-          groupAvatar: groupAvatar,
+          groupName:
+              groupName,
 
-          targetMsgId: msgId,
+          groupAvatar:
+              groupAvatar,
 
-          targetCliMsgId: cliMsgId,
+          targetMsgId:
+              replyMsgId,
+
+          targetCliMsgId:
+              replyCliMsgId,
+
+          targetReplyText:
+              replyText,
+
+          targetAcceptedAtMs:
+              acceptedAtMs,
+
+          targetSelfOnly:
+              true,
         ),
       ),
     );
   }
+
 
   Future<void> showMessageNotFound(String detail) async {
     if (!mounted) {
@@ -1466,7 +1601,14 @@ class _MessagesPageState extends State<MessagesPage>
 
             leading: const CircleAvatar(child: Icon(Icons.local_taxi)),
 
-            title: Text(content, maxLines: 2, overflow: TextOverflow.ellipsis),
+            title: Text(
+              content,
+
+              maxLines: 2,
+
+              overflow: TextOverflow.ellipsis,
+
+            ),
 
             subtitle: Text(
               '$groupName\n'
@@ -1534,6 +1676,8 @@ class _MessagesPageState extends State<MessagesPage>
     }
 
     realtimeRefreshTimer?.cancel();
+    realtimeConversationRefreshTimer?.cancel();
+    realtimeAcceptedRefreshTimer?.cancel();
     realtimeRefreshTimer = null;
 
     tabController.dispose();

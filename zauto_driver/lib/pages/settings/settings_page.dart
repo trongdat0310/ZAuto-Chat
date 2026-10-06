@@ -6,6 +6,7 @@ import '../../services/backend_service.dart';
 import '../../config/app_config.dart';
 
 import '../../controllers/settings_controller.dart';
+import '../../theme/app_typography.dart';
 
 import 'sound_settings_sheet.dart';
 import 'message_filter_sheet.dart';
@@ -42,8 +43,6 @@ class _SettingsPageState extends State<SettingsPage> {
   bool deduplicateMessages = true;
 
   bool showVoiceMessages = true;
-
-  bool transcribeVoiceMessages = false;
 
   // ========================================
   // GIAO DIEN VA TUONG TAC
@@ -139,8 +138,18 @@ class _SettingsPageState extends State<SettingsPage> {
 
       final savedSeconds = rawWindow is num ? rawWindow.toInt() : null;
 
+      final nextShowVoiceMessages =
+          settings['showVoiceMessages'] != false;
+
       setState(() {
-        deduplicateMessages = settings['deduplicateMessages'] != false;
+        showImages =
+            settings['showImages'] != false;
+
+        deduplicateMessages =
+            settings['deduplicateMessages'] != false;
+
+        showVoiceMessages =
+            nextShowVoiceMessages;
 
         if (savedSeconds == 5 || savedSeconds == 10 || savedSeconds == 15) {
           currentTripDisplaySeconds = savedSeconds!;
@@ -225,8 +234,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
           initialShowVoiceMessages: showVoiceMessages,
 
-          initialTranscribeVoiceMessages: transcribeVoiceMessages,
-
           // ========================================
           // IMAGE
           // ========================================
@@ -266,18 +273,6 @@ class _SettingsPageState extends State<SettingsPage> {
             });
           },
 
-          // ========================================
-          // TRANSCRIBE
-          // ========================================
-          onTranscribeVoiceMessagesChanged: (value) {
-            if (!mounted) {
-              return;
-            }
-
-            setState(() {
-              transcribeVoiceMessages = value;
-            });
-          },
         );
       },
     );
@@ -329,7 +324,7 @@ class _SettingsPageState extends State<SettingsPage> {
             child: Text(
               'Cài đặt',
 
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w500),
+              style: AppTypography.pageTitle,
             ),
           ),
 
@@ -385,7 +380,9 @@ class _SettingsPageState extends State<SettingsPage> {
           Text(
             'TRẢ LỜI',
 
-            style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 14),
+            style: AppTypography.sectionTitle.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
 
           const SizedBox(height: 10),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
 import '../services/backend_service.dart';
+import '../theme/app_typography.dart';
 
 class AccountPage extends StatefulWidget {
   final Future<void> Function() onLogout;
@@ -1223,9 +1224,7 @@ class _AccountPageState extends State<AccountPage> {
       padding: const EdgeInsets.fromLTRB(12, 22, 12, 10),
       child: Text(
         title,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
+        style: AppTypography.sectionTitle.copyWith(
           letterSpacing: 0.8,
           color: colorScheme.onSurfaceVariant,
         ),
@@ -1281,9 +1280,7 @@ class _AccountPageState extends State<AccountPage> {
                 children: [
                   Text(
                     title,
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w500,
+                    style: AppTypography.itemTitle.copyWith(
                       color: foreground,
                     ),
                   ),
@@ -1293,7 +1290,7 @@ class _AccountPageState extends State<AccountPage> {
 
                     Text(
                       subtitle,
-                      style: TextStyle(
+                      style: AppTypography.caption.copyWith(
                         fontSize: 13,
                         color: colorScheme.onSurfaceVariant,
                       ),

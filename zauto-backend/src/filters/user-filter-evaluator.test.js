@@ -1,0 +1,1923 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  compileUserFilterDocument,
+  getCompiledGroupPlan,
+} from "./user-filter-runtime.js";
+
+import {
+  disableUserFilterEvaluatorTestMetrics,
+  evaluateCompiledGroupPlan,
+  getUserFilterEvaluatorTestMetrics,
+  resetUserFilterEvaluatorTestMetrics,
+} from "./user-filter-evaluator.js";
+
+
+// ========================================
+// HELPERS
+// ========================================
+
+function advancedFilter({
+  id,
+  groups = [],
+  show = [],
+  hide = [],
+  enabled = true,
+}) {
+  return {
+    id,
+
+    name:
+      id,
+
+    mode:
+      "advanced",
+
+    enabled,
+
+    groupIds:
+      groups,
+
+    basic: {},
+
+    advanced: {
+      showKeywords:
+        show,
+
+      hideKeywords:
+        hide,
+    },
+  };
+}
+
+
+function basicFilter({
+  id,
+  groups = [],
+  pickup = "",
+  dropoff = "",
+  bothDirections = false,
+  include = "",
+  exclude = "",
+  price = null,
+  time = "",
+  enabled = true,
+}) {
+  return {
+    id,
+
+    name:
+      id,
+
+    mode:
+      "basic",
+
+    enabled,
+
+    groupIds:
+      groups,
+
+    basic: {
+      pickup,
+
+      dropoff,
+
+      acceptBothDirections:
+        bothDirections,
+
+      includeKeywords:
+        include,
+
+      excludeKeywords:
+        exclude,
+
+      minimumPrice:
+        price,
+
+      timeRules:
+        time,
+    },
+
+    advanced: {
+      showKeywords:
+        [],
+
+      hideKeywords:
+        [],
+    },
+  };
+}
+
+
+// ========================================
+// NO FILTER
+// ========================================
+
+test(
+  "no applicable filters accepts message",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id:
+              "only-a",
+
+            groups: [
+              "a",
+            ],
+
+            show: [
+              "nội bài",
+            ],
+          }),
+        ],
+      });
+
+
+    const plan =
+      getCompiledGroupPlan(
+        runtime,
+        "b"
+      );
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        plan,
+        "q1 đi nội bài"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+    assert.equal(
+      result.reason,
+      "no_applicable_filters"
+    );
+  }
+);
+
+
+// ========================================
+// SHOW MATCH
+// ========================================
+
+test(
+  "advanced show keyword accepts",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id:
+              "airport",
+
+            show: [
+              "*(nội bài|nb)*",
+            ],
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Q1 đi Nội Bài"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+    assert.equal(
+      result.filterId,
+      "airport"
+    );
+
+    assert.equal(
+      result.reason,
+      "advanced_show_keyword"
+    );
+  }
+);
+
+
+// ========================================
+// SHOW EMPTY
+// ========================================
+
+test(
+  "advanced empty show list accepts everything not hidden",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id:
+              "all",
+
+            hide: [
+              "*ghép*",
+            ],
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Q1 đi Nội Bài"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+    assert.equal(
+      result.reason,
+      "advanced_no_show_keywords"
+    );
+  }
+);
+
+
+// ========================================
+// HIDE > SHOW
+// ========================================
+
+test(
+  "advanced hide overrides show inside same filter",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id:
+              "airport",
+
+            show: [
+              "*nội bài*",
+            ],
+
+            hide: [
+              "*ghép*",
+            ],
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "ghép khách đi Nội Bài"
+      );
+
+
+    assert.equal(
+      result.matched,
+      false
+    );
+
+    assert.equal(
+      result.reason,
+      "no_filter_match"
+    );
+  }
+);
+
+
+// ========================================
+// HIDE IS LOCAL TO FILTER
+// ========================================
+
+test(
+  "one filter hide does not veto another matching filter",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id:
+              "airport",
+
+            show: [
+              "*nội bài*",
+            ],
+
+            hide: [
+              "*ghép*",
+            ],
+          }),
+
+          advancedFilter({
+            id:
+              "vip",
+
+            show: [
+              "*vip*",
+            ],
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "cuốc VIP ghép khách đi Nội Bài"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+    assert.equal(
+      result.filterId,
+      "vip"
+    );
+  }
+);
+
+
+// ========================================
+// OR + SHORT CIRCUIT
+// ========================================
+
+test(
+  "advanced filters short circuit after first accept",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id:
+              "reject-first",
+
+            show: [
+              "*hải phòng*",
+            ],
+          }),
+
+          advancedFilter({
+            id:
+              "accept-second",
+
+            show: [
+              "*nội bài*",
+            ],
+          }),
+
+          advancedFilter({
+            id:
+              "never-needed",
+
+            show: [
+              "*vip*",
+            ],
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Q1 đi Nội Bài"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+    assert.equal(
+      result.filterId,
+      "accept-second"
+    );
+
+    assert.equal(
+      result.evaluatedFilters,
+      2
+    );
+  }
+);
+
+
+// ========================================
+// ALL REJECT
+// ========================================
+
+test(
+  "all advanced filters rejecting rejects message",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id:
+              "airport",
+
+            show: [
+              "*nội bài*",
+            ],
+          }),
+
+          advancedFilter({
+            id:
+              "vip",
+
+            show: [
+              "*vip*",
+            ],
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Bình Thạnh đi Thủ Đức"
+      );
+
+
+    assert.equal(
+      result.matched,
+      false
+    );
+
+    assert.equal(
+      result.reason,
+      "no_filter_match"
+    );
+  }
+);
+
+
+// ========================================
+// BASIC TEMPORARY FAIL OPEN
+// ========================================
+
+test(
+  "basic route accepts correct pickup to dropoff direction",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "airport",
+
+            pickup:
+              "q1, quận 1",
+
+            dropoff:
+              "nội bài, nb",
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "22h cần xe Q1 đi Nội Bài"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+    assert.equal(
+      result.filterId,
+      "airport"
+    );
+
+    assert.equal(
+      result.reason,
+      "basic_conditions_match"
+    );
+  }
+);
+
+
+test(
+  "basic route rejects reverse direction",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "airport",
+
+            pickup:
+              "q1",
+
+            dropoff:
+              "nội bài",
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Nội Bài về Q1"
+      );
+
+
+    assert.equal(
+      result.matched,
+      false
+    );
+  }
+);
+
+
+test(
+  "basic one way rejects round trip message",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "one-way",
+
+            pickup:
+              "q1",
+
+            dropoff:
+              "nội bài",
+
+            bothDirections:
+              false,
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Q1 đi Nội Bài rồi về lại Q1"
+      );
+
+
+    assert.equal(
+      result.matched,
+      false
+    );
+  }
+);
+
+
+test(
+  "basic both directions accepts round trip message",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "two-way",
+
+            pickup:
+              "q1",
+
+            dropoff:
+              "nội bài",
+
+            bothDirections:
+              true,
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Q1 đi Nội Bài rồi về lại Q1"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+    assert.equal(
+      result.filterId,
+      "two-way"
+    );
+  }
+);
+
+
+test(
+  "basic both directions accepts reverse route",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "airport",
+
+            pickup:
+              "q1",
+
+            dropoff:
+              "nội bài",
+
+            bothDirections:
+              true,
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Nội Bài về Q1"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+  }
+);
+
+
+test(
+  "basic exclude keyword overrides matching route and include",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "airport",
+
+            pickup:
+              "q1",
+
+            dropoff:
+              "nội bài",
+
+            include:
+              "4c, 4 chỗ",
+
+            exclude:
+              "ghép",
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Q1 đi Nội Bài xe 4c ghép khách"
+      );
+
+
+    assert.equal(
+      result.matched,
+      false
+    );
+  }
+);
+
+
+test(
+  "basic include keywords use OR",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "airport",
+
+            include:
+              "4c, 7c, vip",
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "cần xe 7c đi sân bay"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+  }
+);
+
+
+test(
+  "basic include rejects when none match",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "airport",
+
+            include:
+              "4c, vip",
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "cần xe 7c"
+      );
+
+
+    assert.equal(
+      result.matched,
+      false
+    );
+  }
+);
+
+
+test(
+  "basic empty fields accept message",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "all-basic",
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "tin bất kỳ"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+  }
+);
+
+test(
+  "basic minimum price accepts sufficient price",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "priced",
+
+            pickup:
+              "q1",
+
+            price:
+              500,
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Q1 đi Nội Bài giá 650k"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+
+    assert.equal(
+      result.filterId,
+      "priced"
+    );
+  }
+);
+
+
+test(
+  "basic minimum price rejects lower price",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "priced",
+
+            price:
+              500,
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "cuốc giá 450k"
+      );
+
+
+    assert.equal(
+      result.matched,
+      false
+    );
+  }
+);
+
+
+test(
+  "basic minimum price rejects message without price",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "priced",
+
+            price:
+              500,
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Q1 đi Nội Bài"
+      );
+
+
+    assert.equal(
+      result.matched,
+      false
+    );
+  }
+);
+
+
+test(
+  "basic minimum price does not pass from address or year numbers",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "priced",
+
+            price:
+              300,
+          }),
+        ],
+      });
+
+
+    const addressResult =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "đón khách số 450 phố huế"
+      );
+
+
+    assert.equal(
+      addressResult.matched,
+      false
+    );
+
+
+    const yearResult =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "lịch chạy năm 2026"
+      );
+
+
+    assert.equal(
+      yearResult.matched,
+      false
+    );
+  }
+);
+
+
+test(
+  "basic minimum price supports Vietnamese million shorthand",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "priced",
+
+            price:
+              1100,
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "Q1 đi Nội Bài 1tr2"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+  }
+);
+
+
+test(
+  "basic time accepts matching daypart",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "timed",
+
+            time:
+              "sáng",
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "cuốc sáng mai 7h30"
+      );
+
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+
+    assert.equal(
+      result.filterId,
+      "timed"
+    );
+  }
+);
+
+
+test(
+  "basic time rejects non matching daypart",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id:
+              "timed",
+
+            time:
+              "sáng",
+          }),
+        ],
+      });
+
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+
+        "cuốc tối nay"
+      );
+
+
+    assert.equal(
+      result.matched,
+      false
+    );
+
+
+    assert.equal(
+      result.reason,
+      "no_filter_match"
+    );
+  }
+);
+
+
+// ========================================
+// FULL FILTER MATRIX
+// ========================================
+
+test(
+  "disabled filter does not block messages",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id: "disabled",
+            include: "vip",
+            enabled: false,
+          }),
+        ],
+      });
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(runtime, "any"),
+        "tin không có vip"
+      );
+
+    assert.equal(result.matched, true);
+    assert.equal(result.reason, "no_applicable_filters");
+    assert.equal(result.evaluatedFilters, 0);
+  }
+);
+
+
+test(
+  "group specific rejecting filter does not affect unrelated group",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id: "group-a",
+            groups: ["a"],
+            show: ["vip"],
+          }),
+        ],
+      });
+
+    const groupA =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(runtime, "a"),
+        "cuốc thường"
+      );
+
+    const groupB =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(runtime, "b"),
+        "cuốc thường"
+      );
+
+    assert.equal(groupA.matched, false);
+    assert.equal(groupA.reason, "no_filter_match");
+
+    assert.equal(groupB.matched, true);
+    assert.equal(groupB.reason, "no_applicable_filters");
+  }
+);
+
+
+test(
+  "basic reject can fall through to advanced accept",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id: "basic-airport",
+            pickup: "q1",
+            dropoff: "nội bài",
+          }),
+          advancedFilter({
+            id: "advanced-vip",
+            show: ["vip"],
+          }),
+        ],
+      });
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(runtime, "any"),
+        "VIP Bình Thạnh đi Thủ Đức"
+      );
+
+    assert.equal(result.matched, true);
+    assert.equal(result.filterId, "advanced-vip");
+    assert.equal(result.evaluatedFilters, 2);
+  }
+);
+
+
+test(
+  "basic exclude only vetoes its own filter",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id: "basic-hidden",
+            include: "vip",
+            exclude: "ghép",
+          }),
+          advancedFilter({
+            id: "advanced-vip",
+            show: ["vip"],
+          }),
+        ],
+      });
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(runtime, "any"),
+        "VIP ghép khách"
+      );
+
+    assert.equal(result.matched, true);
+    assert.equal(result.filterId, "advanced-vip");
+  }
+);
+
+
+test(
+  "basic minimum price accepts exact boundary",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id: "priced",
+            price: 500,
+          }),
+        ],
+      });
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(runtime, "any"),
+        "cuốc giá 500k"
+      );
+
+    assert.equal(result.matched, true);
+    assert.equal(result.filterId, "priced");
+  }
+);
+
+
+test(
+  "basic time rule rejects message without temporal information",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id: "timed",
+            time: "sáng",
+          }),
+        ],
+      });
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(runtime, "any"),
+        "Q1 đi Nội Bài"
+      );
+
+    assert.equal(result.matched, false);
+    assert.equal(result.reason, "no_filter_match");
+  }
+);
+
+
+test(
+  "basic filter requires every configured condition to pass",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          basicFilter({
+            id: "strict",
+            pickup: "q1",
+            dropoff: "nội bài",
+            include: "4c, vip",
+            exclude: "ghép",
+            price: 500,
+            time: "sáng",
+          }),
+        ],
+      });
+
+    const acceptedResult =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(runtime, "any"),
+        "sáng mai 7h30 Q1 đi Nội Bài xe 4c giá 650k"
+      );
+
+    assert.equal(acceptedResult.matched, true);
+    assert.equal(acceptedResult.filterId, "strict");
+
+    const lowPriceResult =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(runtime, "any"),
+        "sáng mai 7h30 Q1 đi Nội Bài xe 4c giá 450k"
+      );
+
+    assert.equal(lowPriceResult.matched, false);
+
+    const excludedResult =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(runtime, "any"),
+        "sáng mai 7h30 Q1 đi Nội Bài xe 4c giá 650k ghép khách"
+      );
+
+    assert.equal(excludedResult.matched, false);
+  }
+);
+
+
+test(
+  "all-group and group-specific filters combine with OR",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id: "all-vip",
+            show: ["vip"],
+          }),
+          basicFilter({
+            id: "group-airport",
+            groups: ["airport-group"],
+            pickup: "q1",
+            dropoff: "nội bài",
+          }),
+        ],
+      });
+
+    const bySpecificFilter =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(runtime, "airport-group"),
+        "Q1 đi Nội Bài"
+      );
+
+    assert.equal(bySpecificFilter.matched, true);
+    assert.equal(bySpecificFilter.filterId, "group-airport");
+
+    const byAllGroupFilter =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(runtime, "airport-group"),
+        "VIP Bình Thạnh đi Thủ Đức"
+      );
+
+    assert.equal(byAllGroupFilter.matched, true);
+    assert.equal(byAllGroupFilter.filterId, "all-vip");
+  }
+);
+
+
+
+test(
+  "filter priority controls which matching filter short-circuits first",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters: [
+          advancedFilter({
+            id: "specific-priority",
+            groups: ["a"],
+            show: ["vip"],
+          }),
+          advancedFilter({
+            id: "all-groups-second",
+            show: ["vip"],
+          }),
+        ],
+      });
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(runtime, "a"),
+        "VIP"
+      );
+
+    assert.equal(
+      result.matched,
+      true
+    );
+
+    assert.equal(
+      result.filterId,
+      "specific-priority"
+    );
+
+    assert.equal(
+      result.evaluatedFilters,
+      1
+    );
+  }
+);
+
+
+
+// ========================================
+// HOT PATH INSTRUMENTATION
+// ========================================
+
+test(
+  "message is normalized once even when several filters are evaluated",
+  () => {
+    resetUserFilterEvaluatorTestMetrics();
+
+    try {
+      const runtime =
+        compileUserFilterDocument({
+          filters: [
+            advancedFilter({
+              id: "first",
+              show: ["hải phòng"],
+            }),
+            advancedFilter({
+              id: "second",
+              show: ["nội bài"],
+            }),
+            advancedFilter({
+              id: "third",
+              show: ["vip"],
+            }),
+          ],
+        });
+
+      const result =
+        evaluateCompiledGroupPlan(
+          getCompiledGroupPlan(runtime, "any"),
+          "Q1 đi Nội Bài"
+        );
+
+      const metrics =
+        getUserFilterEvaluatorTestMetrics();
+
+      assert.equal(result.evaluatedFilters, 2);
+      assert.equal(metrics.normalizeCalls, 1);
+      assert.equal(metrics.filterEvaluationCalls, 2);
+      assert.equal(metrics.priceParseCalls, 0);
+      assert.equal(metrics.timeParseCalls, 0);
+    } finally {
+      disableUserFilterEvaluatorTestMetrics();
+    }
+  }
+);
+
+
+test(
+  "price parser runs once for several price filters on one message",
+  () => {
+    resetUserFilterEvaluatorTestMetrics();
+
+    try {
+      const runtime =
+        compileUserFilterDocument({
+          filters: [
+            basicFilter({
+              id: "price-700",
+              price: 700,
+            }),
+            basicFilter({
+              id: "price-600",
+              price: 600,
+            }),
+            basicFilter({
+              id: "price-500",
+              price: 500,
+            }),
+          ],
+        });
+
+      const result =
+        evaluateCompiledGroupPlan(
+          getCompiledGroupPlan(runtime, "any"),
+          "cuốc giá 550k"
+        );
+
+      const metrics =
+        getUserFilterEvaluatorTestMetrics();
+
+      assert.equal(result.matched, true);
+      assert.equal(result.filterId, "price-500");
+      assert.equal(result.evaluatedFilters, 3);
+      assert.equal(metrics.normalizeCalls, 1);
+      assert.equal(metrics.priceParseCalls, 1);
+      assert.equal(metrics.filterEvaluationCalls, 3);
+    } finally {
+      disableUserFilterEvaluatorTestMetrics();
+    }
+  }
+);
+
+
+test(
+  "time parser runs once for several time filters on one message",
+  () => {
+    resetUserFilterEvaluatorTestMetrics();
+
+    try {
+      const runtime =
+        compileUserFilterDocument({
+          filters: [
+            basicFilter({
+              id: "morning",
+              time: "sáng",
+            }),
+            basicFilter({
+              id: "afternoon",
+              time: "chiều",
+            }),
+            basicFilter({
+              id: "evening",
+              time: "tối",
+            }),
+          ],
+        });
+
+      const result =
+        evaluateCompiledGroupPlan(
+          getCompiledGroupPlan(runtime, "any"),
+          "cuốc tối nay 20h"
+        );
+
+      const metrics =
+        getUserFilterEvaluatorTestMetrics();
+
+      assert.equal(result.matched, true);
+      assert.equal(result.filterId, "evening");
+      assert.equal(result.evaluatedFilters, 3);
+      assert.equal(metrics.normalizeCalls, 1);
+      assert.equal(metrics.timeParseCalls, 1);
+      assert.equal(metrics.filterEvaluationCalls, 3);
+    } finally {
+      disableUserFilterEvaluatorTestMetrics();
+    }
+  }
+);
+
+
+
+// ========================================
+// 50 FILTER PRIORITY SCALE
+// ========================================
+
+function makePriorityFilters(
+  matchIndex
+) {
+  const filters = [];
+
+  for (
+    let index = 0;
+    index < 50;
+    index += 1
+  ) {
+    filters.push(
+      advancedFilter({
+        id:
+          `priority-${index + 1}`,
+
+        show: [
+          index === matchIndex
+            ? "target"
+            : `never-${index + 1}`,
+        ],
+      })
+    );
+  }
+
+  return filters;
+}
+
+
+for (
+  const {
+    position,
+    expectedEvaluations,
+  } of [
+    {
+      position: 1,
+      expectedEvaluations: 1,
+    },
+    {
+      position: 10,
+      expectedEvaluations: 10,
+    },
+    {
+      position: 50,
+      expectedEvaluations: 50,
+    },
+  ]
+) {
+  test(
+    `50-filter priority match at position ${position} evaluates ${expectedEvaluations} filters`,
+    () => {
+      const runtime =
+        compileUserFilterDocument({
+          filters:
+            makePriorityFilters(
+              position - 1
+            ),
+        });
+
+      const result =
+        evaluateCompiledGroupPlan(
+          getCompiledGroupPlan(
+            runtime,
+            "any"
+          ),
+          "target"
+        );
+
+      assert.equal(
+        result.matched,
+        true
+      );
+
+      assert.equal(
+        result.filterId,
+        `priority-${position}`
+      );
+
+      assert.equal(
+        result.evaluatedFilters,
+        expectedEvaluations
+      );
+    }
+  );
+}
+
+
+test(
+  "50 filters with no match evaluate all candidates",
+  () => {
+    const runtime =
+      compileUserFilterDocument({
+        filters:
+          makePriorityFilters(
+            -1
+          ),
+      });
+
+    const result =
+      evaluateCompiledGroupPlan(
+        getCompiledGroupPlan(
+          runtime,
+          "any"
+        ),
+        "no matching keyword"
+      );
+
+    assert.equal(
+      result.matched,
+      false
+    );
+
+    assert.equal(
+      result.evaluatedFilters,
+      50
+    );
+  }
+);
+
+
+
+// ========================================
+// STRESS: MANY BASIC FILTERS SHARE PARSERS
+// ========================================
+
+test(
+  "50 full basic filters parse price and time once per message",
+  () => {
+    resetUserFilterEvaluatorTestMetrics();
+
+    try {
+      const filters =
+        [];
+
+
+      for (
+        let index = 0;
+        index < 50;
+        index += 1
+      ) {
+        filters.push(
+          basicFilter({
+            id:
+              `full-basic-${index + 1}`,
+
+            pickup:
+              "q1",
+
+            dropoff:
+              "nội bài",
+
+            include:
+              index === 49
+                ? "4c"
+                : `never-${index + 1}`,
+
+            exclude:
+              "ghép",
+
+            price:
+              500,
+
+            time:
+              "sáng",
+          })
+        );
+      }
+
+
+      const runtime =
+        compileUserFilterDocument({
+          filters,
+        });
+
+
+      const result =
+        evaluateCompiledGroupPlan(
+          getCompiledGroupPlan(
+            runtime,
+            "stress"
+          ),
+          "sáng mai 7h30 Q1 đi Nội Bài xe 4c giá 650k"
+        );
+
+
+      const metrics =
+        getUserFilterEvaluatorTestMetrics();
+
+
+      assert.equal(
+        result.matched,
+        true
+      );
+
+      assert.equal(
+        result.filterId,
+        "full-basic-50"
+      );
+
+      assert.equal(
+        result.evaluatedFilters,
+        50
+      );
+
+      assert.equal(
+        metrics.normalizeCalls,
+        1
+      );
+
+      assert.equal(
+        metrics.priceParseCalls,
+        1
+      );
+
+      assert.equal(
+        metrics.timeParseCalls,
+        1
+      );
+
+      assert.equal(
+        metrics.filterEvaluationCalls,
+        50
+      );
+
+    } finally {
+      disableUserFilterEvaluatorTestMetrics();
+    }
+  }
+);
+
+
+test(
+  "50 advanced filters with no match normalize message once",
+  () => {
+    resetUserFilterEvaluatorTestMetrics();
+
+    try {
+      const filters =
+        [];
+
+
+      for (
+        let index = 0;
+        index < 50;
+        index += 1
+      ) {
+        filters.push(
+          advancedFilter({
+            id:
+              `advanced-no-match-${index + 1}`,
+
+            show: [
+              `never-${index + 1}`,
+            ],
+          })
+        );
+      }
+
+
+      const runtime =
+        compileUserFilterDocument({
+          filters,
+        });
+
+
+      const result =
+        evaluateCompiledGroupPlan(
+          getCompiledGroupPlan(
+            runtime,
+            "stress"
+          ),
+          "Q1 đi Nội Bài xe 4c giá 650k"
+        );
+
+
+      const metrics =
+        getUserFilterEvaluatorTestMetrics();
+
+
+      assert.equal(
+        result.matched,
+        false
+      );
+
+      assert.equal(
+        result.evaluatedFilters,
+        50
+      );
+
+      assert.equal(
+        metrics.normalizeCalls,
+        1
+      );
+
+      assert.equal(
+        metrics.filterEvaluationCalls,
+        50
+      );
+
+      assert.equal(
+        metrics.priceParseCalls,
+        0
+      );
+
+      assert.equal(
+        metrics.timeParseCalls,
+        0
+      );
+
+    } finally {
+      disableUserFilterEvaluatorTestMetrics();
+    }
+  }
+);

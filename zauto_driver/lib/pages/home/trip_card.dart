@@ -257,16 +257,23 @@ class TripCard extends StatelessWidget {
             // ========================================
             // CONTENT
             // ========================================
-            Text(
-              content,
+            ValueListenableBuilder<double>(
+              valueListenable:
+                  settingsController.notificationFontSize,
 
-              style: TextStyle(
-                fontSize: settingsController.settings.chatFontSize,
+              builder: (context, fontSize, _) {
+                return Text(
+                  content,
 
-                fontWeight: FontWeight.w600,
+                  style: TextStyle(
+                    fontSize: fontSize,
 
-                height: 1.25,
-              ),
+                    fontWeight: FontWeight.w600,
+
+                    height: 1.25,
+                  ),
+                );
+              },
             ),
 
             const SizedBox(height: 14),

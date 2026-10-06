@@ -138,6 +138,8 @@ class _MainScreenState extends State<MainScreen> {
           ? MessagesPage(
               realtimeService: realtimeService,
 
+              settingsController: settingsController,
+
               onOpenSettings: openSettingsFromMessages,
             )
           : ZaloRequiredPage(

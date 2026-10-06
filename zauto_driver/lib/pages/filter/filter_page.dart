@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../config/app_config.dart';
+import '../../services/backend_service.dart';
+import '../../theme/app_typography.dart';
+
 import 'add_notification_filter_page.dart';
 
 class FilterPage extends StatefulWidget {
@@ -16,27 +20,647 @@ class FilterPage extends StatefulWidget {
 class _FilterPageState extends State<FilterPage> {
   static const int maxFilters = 50;
 
-  // ========================================
-  // UI ONLY
-  //
-  // Logic filter moi se them sau.
-  // Hien tai mac dinh chua co filter.
-  // ========================================
+  final BackendService backend = BackendService(baseUrl: AppConfig.backendUrl);
 
-  int filterCount = 0;
+  List<Map<String, dynamic>> filters = [];
+
+  final Map<String, String> filterMutations = {};
+
+  bool loading = true;
+
+  bool reorderingFilters = false;
+
+  int get filterCount => filters.length;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _loadFilters();
+  }
+
+  Future<void> _loadFilters() async {
+    if (mounted) {
+      setState(() {
+        loading = true;
+      });
+    }
+
+    try {
+      final result = await backend.getNotificationFilters();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        filters = result;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể tải bộ lọc: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          loading = false;
+        });
+      }
+    }
+  }
 
   Future<void> _addFilter() async {
     if (filterCount >= maxFilters) {
       return;
     }
 
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
+    final saved = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute<Map<String, dynamic>>(
         builder: (_) {
           return const AddNotificationFilterPage();
         },
       ),
     );
+
+    if (!mounted || saved == null) {
+      return;
+    }
+
+    final savedId = saved['id']?.toString() ?? '';
+
+    if (
+      savedId.isEmpty ||
+      filters.any(
+        (item) => item['id']?.toString() == savedId,
+      )
+    ) {
+      await _loadFilters();
+      return;
+    }
+
+    setState(() {
+      filters = [
+        ...filters,
+        saved,
+      ];
+    });
+  }
+
+  Future<void> _duplicateFilter(
+    Map<String, dynamic> filter,
+  ) async {
+    if (filterCount >= maxFilters) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Đã đạt giới hạn 50 bộ lọc.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    final sourceId =
+        filter['id']?.toString() ?? '';
+
+    if (
+      sourceId.isNotEmpty &&
+      filterMutations.containsKey(sourceId)
+    ) {
+      return;
+    }
+
+    final saved =
+        await Navigator.of(context)
+            .push<Map<String, dynamic>>(
+      MaterialPageRoute<Map<String, dynamic>>(
+        builder: (_) {
+          return AddNotificationFilterPage(
+            initialTemplate:
+                Map<String, dynamic>.from(filter),
+          );
+        },
+      ),
+    );
+
+    if (!mounted || saved == null) {
+      return;
+    }
+
+    final savedId =
+        saved['id']?.toString() ?? '';
+
+    if (
+      savedId.isEmpty ||
+      filters.any(
+        (item) =>
+            item['id']?.toString() ==
+            savedId,
+      )
+    ) {
+      await _loadFilters();
+
+      return;
+    }
+
+    setState(() {
+      filters = [
+        ...filters,
+        saved,
+      ];
+    });
+  }
+
+  Future<void> _editFilter(Map<String, dynamic> filter) async {
+    final saved = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute<Map<String, dynamic>>(
+        builder: (_) {
+          return AddNotificationFilterPage(
+            initialFilter: Map<String, dynamic>.from(filter),
+          );
+        },
+      ),
+    );
+
+    if (!mounted || saved == null) {
+      return;
+    }
+
+    final filterId = saved['id']?.toString() ?? '';
+
+    if (filterId.isEmpty) {
+      await _loadFilters();
+      return;
+    }
+
+    final index = filters.indexWhere(
+      (item) => item['id']?.toString() == filterId,
+    );
+
+    if (index < 0) {
+      await _loadFilters();
+      return;
+    }
+
+    setState(() {
+      filters[index] = saved;
+    });
+  }
+
+  Future<void> _deleteFilter(Map<String, dynamic> filter) async {
+    final filterId = filter['id']?.toString() ?? '';
+
+    if (filterId.isEmpty) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Xóa bộ lọc?'),
+          content: Text(
+            'Bộ lọc "${filter['name'] ?? 'Bộ lọc'}" sẽ bị xóa.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('HỦY'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('XÓA'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    if (filterMutations.containsKey(filterId)) {
+      return;
+    }
+
+    setState(() {
+      filterMutations[filterId] = 'Đang xóa...';
+    });
+
+    try {
+      await backend.deleteNotificationFilter(filterId);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        filters.removeWhere(
+          (item) => item['id']?.toString() == filterId,
+        );
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể xóa bộ lọc: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          filterMutations.remove(filterId);
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleFilter(
+    Map<String, dynamic> filter,
+    bool enabled,
+  ) async {
+    final filterId = filter['id']?.toString() ?? '';
+
+    if (filterId.isEmpty) {
+      return;
+    }
+
+    if (filterMutations.containsKey(filterId)) {
+      return;
+    }
+
+    final previous = filter['enabled'] != false;
+
+    setState(() {
+      filterMutations[filterId] =
+          enabled ? 'Đang bật...' : 'Đang tắt...';
+      filter['enabled'] = enabled;
+    });
+
+    try {
+      final saved = await backend.updateNotificationFilter(
+        filterId,
+        {
+          ...filter,
+          'enabled': enabled,
+        },
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      final index = filters.indexWhere(
+        (item) => item['id']?.toString() == filterId,
+      );
+
+      if (index >= 0) {
+        setState(() {
+          filters[index] = saved;
+        });
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        filter['enabled'] = previous;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể cập nhật bộ lọc: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          filterMutations.remove(filterId);
+        });
+      }
+    }
+  }
+
+  Future<void> _moveFilter(
+    int index,
+    int delta,
+  ) async {
+    if (
+      reorderingFilters ||
+      filterMutations.isNotEmpty
+    ) {
+      return;
+    }
+
+    final nextIndex =
+        index + delta;
+
+    if (
+      index < 0 ||
+      index >= filters.length ||
+      nextIndex < 0 ||
+      nextIndex >= filters.length
+    ) {
+      return;
+    }
+
+    final previous =
+        List<Map<String, dynamic>>.from(
+      filters,
+    );
+
+    final next =
+        List<Map<String, dynamic>>.from(
+      filters,
+    );
+
+    final moved =
+        next.removeAt(index);
+
+    next.insert(
+      nextIndex,
+      moved,
+    );
+
+    setState(() {
+      reorderingFilters = true;
+      filters = next;
+    });
+
+    try {
+      final orderedIds =
+          next
+              .map(
+                (item) =>
+                    item['id']?.toString() ?? '',
+              )
+              .where(
+                (id) => id.isNotEmpty,
+              )
+              .toList();
+
+      if (orderedIds.length != next.length) {
+        throw Exception(
+          'Danh sách bộ lọc có ID không hợp lệ.',
+        );
+      }
+
+      final saved =
+          await backend.reorderNotificationFilters(
+        orderedIds,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        filters = saved;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        filters = previous;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Không thể đổi thứ tự bộ lọc: $error',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          reorderingFilters = false;
+        });
+      }
+    }
+  }
+
+  String _compactText(
+    dynamic value, {
+    int maxLength = 28,
+  }) {
+    final text =
+        value?.toString().trim() ?? '';
+
+    if (text.length <= maxLength) {
+      return text;
+    }
+
+    return '${text.substring(0, maxLength - 1)}…';
+  }
+
+  String _formatPriceSummary(dynamic value) {
+    final number =
+        value is num
+            ? value
+            : num.tryParse(
+                value?.toString() ?? '',
+              );
+
+    if (number == null) {
+      return '';
+    }
+
+    final rounded =
+        number.round();
+
+    if (rounded >= 1000) {
+      final millions =
+          rounded / 1000;
+
+      final text =
+          millions % 1 == 0
+              ? millions.toInt().toString()
+              : millions.toStringAsFixed(1);
+
+      return '≥${text}tr';
+    }
+
+    return '≥${rounded}k';
+  }
+
+  String _advancedKeywordSummary(
+    dynamic raw,
+    String prefix,
+  ) {
+    if (raw is! List || raw.isEmpty) {
+      return '';
+    }
+
+    final values =
+        raw
+            .map(
+              (item) =>
+                  item.toString().trim(),
+            )
+            .where(
+              (item) => item.isNotEmpty,
+            )
+            .toList();
+
+    if (values.isEmpty) {
+      return '';
+    }
+
+    final first =
+        _compactText(
+      values.first,
+      maxLength: 20,
+    );
+
+    final more =
+        values.length > 1
+            ? ' +${values.length - 1}'
+            : '';
+
+    return '$prefix: $first$more';
+  }
+
+  String _buildFilterSummary(
+    Map<String, dynamic> filter,
+  ) {
+    final mode =
+        filter['mode']?.toString() ==
+            'advanced'
+            ? 'advanced'
+            : 'basic';
+
+    if (mode == 'advanced') {
+      final rawAdvanced =
+          filter['advanced'];
+
+      final advanced =
+          rawAdvanced is Map
+              ? Map<String, dynamic>.from(
+                  rawAdvanced,
+                )
+              : <String, dynamic>{};
+
+      final parts =
+          <String>[];
+
+      final show =
+          _advancedKeywordSummary(
+        advanced['showKeywords'],
+        'Hiện',
+      );
+
+      final hide =
+          _advancedKeywordSummary(
+        advanced['hideKeywords'],
+        'Ẩn',
+      );
+
+      if (show.isNotEmpty) {
+        parts.add(show);
+      } else {
+        parts.add('Hiện: tất cả');
+      }
+
+      if (hide.isNotEmpty) {
+        parts.add(hide);
+      }
+
+      return parts.join(' · ');
+    }
+
+    final rawBasic =
+        filter['basic'];
+
+    final basic =
+        rawBasic is Map
+            ? Map<String, dynamic>.from(
+                rawBasic,
+              )
+            : <String, dynamic>{};
+
+    final parts =
+        <String>[];
+
+    final pickup =
+        _compactText(
+      basic['pickup'],
+      maxLength: 20,
+    );
+
+    final dropoff =
+        _compactText(
+      basic['dropoff'],
+      maxLength: 20,
+    );
+
+    if (
+      pickup.isNotEmpty &&
+      dropoff.isNotEmpty
+    ) {
+      parts.add(
+        basic['acceptBothDirections'] == true
+            ? '$pickup ↔ $dropoff'
+            : '$pickup → $dropoff',
+      );
+    } else if (pickup.isNotEmpty) {
+      parts.add('Đón: $pickup');
+    } else if (dropoff.isNotEmpty) {
+      parts.add('Trả: $dropoff');
+    }
+
+    final include =
+        _compactText(
+      basic['includeKeywords'],
+      maxLength: 22,
+    );
+
+    if (include.isNotEmpty) {
+      parts.add('Có: $include');
+    }
+
+    final exclude =
+        _compactText(
+      basic['excludeKeywords'],
+      maxLength: 22,
+    );
+
+    if (exclude.isNotEmpty) {
+      parts.add('Bỏ: $exclude');
+    }
+
+    final price =
+        _formatPriceSummary(
+      basic['minimumPrice'],
+    );
+
+    if (price.isNotEmpty) {
+      parts.add(price);
+    }
+
+    final time =
+        _compactText(
+      basic['timeRules'],
+      maxLength: 22,
+    );
+
+    if (time.isNotEmpty) {
+      parts.add(time);
+    }
+
+    if (parts.isEmpty) {
+      return 'Không đặt điều kiện cụ thể';
+    }
+
+    return parts.join(' · ');
   }
 
   @override
@@ -55,9 +679,7 @@ class _FilterPageState extends State<FilterPage> {
             child: Center(
               child: Text(
                 'Bộ lọc thông báo',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w400,
+                style: AppTypography.pageTitle.copyWith(
                   color: colorScheme.onSurface,
                 ),
               ),
@@ -77,9 +699,11 @@ class _FilterPageState extends State<FilterPage> {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: filterCount == 0
-                      ? _buildEmptyState(context)
-                      : _buildFilterListPlaceholder(context),
+                  child: loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : filterCount == 0
+                          ? _buildEmptyState(context)
+                          : _buildFilterList(context),
                 ),
 
                 // =================================
@@ -189,18 +813,264 @@ class _FilterPageState extends State<FilterPage> {
 
   // ========================================
   // FILTER LIST
-  //
-  // UI cua tung filter se lam sau khi
-  // ban gui logic moi.
   // ========================================
 
-  Widget _buildFilterListPlaceholder(BuildContext context) {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
+  Widget _buildFilterList(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
 
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
+    return RefreshIndicator(
+      onRefresh: _loadFilters,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 120),
+        itemCount: filters.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final filter = filters[index];
 
-      children: const [],
+          final enabled = filter['enabled'] != false;
+
+          final filterId = filter['id']?.toString() ?? '';
+
+          final mutating =
+              filterId.isNotEmpty &&
+              filterMutations.containsKey(filterId);
+
+          final interactionLocked =
+              reorderingFilters ||
+              mutating;
+
+          final mutationLabel =
+              filterId.isEmpty
+                  ? null
+                  : filterMutations[filterId];
+
+          final mode = filter['mode']?.toString() == 'advanced'
+              ? 'Nâng cao'
+              : 'Cơ bản';
+
+          final groupIds = filter['groupIds'];
+
+          final groupCount = groupIds is List ? groupIds.length : 0;
+
+          final groupText = groupCount == 0
+              ? 'Tất cả các nhóm'
+              : '$groupCount nhóm';
+
+          final summary =
+              _buildFilterSummary(filter);
+
+          return Material(
+            color: colorScheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(18),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: interactionLocked
+                  ? null
+                  : () {
+                      _editFilter(filter);
+                    },
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 10, 12),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: mutating
+                          ? const CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                            )
+                          : Icon(
+                              enabled
+                                  ? Icons.notifications_active_rounded
+                                  : Icons.notifications_off_outlined,
+                              color: enabled
+                                  ? colorScheme.primary
+                                  : colorScheme.onSurfaceVariant,
+                            ),
+                    ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          filter['name']?.toString() ?? 'Bộ lọc',
+                          style: const TextStyle(
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 7,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              'Ưu tiên ${index + 1} • $mode • $groupText',
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            if (mutationLabel != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primaryContainer,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  mutationLabel,
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: colorScheme.onPrimaryContainer,
+                                  ),
+                                ),
+                              )
+                            else if (!enabled)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  'Đang tắt',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 7),
+                        Text(
+                          summary,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13.2,
+                            height: 1.35,
+                            color: enabled
+                                ? colorScheme.onSurfaceVariant
+                                : colorScheme.onSurfaceVariant.withValues(
+                                    alpha: 0.72,
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: enabled,
+                    onChanged: interactionLocked
+                        ? null
+                        : (value) {
+                            _toggleFilter(filter, value);
+                          },
+                  ),
+                  PopupMenuButton<String>(
+                    enabled: !interactionLocked,
+                    onSelected: (value) {
+                      if (value == 'move_up') {
+                        _moveFilter(index, -1);
+                        return;
+                      }
+
+                      if (value == 'move_down') {
+                        _moveFilter(index, 1);
+                        return;
+                      }
+
+                      if (value == 'edit') {
+                        _editFilter(filter);
+                        return;
+                      }
+
+                      if (value == 'duplicate') {
+                        _duplicateFilter(filter);
+                        return;
+                      }
+
+                      if (value == 'delete') {
+                        _deleteFilter(filter);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem<String>(
+                        value: 'move_up',
+                        enabled: index > 0,
+                        child: const Row(
+                          children: [
+                            Icon(Icons.arrow_upward_rounded),
+                            SizedBox(width: 10),
+                            Text('Đưa lên'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'move_down',
+                        enabled: index < filters.length - 1,
+                        child: const Row(
+                          children: [
+                            Icon(Icons.arrow_downward_rounded),
+                            SizedBox(width: 10),
+                            Text('Đưa xuống'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuDivider(),
+                      const PopupMenuItem<String>(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit_outlined),
+                            SizedBox(width: 10),
+                            Text('Sửa'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'duplicate',
+                        child: Row(
+                          children: [
+                            Icon(Icons.copy_rounded),
+                            SizedBox(width: 10),
+                            Text('Sao chép'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_outline),
+                            SizedBox(width: 10),
+                            Text('Xóa'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        },
+      ),
     );
   }
 

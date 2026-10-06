@@ -13,6 +13,11 @@ class SettingsController
   SettingsService();
 
 
+  final ValueNotifier<double>
+      notificationFontSize =
+      ValueNotifier<double>(15);
+
+
   AppSettings _settings =
   const AppSettings();
 
@@ -26,6 +31,10 @@ class SettingsController
 
     _settings =
     await service.load();
+
+
+    notificationFontSize.value =
+        _settings.chatFontSize;
 
 
     ThemeService
@@ -79,6 +88,32 @@ class SettingsController
 
 
 
+  void previewFontSize(
+      double value,
+      ) {
+
+
+    if (
+      _settings.chatFontSize ==
+      value
+    ) {
+      return;
+    }
+
+
+    _settings =
+        _settings.copyWith(
+          chatFontSize:
+          value,
+        );
+
+
+    notificationFontSize.value =
+        value;
+  }
+
+
+
   Future<void> updateFontSize(
       double value,
       ) async {
@@ -89,6 +124,10 @@ class SettingsController
           chatFontSize:
           value,
         );
+
+
+    notificationFontSize.value =
+        value;
 
 
     notifyListeners();

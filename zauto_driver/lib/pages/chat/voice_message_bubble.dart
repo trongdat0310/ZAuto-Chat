@@ -35,7 +35,7 @@ class VoiceMessageBubble extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      constraints: const BoxConstraints(minWidth: 230, maxWidth: 300),
+      constraints: const BoxConstraints(minWidth: 210, maxWidth: 300),
 
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
 
@@ -46,20 +46,16 @@ class VoiceMessageBubble extends StatelessWidget {
       ),
 
       child: Row(
-        mainAxisSize: MainAxisSize.min,
-
         children: [
-          // ========================================
-          // PLAY / PAUSE
-          // ========================================
-
           IconButton(
             padding: EdgeInsets.zero,
 
             constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
 
             icon: Icon(
-              isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              isPlaying
+                  ? Icons.pause_rounded
+                  : Icons.play_arrow_rounded,
 
               size: 30,
 
@@ -71,9 +67,6 @@ class VoiceMessageBubble extends StatelessWidget {
 
           const SizedBox(width: 7),
 
-          // ========================================
-          // WAVEFORM
-          // ========================================
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,

@@ -56,8 +56,19 @@ import {
 } from "../settings/user-message-settings-store.js";
 
 import {
+  shouldDisplayConversationEvent,
+} from "../settings/message-media-policy.js";
+
+
+import {
   shouldSkipDuplicateUserMessage,
 } from "../messages/user-message-dedupe.js";
+
+import {
+  cloneRealtimeLatencyTrace,
+  createRealtimeLatencyTrace,
+  markRealtimeLatencyTrace,
+} from "../diagnostics/realtime-latency.js";
 
 const workers =
   new Map();
@@ -735,6 +746,30 @@ async function storeConversationEvent(
 
 
   // ========================================
+  // USER MEDIA DISPLAY SETTINGS
+  //
+  // Chan truoc khi enrich/store/broadcast.
+  // Ap dung chung cho realtime va old_messages.
+  // ========================================
+
+  const messageSettings =
+    getUserMessageSettings(
+      userId
+    );
+
+
+  if (
+    !shouldDisplayConversationEvent(
+      messageSettings,
+      message
+    )
+  ) {
+
+    return null;
+  }
+
+
+  // ========================================
   // 348.6B
   // CHI LUU CAC EVENT CO THE HIEN THI
   //
@@ -1220,7 +1255,8 @@ function requestMissedGroupMessages(
 async function processMessage(
   userId,
   worker,
-  message
+  message,
+  latencyTrace = null
 ) {
   try {
     const key =
@@ -1309,8 +1345,17 @@ async function processMessage(
     const filter =
       evaluateUserMessage(
         userId,
-        content
+        content,
+        {
+          groupId,
+        }
       );
+
+
+    markRealtimeLatencyTrace(
+      latencyTrace,
+      "filterDoneAtMs"
+    );
 
 
     if (!filter.matched) {
@@ -1402,6 +1447,12 @@ async function processMessage(
       }
     }
 
+    markRealtimeLatencyTrace(
+      latencyTrace,
+      "dedupeDoneAtMs"
+    );
+
+
     const saved =
       saveUserMessage(
         userId,
@@ -1465,6 +1516,40 @@ async function processMessage(
                   zaloData.cliMsgId
                 )
               : null,
+
+          sourceQuote: {
+            content:
+              zaloData.content ??
+              null,
+
+            msgType:
+              zaloData.msgType ??
+              null,
+
+            propertyExt:
+              zaloData.propertyExt ??
+              null,
+
+            uidFrom:
+              zaloData.uidFrom ??
+              null,
+
+            msgId:
+              zaloData.msgId ??
+              null,
+
+            cliMsgId:
+              zaloData.cliMsgId ??
+              null,
+
+            ts:
+              zaloData.ts ??
+              null,
+
+            ttl:
+              zaloData.ttl ??
+              0,
+          },
         }
       );
 
@@ -1474,11 +1559,31 @@ async function processMessage(
       return;
     }
 
+
+    markRealtimeLatencyTrace(
+      latencyTrace,
+      "tripCreatedAtMs"
+    );
+
+
+    const realtimeMessage =
+      latencyTrace
+        ? {
+            ...saved.message,
+
+            _latencyTrace:
+              cloneRealtimeLatencyTrace(
+                latencyTrace
+              ),
+          }
+        : saved.message;
+
+
     // Realtime chi cho user nay
     broadcastUserEvent(
       userId,
       "new_trip",
-      saved.message
+      realtimeMessage
     );
 
     console.log("");
@@ -1811,6 +1916,10 @@ export async function startUserWorker(
 
       async (message) => {
 
+        const latencyTrace =
+          createRealtimeLatencyTrace();
+
+
         await enrichStickerMessage(
           worker,
           message
@@ -1844,7 +1953,8 @@ export async function startUserWorker(
         processMessage(
           key,
           worker,
-          message
+          message,
+          latencyTrace
         );
       }
     );

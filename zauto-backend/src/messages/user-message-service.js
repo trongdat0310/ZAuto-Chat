@@ -15,11 +15,23 @@ import {
   findUserConversationMessage,
 } from "../conversations/conversation-store.js";
 
+
+const acceptInFlight =
+  new Map();
+
+
+function acceptLockKey(
+  userId,
+  messageId
+) {
+  return `${String(userId)}:${String(messageId)}`;
+}
+
 // ========================================
 // ACCEPT
 // ========================================
 
-export async function acceptUserMessage(
+async function acceptUserMessageInternal(
   userId,
   messageId,
   replyText = "Nhận"
@@ -202,6 +214,57 @@ export async function acceptUserMessage(
 
 
   // ========================================
+  // FALLBACK QUOTE SNAPSHOT
+  //
+  // Neu conversation store chua kip luu tin goc,
+  // dung snapshot da gan vao trip ngay luc listener nhan event.
+  // ========================================
+
+  if (
+    !quote &&
+    message.sourceQuote &&
+    typeof message.sourceQuote ===
+      "object"
+  ) {
+    const snapshot =
+      message.sourceQuote;
+
+
+    if (
+      snapshot.msgId != null ||
+      snapshot.cliMsgId != null
+    ) {
+      quote = {
+        content:
+          snapshot.content,
+
+        msgType:
+          snapshot.msgType,
+
+        propertyExt:
+          snapshot.propertyExt,
+
+        uidFrom:
+          snapshot.uidFrom,
+
+        msgId:
+          snapshot.msgId,
+
+        cliMsgId:
+          snapshot.cliMsgId,
+
+        ts:
+          snapshot.ts,
+
+        ttl:
+          snapshot.ttl ??
+          0,
+      };
+    }
+  }
+
+
+  // ========================================
   // PAYLOAD
   //
   // Co quote:
@@ -257,15 +320,24 @@ export async function acceptUserMessage(
   );
 
 
-  if (!quote) {
-    console.warn(
-      "[USER ACCEPT] SOURCE QUOTE NOT FOUND:",
-      userId,
-      messageId,
-      sourceThreadId,
-      sourceMsgId,
+  if (
+    !quote &&
+    (
+      sourceMsgId ||
       sourceCliMsgId
-    );
+    )
+  ) {
+    const error =
+      new Error(
+        "Tin nhan goc chua san sang de tra loi."
+      );
+
+
+    error.code =
+      "SOURCE_MESSAGE_UNAVAILABLE";
+
+
+    throw error;
   }
 
 
@@ -351,6 +423,60 @@ export async function acceptUserMessage(
 }
 
 
+export async function acceptUserMessage(
+  userId,
+  messageId,
+  replyText = "Nhận"
+) {
+  const key =
+    acceptLockKey(
+      userId,
+      messageId
+    );
+
+
+  const existing =
+    acceptInFlight.get(
+      key
+    );
+
+
+  if (existing) {
+    return existing;
+  }
+
+
+  const promise =
+    acceptUserMessageInternal(
+      userId,
+      messageId,
+      replyText
+    );
+
+
+  acceptInFlight.set(
+    key,
+    promise
+  );
+
+
+  try {
+    return await promise;
+  } finally {
+    if (
+      acceptInFlight.get(
+        key
+      ) ===
+      promise
+    ) {
+      acceptInFlight.delete(
+        key
+      );
+    }
+  }
+}
+
+
 // ========================================
 // IGNORE
 // ========================================
@@ -359,6 +485,28 @@ export async function ignoreUserMessage(
   userId,
   messageId
 ) {
+  if (
+    acceptInFlight.has(
+      acceptLockKey(
+        userId,
+        messageId
+      )
+    )
+  ) {
+    const error =
+      new Error(
+        "Cuoc dang duoc nhan."
+      );
+
+
+    error.code =
+      "MESSAGE_ACCEPT_IN_PROGRESS";
+
+
+    throw error;
+  }
+
+
   const message =
     getUserMessageById(
       userId,

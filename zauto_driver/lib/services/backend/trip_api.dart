@@ -51,6 +51,120 @@ class TripApi extends BackendApiBase {
         .toList();
   }
 
+  Future<List<Map<String, dynamic>>> getRecentPendingTrips({
+    required int displaySeconds,
+    int limit = 200,
+  }) async {
+    final decoded =
+        await getJson(
+      Uri.parse(
+        '$baseUrl/api/me/messages'
+        '?limit=$limit',
+      ),
+    );
+
+
+    final rawMessages =
+        decoded['messages'];
+
+    final serverNow =
+        DateTime.tryParse(
+      decoded['serverNow']
+              ?.toString() ??
+          '',
+    );
+
+
+    if (
+      rawMessages is! List ||
+      serverNow == null
+    ) {
+      return [];
+    }
+
+
+    final result =
+        <Map<String, dynamic>>[];
+
+
+    for (
+      final rawMessage
+      in rawMessages
+    ) {
+      if (rawMessage is! Map) {
+        continue;
+      }
+
+
+      final message =
+          Map<String, dynamic>.from(
+        rawMessage,
+      );
+
+
+      if (
+        message['status'] !=
+        'new'
+      ) {
+        continue;
+      }
+
+
+      final receivedAt =
+          DateTime.tryParse(
+        message['receivedAt']
+                ?.toString() ??
+            '',
+      );
+
+
+      if (
+        receivedAt == null
+      ) {
+        continue;
+      }
+
+
+      final expiresAt =
+          receivedAt.add(
+        Duration(
+          seconds:
+              displaySeconds,
+        ),
+      );
+
+
+      final remainingMs =
+          expiresAt
+              .difference(
+                serverNow,
+              )
+              .inMilliseconds;
+
+
+      if (
+        remainingMs <=
+        0
+      ) {
+        continue;
+      }
+
+
+      result.add(
+        <String, dynamic>{
+          ...message,
+
+          '_reconcileRemainingMs':
+              remainingMs,
+        },
+      );
+    }
+
+
+    return result;
+  }
+
+
   Future<List<Map<String, dynamic>>> getAcceptedTrips() async {
     final messages = await getMessages(limit: 500);
 

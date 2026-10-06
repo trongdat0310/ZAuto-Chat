@@ -11,6 +11,10 @@ class HomeRealtimeHandler {
 
   final void Function(Map<String, dynamic> data) onNewTrip;
 
+  final void Function(String messageId) onTripAccepted;
+
+  final void Function(String messageId) onTripIgnored;
+
   final void Function() onConnectionError;
 
   final void Function() onConnectionDone;
@@ -28,6 +32,8 @@ class HomeRealtimeHandler {
     required this.onAuthenticated,
     required this.onAuthError,
     required this.onNewTrip,
+    required this.onTripAccepted,
+    required this.onTripIgnored,
     required this.onConnectionError,
     required this.onConnectionDone,
   });
@@ -91,7 +97,46 @@ class HomeRealtimeHandler {
         }
 
         // ========================================
-        // CHI NHAN NEW TRIP
+        // TRIP DA DUOC XU LY O NGUON KHAC
+        // ========================================
+
+        if (
+          type == 'trip_accepted' ||
+          type == 'trip_ignored'
+        ) {
+          final rawData =
+              event['data'];
+
+          if (rawData is! Map) {
+            return;
+          }
+
+          final messageId =
+              rawData['messageId']
+                  ?.toString()
+                  .trim() ??
+              '';
+
+          if (messageId.isEmpty) {
+            return;
+          }
+
+          if (type == 'trip_accepted') {
+            onTripAccepted(
+              messageId,
+            );
+          } else {
+            onTripIgnored(
+              messageId,
+            );
+          }
+
+          return;
+        }
+
+
+        // ========================================
+        // NEW TRIP
         // ========================================
 
         if (type != 'new_trip') {
@@ -105,6 +150,18 @@ class HomeRealtimeHandler {
         }
 
         final data = Map<String, dynamic>.from(rawData);
+
+        final rawTrace = data['_latencyTrace'];
+
+        if (rawTrace is Map) {
+          data['_latencyTrace'] = <String, dynamic>{
+            ...Map<String, dynamic>.from(rawTrace),
+
+            'flutterHomeReceivedAtMs':
+                DateTime.now()
+                    .millisecondsSinceEpoch,
+          };
+        }
 
         onNewTrip(data);
       },

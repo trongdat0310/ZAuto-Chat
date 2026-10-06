@@ -83,7 +83,18 @@ import {
 import {
   getUserFilterSettings,
   saveUserFilterSettings,
+  getUserFilterDocumentV2,
+  createUserFilterV2,
+  updateUserFilterV2,
+  reorderUserFiltersV2,
+  deleteUserFilterV2,
+  previewUserFilterV2,
 } from "./filters/user-filter-engine.js";
+
+import {
+  getUserSavedFilterKeywords,
+  saveUserSavedFilterKeywords,
+} from "./filters/user-filter-keyword-store.js";
 
 import {
   getUserMessages,
@@ -167,6 +178,10 @@ import {
   deleteUserConversationMessage,
 } from "./conversations/conversation-delete-service.js";
 
+import {
+  isRealtimeLatencyTraceEnabled,
+} from "./diagnostics/realtime-latency.js";
+
 dotenv.config();
 
 // ========================================
@@ -229,6 +244,27 @@ app.get("/health", (req, res) => {
 app.get("/api/zalo/status", (req, res) => {
   res.json(getZaloStatus());
 });
+
+
+// ========================================
+// CURRENT USER NETWORK STATUS
+// ========================================
+
+app.get(
+  "/api/me/network/status",
+
+  requireAuth,
+
+  (req, res) => {
+
+    res.json({
+      success: true,
+
+      network:
+        getNetworkWatchdogStatus(),
+    });
+  }
+);
 
 // ========================================
 // GROUPS
@@ -479,6 +515,29 @@ app.post(
         await ignoreMessage(
           req.params.id
         );
+
+      const ignoredMessageId =
+        String(
+          req.params.id
+        );
+
+
+      broadcastUserEvent(
+        req.user.id,
+        "trip_ignored",
+        {
+          messageId:
+            ignoredMessageId,
+        }
+      );
+
+
+      console.log(
+        "[TRIP IGNORED REALTIME]",
+        req.user.id,
+        ignoredMessageId
+      );
+
 
       res.json({
         success: true,
@@ -1203,6 +1262,363 @@ app.post(
 );
 
 // ========================================
+// CURRENT USER SAVED FILTER KEYWORDS
+// ========================================
+
+app.get(
+  "/api/me/notification-filter-keywords",
+
+  requireAuth,
+
+  (req, res) => {
+    const keywords =
+      getUserSavedFilterKeywords(
+        req.user.id
+      );
+
+
+    res.json({
+      success: true,
+
+      keywords,
+    });
+  }
+);
+
+
+app.put(
+  "/api/me/notification-filter-keywords",
+
+  requireAuth,
+
+  (req, res) => {
+    try {
+      const keywords =
+        saveUserSavedFilterKeywords(
+          req.user.id,
+          req.body?.keywords
+        );
+
+
+      res.json({
+        success: true,
+
+        keywords,
+      });
+
+    } catch (error) {
+
+      console.error(
+        "[ME NOTIFICATION FILTER KEYWORDS UPDATE] ERROR:",
+        error
+      );
+
+
+      res
+        .status(400)
+        .json({
+          success: false,
+
+          error:
+            error?.message ??
+            String(error),
+        });
+    }
+  }
+);
+
+
+// ========================================
+// CURRENT USER NOTIFICATION FILTERS V2
+// ========================================
+
+app.get(
+  "/api/me/notification-filters",
+
+  requireAuth,
+
+  (req, res) => {
+
+    const document =
+      getUserFilterDocumentV2(
+        req.user.id
+      );
+
+
+    res.json({
+      success: true,
+
+      document,
+
+      filters:
+        document.filters,
+    });
+  }
+);
+
+
+app.post(
+  "/api/me/notification-filters",
+
+  requireAuth,
+
+  (req, res) => {
+
+    try {
+
+      const filter =
+        createUserFilterV2(
+          req.user.id,
+          req.body
+        );
+
+
+      res.json({
+        success: true,
+
+        filter,
+      });
+
+    } catch (error) {
+
+      console.error(
+        "[ME NOTIFICATION FILTER CREATE] ERROR:",
+        error
+      );
+
+
+      res
+        .status(400)
+        .json({
+          success: false,
+
+          error:
+            error?.message ??
+            String(error),
+        });
+    }
+  }
+);
+
+
+app.put(
+  "/api/me/notification-filters/:filterId",
+
+  requireAuth,
+
+  (req, res) => {
+
+    try {
+
+      const filter =
+        updateUserFilterV2(
+          req.user.id,
+          req.params.filterId,
+          req.body
+        );
+
+
+      res.json({
+        success: true,
+
+        filter,
+      });
+
+    } catch (error) {
+
+      console.error(
+        "[ME NOTIFICATION FILTER UPDATE] ERROR:",
+        error
+      );
+
+
+      res
+        .status(
+          error?.code ===
+            "FILTER_NOT_FOUND"
+            ? 404
+            : 400
+        )
+        .json({
+          success: false,
+
+          error:
+            error?.message ??
+            String(error),
+        });
+    }
+  }
+);
+
+
+app.put(
+  "/api/me/notification-filters-order",
+
+  requireAuth,
+
+  (req, res) => {
+
+    try {
+
+      const document =
+        reorderUserFiltersV2(
+          req.user.id,
+          req.body?.orderedIds
+        );
+
+
+      res.json({
+        success: true,
+
+        document,
+
+        filters:
+          document.filters,
+      });
+
+    } catch (error) {
+
+      console.error(
+        "[ME NOTIFICATION FILTER REORDER] ERROR:",
+        error
+      );
+
+
+      res
+        .status(400)
+        .json({
+          success: false,
+
+          error:
+            error?.message ??
+            String(error),
+        });
+    }
+  }
+);
+
+
+app.delete(
+  "/api/me/notification-filters/:filterId",
+
+  requireAuth,
+
+  (req, res) => {
+
+    try {
+
+      const deleted =
+        deleteUserFilterV2(
+          req.user.id,
+          req.params.filterId
+        );
+
+
+      if (!deleted) {
+        return res
+          .status(404)
+          .json({
+            success: false,
+
+            error:
+              "Khong tim thay bo loc.",
+          });
+      }
+
+
+      res.json({
+        success: true,
+
+        deleted: true,
+      });
+
+    } catch (error) {
+
+      console.error(
+        "[ME NOTIFICATION FILTER DELETE] ERROR:",
+        error
+      );
+
+
+      res
+        .status(500)
+        .json({
+          success: false,
+
+          error:
+            error?.message ??
+            String(error),
+        });
+    }
+  }
+);
+
+
+app.post(
+  "/api/me/notification-filters/preview",
+
+  requireAuth,
+
+  (req, res) => {
+
+    try {
+
+      const messageText =
+        String(
+          req.body?.messageText ??
+          ""
+        );
+
+
+      const filter =
+        req.body?.filter ??
+        {};
+
+
+      const groupId =
+        req.body?.groupId ??
+        null;
+
+
+      const result =
+        previewUserFilterV2(
+          filter,
+          messageText,
+          {
+            groupId,
+          }
+        );
+
+
+      res.json({
+        success: true,
+
+        result,
+      });
+
+    } catch (error) {
+
+      console.error(
+        "[ME NOTIFICATION FILTER PREVIEW] ERROR:",
+        error
+      );
+
+
+      res
+        .status(400)
+        .json({
+          success: false,
+
+          error:
+            error?.message ??
+            String(error),
+        });
+    }
+  }
+);
+
+
+// ========================================
 // CURRENT USER MESSAGES
 // ========================================
 
@@ -1228,6 +1644,10 @@ app.get(
 
     res.json({
       success: true,
+
+      serverNow:
+        new Date()
+          .toISOString(),
 
       count:
         messages.length,
@@ -1389,6 +1809,23 @@ app.post(
       }
 
 
+      if (
+        error.code ===
+        "SOURCE_MESSAGE_UNAVAILABLE"
+      ) {
+
+        return res
+          .status(409)
+          .json({
+            success:
+              false,
+
+            error:
+              "Tin nhan goc chua san sang de tra loi. Vui long thu lai.",
+          });
+      }
+
+
       console.error(
         "[ME ACCEPT] ERROR:",
         error
@@ -1468,6 +1905,21 @@ app.post(
 
             error:
               "Cuoc nay da duoc nhan.",
+          });
+      }
+
+
+      if (
+        error.code ===
+        "MESSAGE_ACCEPT_IN_PROGRESS"
+      ) {
+        return res
+          .status(409)
+          .json({
+            success: false,
+
+            error:
+              "Cuoc dang duoc nhan.",
           });
       }
 
@@ -1839,77 +2291,6 @@ app.get(
           );
         }
       }
-
-
-    if (
-      user.zaloLinked === true
-    ) {
-
-      try {
-
-        const api =
-          await connectUserZalo(
-            user.id
-          );
-
-        const result =
-          await api.fetchAccountInfo();
-
-        const zalo =
-          result?.profile ??
-          {};
-
-
-        zaloProfile = {
-
-          name:
-            zalo.displayName ??
-            zalo.zaloName ??
-            null,
-
-          avatar:
-            zalo.avatar ??
-            null,
-
-          phone:
-            zalo.phoneNumber ??
-            null,
-        };
-
-        if (profile) {
-
-          zaloProfile = {
-            id:
-              zaloUserId,
-
-            name:
-              profile.name ??
-              profile.displayName ??
-              profile.dName ??
-              null,
-
-            avatar:
-              profile.avatar ??
-              profile.fullAvt ??
-              profile.avt ??
-              null,
-
-            phone:
-              profile.phoneNumber ??
-              profile.phone ??
-              null,
-          };
-        }
-
-      } catch (error) {
-
-        console.warn(
-          "[ACCOUNT ZALO PROFILE] ERROR:",
-          error?.message ??
-          error
-        );
-      }
-    }
 
 
     res.json({
@@ -4170,6 +4551,101 @@ app.delete(
 // START SERVER
 // ========================================
 
+function listenHttpServer(
+  httpServer
+) {
+  return new Promise(
+    (
+      resolve,
+      reject
+    ) => {
+
+      const onError =
+        error => {
+
+          httpServer.off(
+            "listening",
+            onListening
+          );
+
+          reject(error);
+        };
+
+
+      const onListening =
+        () => {
+
+          httpServer.off(
+            "error",
+            onError
+          );
+
+          resolve();
+        };
+
+
+      httpServer.once(
+        "error",
+        onError
+      );
+
+
+      httpServer.once(
+        "listening",
+        onListening
+      );
+
+
+      httpServer.listen(
+        PORT,
+        "0.0.0.0"
+      );
+    }
+  );
+}
+
+
+function logListenError(
+  error
+) {
+  if (
+    error?.code ===
+    "EADDRINUSE"
+  ) {
+
+    console.error("");
+    console.error(
+      `[SERVER] Khong the khoi dong: cong ${PORT} dang duoc su dung.`
+    );
+
+    console.error(
+      "[SERVER] Co the mot ZAUTO backend khac van dang chay."
+    );
+
+    console.error(
+      "[SERVER] Windows: netstat -ano | findstr :" +
+      PORT
+    );
+
+    console.error(
+      "[SERVER] Sau do dung: taskkill /PID <PID> /F"
+    );
+
+    return;
+  }
+
+
+  console.error(
+    "[SERVER] Khong the mo cong HTTP:"
+  );
+
+  console.error(
+    error?.message ??
+    error
+  );
+}
+
+
 async function startServer() {
   console.log("");
   console.log("==============================");
@@ -4177,42 +4653,88 @@ async function startServer() {
   console.log("==============================");
   console.log("");
 
+
+  // ========================================
+  // HTTP + WEBSOCKET FIRST
+  //
+  // Phai chi khoi dong watchdog/Zalo workers
+  // sau khi bind port thanh cong.
+  // ========================================
+
+  const httpServer =
+    http.createServer(app);
+
+
+  initWebSocket(
+    httpServer
+  );
+
+
   try {
+
+    await listenHttpServer(
+      httpServer
+    );
+
+  } catch (error) {
+
+    logListenError(
+      error
+    );
+
+
+    process.exitCode =
+      1;
+
+    return;
+  }
+
+
+  console.log("");
+  console.log(
+    `[SERVER] Running on http://localhost:${PORT}`
+  );
+
+  console.log(
+    `[SERVER] WebSocket: ws://localhost:${PORT}/ws`
+  );
+
+  console.log(
+    `[SERVER] Health: http://localhost:${PORT}/health`
+  );
+
+  console.log(
+    `[SERVER] Zalo: http://localhost:${PORT}/api/zalo/status`
+  );
+
+  console.log(
+    "[LATENCY TRACE]",
+    isRealtimeLatencyTraceEnabled()
+      ? "ENABLED"
+      : "DISABLED"
+  );
+
+
+  try {
+
     initFirebaseAdmin();
+
 
     console.log(
       "[SERVER] Firebase ready"
     );
 
+
     console.log(
       "[SERVER] Per-user Zalo mode enabled"
     );
+
 
     // ========================================
     // NETWORK WATCHDOG
     // ========================================
 
     startNetworkWatchdog();
-
-    // ========================================
-    // NETWORK WATCHDOG STATUS
-    // ========================================
-
-    app.get(
-      "/api/me/network/status",
-
-      requireAuth,
-
-      (req, res) => {
-
-        res.json({
-          success: true,
-
-          network:
-            getNetworkWatchdogStatus(),
-        });
-      }
-    );
 
 
     // ========================================
@@ -4229,41 +4751,18 @@ async function startServer() {
           );
         }
       );
+
   } catch (error) {
+
     console.error(
-      "[SERVER] Startup error:"
+      "[SERVER] Startup service error:"
     );
 
-    console.error(error);
+    console.error(
+      error
+    );
   }
-
-  const httpServer =
-    http.createServer(app);
-
-  initWebSocket(httpServer);
-
-  httpServer.listen(
-    PORT,
-    "0.0.0.0",
-    () => {
-      console.log("");
-      console.log(
-        `[SERVER] Running on http://localhost:${PORT}`
-      );
-
-      console.log(
-        `[SERVER] WebSocket: ws://localhost:${PORT}/ws`
-      );
-
-      console.log(
-        `[SERVER] Health: http://localhost:${PORT}/health`
-      );
-
-      console.log(
-        `[SERVER] Zalo: http://localhost:${PORT}/api/zalo/status`
-      );
-    }
-  );
 }
+
 
 startServer();

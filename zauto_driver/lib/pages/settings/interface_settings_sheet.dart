@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../controllers/settings_controller.dart';
+import '../../theme/app_typography.dart';
 import '../../services/backend_service.dart';
 
 class InterfaceSettingsSheet extends StatefulWidget {
@@ -93,7 +94,7 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
           const Text(
             'Giao diện và Tương tác',
 
-            style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold),
+            style: AppTypography.sheetTitle,
           ),
 
           const SizedBox(height: 22),
@@ -185,7 +186,9 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                           const Spacer(),
 
                           Text(
-                            notificationFontSize.round().toString(),
+                            notificationFontSize % 1 == 0
+                                ? notificationFontSize.toInt().toString()
+                                : notificationFontSize.toStringAsFixed(1),
 
                             style: TextStyle(
                               fontSize: 16,
@@ -203,19 +206,76 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
 
                         max: 30,
 
-                        divisions: 20,
+                        divisions: 40,
 
                         value: notificationFontSize,
+
+                        label:
+                            notificationFontSize.toStringAsFixed(1),
 
                         onChanged: (value) {
                           setState(() {
                             notificationFontSize = value;
                           });
+
+                          widget.settingsController
+                              .previewFontSize(
+                            value,
+                          );
                         },
 
                         onChangeEnd: (value) async {
                           await widget.onFontSizeChanged(value);
                         },
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      Container(
+                        width: double.infinity,
+
+                        padding: const EdgeInsets.all(14),
+
+                        decoration: BoxDecoration(
+                          color:
+                              colorScheme.surfaceContainerHighest,
+
+                          borderRadius:
+                              BorderRadius.circular(12),
+                        ),
+
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+
+                          children: [
+                            Text(
+                              'Xem trước thông báo',
+
+                              style:
+                                  AppTypography.caption.copyWith(
+                                color:
+                                    colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+
+                            const SizedBox(height: 6),
+
+                            Text(
+                              'Có cuốc Thái Bình đi Nội Bài giá 650k',
+
+                              style: TextStyle(
+                                fontSize:
+                                    notificationFontSize,
+
+                                fontWeight:
+                                    FontWeight.w600,
+
+                                height: 1.25,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
 import '../services/backend_service.dart';
+import '../theme/app_typography.dart';
 
 class GroupsPage extends StatefulWidget {
   const GroupsPage({super.key});
@@ -236,10 +237,7 @@ class _GroupsPageState extends State<GroupsPage> {
                     child: Text(
                       'Nhóm ($enabledCount/${groups.length}) bật thông báo',
 
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AppTypography.itemTitle,
                     ),
                   ),
                 ],

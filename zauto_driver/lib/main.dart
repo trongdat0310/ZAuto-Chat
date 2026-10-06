@@ -59,6 +59,11 @@ Future<void> main() async {
       .ensureInitialized();
 
 
+  debugPrint(
+    '[LATENCY TRACE] Flutter follows backend trace payloads',
+  );
+
+
   await Firebase.initializeApp(
     options:
     DefaultFirebaseOptions

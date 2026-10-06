@@ -3,6 +3,14 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
+import {
+  getUserMessageSettings,
+} from "../settings/user-message-settings-store.js";
+
+import {
+  shouldDisplayConversationEvent,
+} from "../settings/message-media-policy.js";
+
 
 const __filename =
   fileURLToPath(import.meta.url);
@@ -1870,69 +1878,6 @@ export function saveConversationMessage(
     {};
 
     // ========================================
-    // DEBUG VOICE PAYLOAD
-    // TAM THOI DE XAC DINH CAU TRUC AUDIO
-    // ========================================
-
-    const debugMsgType =
-      String(
-        data?.msgType ??
-        ""
-      )
-        .trim()
-        .toLowerCase();
-
-
-    if (
-      debugMsgType ===
-        "chat.voice" ||
-      debugMsgType ===
-        "chat.voice.msg" ||
-      debugMsgType ===
-        "chat.audio" ||
-      debugMsgType ===
-        "31"
-    ) {
-
-      console.log(
-        "\n========================================"
-      );
-
-      console.log(
-        "[VOICE DEBUG]"
-      );
-
-      console.log({
-        msgId:
-          data?.msgId ??
-          null,
-
-        cliMsgId:
-          data?.cliMsgId ??
-          null,
-
-        msgType:
-          data?.msgType ??
-          null,
-
-        content:
-          data?.content ??
-          null,
-
-        rawData:
-          data,
-      });
-
-      console.log(
-        "[VOICE DEBUG END]"
-      );
-
-      console.log(
-        "========================================\n"
-      );
-    }
-
-    // ========================================
     // BO QUA EVENT KHONG PHAI MESSAGE HIEN THI
     //
     // QUAN TRONG:
@@ -2144,12 +2089,6 @@ export function saveConversationMessage(
         null,
 
 
-      mediaFileSize:
-        genericMedia
-          ?.mediaFileSize ??
-        null,
-
-
       fileName:
         genericMedia
           ?.fileName ??
@@ -2217,6 +2156,8 @@ export function saveConversationMessage(
       mediaFileSize:
         voiceMedia
           ?.mediaFileSize ??
+        genericMedia
+          ?.mediaFileSize ??
         null,
 
       waveformSamples:
@@ -2255,40 +2196,6 @@ export function saveConversationMessage(
   messages.push(
     record
   );
-
-  // ========================================
-  // DEBUG VOICE RECORD DA LUU
-  // ========================================
-
-  if (
-    record.msgType ===
-    "chat.voice"
-  ) {
-
-    console.log(
-      "[VOICE SAVED]",
-      {
-        msgId:
-          record.msgId,
-
-        mediaType:
-          record.mediaType,
-
-        mediaUrl:
-          record.mediaUrl,
-
-        mediaDuration:
-          record.mediaDuration,
-
-        mediaFileSize:
-          record.mediaFileSize,
-
-        waveformSamples:
-          record.waveformSamples,
-      }
-    );
-  }
-
 
   messages.sort(
     (a, b) =>
@@ -3355,6 +3262,30 @@ export function getUserConversationList(
 
 
 // ========================================
+// APPLY USER MEDIA DISPLAY SETTINGS
+// ========================================
+
+function visibleConversationMessages(
+  userId,
+  messages
+) {
+  const settings =
+    getUserMessageSettings(
+      userId
+    );
+
+
+  return messages.filter(
+    message =>
+      shouldDisplayConversationEvent(
+        settings,
+        message
+      )
+  );
+}
+
+
+// ========================================
 // READ MESSAGES
 // ========================================
 
@@ -3385,7 +3316,10 @@ export function getUserConversationMessages(
     );
 
 
-  return messages
+  return visibleConversationMessages(
+    userId,
+    messages
+  )
     .slice(
       -safeLimit
     )
@@ -3411,12 +3345,15 @@ export function getUserConversationMessagesPage(
 ) {
 
   const messages =
-    readJson(
-      groupMessageFile(
-        userId,
-        groupId
-      ),
-      []
+    visibleConversationMessages(
+      userId,
+      readJson(
+        groupMessageFile(
+          userId,
+          groupId
+        ),
+        []
+      )
     )
       .slice()
       .sort(
@@ -3630,6 +3567,7 @@ export function findUserConversationMessage(
   userId,
   groupId,
   {
+    id = null,
     msgId = null,
     cliMsgId = null,
   } = {}
@@ -3647,6 +3585,15 @@ export function findUserConversationMessage(
   return (
     messages.find(
       item => {
+
+        if (
+          id &&
+          item.id ===
+            String(id)
+        ) {
+          return true;
+        }
+
 
         if (
           msgId &&

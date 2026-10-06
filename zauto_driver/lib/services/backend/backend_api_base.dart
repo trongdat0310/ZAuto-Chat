@@ -1,10 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
 import '../auth_service.dart';
 
 class BackendApiBase {
+  static const Duration requestTimeout =
+      Duration(seconds: 12);
+
   final String baseUrl;
 
   final AuthService auth;
@@ -16,30 +21,51 @@ class BackendApiBase {
   }
 
   Future<dynamic> getJson(Uri uri) async {
-    final response = await http.get(uri, headers: await authHeaders());
+    final response = await _withNetworkHandling(
+      http
+          .get(
+            uri,
+            headers: await authHeaders(),
+          )
+          .timeout(requestTimeout),
+    );
 
     return _handleResponse(response);
   }
 
   Future<dynamic> postJson(Uri uri, {Object? body}) async {
-    final response = await http.post(
-      uri,
+    final response = await _withNetworkHandling(
+      http
+          .post(
+            uri,
 
-      headers: {...await authHeaders(), 'Content-Type': 'application/json'},
+            headers: {
+              ...await authHeaders(),
+              'Content-Type': 'application/json',
+            },
 
-      body: body == null ? null : jsonEncode(body),
+            body: body == null ? null : jsonEncode(body),
+          )
+          .timeout(requestTimeout),
     );
 
     return _handleResponse(response);
   }
 
   Future<dynamic> patchJson(Uri uri, {Object? body}) async {
-    final response = await http.patch(
-      uri,
+    final response = await _withNetworkHandling(
+      http
+          .patch(
+            uri,
 
-      headers: {...await authHeaders(), 'Content-Type': 'application/json'},
+            headers: {
+              ...await authHeaders(),
+              'Content-Type': 'application/json',
+            },
 
-      body: body == null ? null : jsonEncode(body),
+            body: body == null ? null : jsonEncode(body),
+          )
+          .timeout(requestTimeout),
     );
 
     return _handleResponse(response);
@@ -56,26 +82,62 @@ class BackendApiBase {
       request.body = jsonEncode(body);
     }
 
-    final streamed = await request.send();
+    final streamed = await _withNetworkHandling(
+      request
+          .send()
+          .timeout(requestTimeout),
+    );
 
-    final response = await http.Response.fromStream(streamed);
-
-    return _handleResponse(response);
-  }
-
-  Future<dynamic> putJson(Uri uri, {Object? body}) async {
-    final response = await http.put(
-      uri,
-
-      headers: {...await authHeaders(), 'Content-Type': 'application/json'},
-
-      body: body == null ? null : jsonEncode(body),
+    final response = await _withNetworkHandling(
+      http.Response
+          .fromStream(streamed)
+          .timeout(requestTimeout),
     );
 
     return _handleResponse(response);
   }
 
-  dynamic _handleResponse(http.Response response) {
+  Future<dynamic> putJson(Uri uri, {Object? body}) async {
+    final response = await _withNetworkHandling(
+      http
+          .put(
+            uri,
+
+            headers: {
+              ...await authHeaders(),
+              'Content-Type': 'application/json',
+            },
+
+            body: body == null ? null : jsonEncode(body),
+          )
+          .timeout(requestTimeout),
+    );
+
+    return _handleResponse(response);
+  }
+
+  Future<T> _withNetworkHandling<T>(
+    Future<T> request,
+  ) async {
+    try {
+      return await request;
+    } on TimeoutException {
+      throw Exception(
+        'Kết nối quá thời gian. Vui lòng kiểm tra mạng và thử lại.',
+      );
+    } on SocketException {
+      throw Exception(
+        'Không có kết nối mạng. Vui lòng kiểm tra mạng và thử lại.',
+      );
+    } on http.ClientException {
+      throw Exception(
+        'Không thể kết nối tới backend. Vui lòng thử lại.',
+      );
+    }
+  }
+
+
+  Future<dynamic> _handleResponse(http.Response response) async {
     if (response.body.isEmpty) {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return {};
@@ -90,6 +152,16 @@ class BackendApiBase {
       decoded = jsonDecode(response.body);
     } catch (_) {
       throw Exception('Phản hồi server không hợp lệ');
+    }
+
+    if (response.statusCode == 401) {
+      await auth.invalidateSession();
+
+      throw Exception(
+        decoded is Map
+            ? (decoded['error'] ?? 'Phiên đăng nhập đã hết hạn.').toString()
+            : 'Phiên đăng nhập đã hết hạn.',
+      );
     }
 
     if (response.statusCode < 200 || response.statusCode >= 300) {

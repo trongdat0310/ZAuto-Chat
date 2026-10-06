@@ -154,6 +154,39 @@ class RealtimeApi {
 
             final type = event['type']?.toString().trim();
 
+            if (
+              type == 'new_trip'
+            ) {
+              final rawData =
+                  event['data'];
+
+              if (rawData is Map) {
+                final data =
+                    Map<String, dynamic>.from(
+                  rawData,
+                );
+
+                final rawTrace =
+                    data['_latencyTrace'];
+
+                if (rawTrace is Map) {
+                  data['_latencyTrace'] =
+                      <String, dynamic>{
+                    ...Map<String, dynamic>.from(
+                      rawTrace,
+                    ),
+
+                    'flutterSocketDecodedAtMs':
+                        DateTime.now()
+                            .millisecondsSinceEpoch,
+                  };
+
+                  event['data'] =
+                      data;
+                }
+              }
+            }
+
             // ========================================
             // GUI EVENT VE UI TRUOC.
             // ========================================
@@ -177,6 +210,8 @@ class RealtimeApi {
                 'REALTIME AUTH FAILED '
                 '-> stop reconnect',
               );
+
+              await auth.invalidateSession();
 
               return;
             }

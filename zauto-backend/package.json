@@ -5,7 +5,9 @@
   "type": "module",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test": "node --test src/filters/*.test.js src/messages/*.test.js src/settings/*.test.js",
+    "benchmark:filters": "node src/filters/user-filter-benchmark.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

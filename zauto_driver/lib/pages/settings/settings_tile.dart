@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_typography.dart';
+
 class SettingsTile extends StatelessWidget {
   final IconData icon;
 
@@ -74,11 +76,7 @@ class SettingsTile extends StatelessWidget {
                   Text(
                     title,
 
-                    style: TextStyle(
-                      fontSize: 16,
-
-                      fontWeight: FontWeight.w600,
-
+                    style: AppTypography.itemTitle.copyWith(
                       color: enabled
                           ? null
                           : colorScheme.onSurfaceVariant.withValues(
@@ -92,7 +90,7 @@ class SettingsTile extends StatelessWidget {
                   Text(
                     subtitle,
 
-                    style: TextStyle(
+                    style: AppTypography.caption.copyWith(
                       fontSize: 13,
 
                       color: colorScheme.onSurfaceVariant.withValues(

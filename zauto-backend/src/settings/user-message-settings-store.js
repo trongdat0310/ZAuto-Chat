@@ -2,13 +2,30 @@ import fs from "node:fs";
 import path from "node:path";
 
 
+
+// ========================================
+// RAM CACHE
+//
+// Message hot path khong doc file moi lan.
+// ========================================
+
+const settingsCache =
+  new Map();
+
+
 const DEFAULT_SETTINGS = {
 
-  // Lọc trùng cuốc
+  // Hien thi anh trong hoi thoai.
+  showImages: true,
+
+  // Loc trung cuoc.
   deduplicateMessages: true,
 
   // Phai trung voi thoi gian hien thi card cuoc.
-    dedupeWindowSeconds: 10,
+  dedupeWindowSeconds: 10,
+
+  // Hien thi voice/audio trong hoi thoai.
+  showVoiceMessages: true,
 };
 
 
@@ -66,16 +83,35 @@ function ensureUserDirectory(
 export function getUserMessageSettings(
   userId
 ) {
+  const key =
+    String(
+      userId
+    );
+
+
+  const cached =
+    settingsCache.get(
+      key
+    );
+
+
+  if (cached) {
+    return cached;
+  }
+
 
   ensureUserDirectory(
-    userId
+    key
   );
 
 
   const file =
     getSettingsFile(
-      userId
+      key
     );
+
+
+  let settings;
 
 
   if (
@@ -84,41 +120,91 @@ export function getUserMessageSettings(
     )
   ) {
 
-    return {
+    settings = {
       ...DEFAULT_SETTINGS,
     };
-  }
+
+  } else {
+
+    try {
+
+      const saved =
+        JSON.parse(
+          fs.readFileSync(
+            file,
+            "utf8"
+          )
+        );
 
 
-  try {
+      settings = {
+        ...DEFAULT_SETTINGS,
+        ...saved,
+      };
 
-    const saved =
-      JSON.parse(
-        fs.readFileSync(
-          file,
-          "utf8"
+
+      // Legacy key from removed voice transcription feature.
+      delete settings.transcribeVoiceMessages;
+
+
+      if (
+        Object.prototype.hasOwnProperty.call(
+          saved,
+          "transcribeVoiceMessages"
         )
+      ) {
+
+        const cleaned = {
+          ...saved,
+        };
+
+
+        delete cleaned.transcribeVoiceMessages;
+
+
+        try {
+          fs.writeFileSync(
+            file,
+            JSON.stringify(
+              cleaned,
+              null,
+              2
+            ),
+            "utf8"
+          );
+        } catch (cleanupError) {
+          console.warn(
+            "[MESSAGE SETTINGS] LEGACY CLEANUP ERROR:",
+            key,
+            cleanupError?.message ??
+            cleanupError
+          );
+        }
+      }
+
+    } catch (error) {
+
+      console.error(
+        "[MESSAGE SETTINGS] READ ERROR:",
+        key,
+        error
       );
 
 
-    return {
-      ...DEFAULT_SETTINGS,
-      ...saved,
-    };
-
-  } catch (error) {
-
-    console.error(
-      "[MESSAGE SETTINGS] READ ERROR:",
-      userId,
-      error
-    );
-
-
-    return {
-      ...DEFAULT_SETTINGS,
-    };
+      settings = {
+        ...DEFAULT_SETTINGS,
+      };
+    }
   }
+
+
+  settingsCache.set(
+    key,
+    settings
+  );
+
+
+  return settings;
 }
 
 
@@ -143,12 +229,32 @@ export function updateUserMessageSettings(
 
 
   if (
+    typeof patch.showImages ===
+    "boolean"
+  ) {
+
+    next.showImages =
+      patch.showImages;
+  }
+
+
+  if (
     typeof patch.deduplicateMessages ===
     "boolean"
   ) {
 
     next.deduplicateMessages =
       patch.deduplicateMessages;
+  }
+
+
+  if (
+    typeof patch.showVoiceMessages ===
+    "boolean"
+  ) {
+
+    next.showVoiceMessages =
+      patch.showVoiceMessages;
   }
 
 
@@ -195,6 +301,14 @@ export function updateUserMessageSettings(
     ),
 
     "utf8"
+  );
+
+
+  settingsCache.set(
+    String(
+      userId
+    ),
+    next
   );
 
 

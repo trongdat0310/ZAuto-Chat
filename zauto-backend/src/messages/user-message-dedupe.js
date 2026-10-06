@@ -10,6 +10,10 @@ const recentMessagesByUser =
   new Map();
 
 
+const lastCleanupByUser =
+  new Map();
+
+
 // ========================================
 // NORMALIZE TEXT
 // ========================================
@@ -148,27 +152,50 @@ export function shouldSkipDuplicateUserMessage(
 
 
   // ========================================
-  // DON CACHE CU
+  // DON CACHE CU CO THROTTLE
+  //
+  // Khong quet toan bo Map tren moi message.
+  // Sweep toi da 1 lan / window / user.
   // ========================================
 
-  for (
-    const [
-      oldKey,
-      oldTimestamp,
-    ]
-    of recent.entries()
+  const lastCleanup =
+    lastCleanupByUser.get(
+      userKey
+    ) ??
+    0;
+
+
+  if (
+    now -
+      lastCleanup >=
+    windowMs
   ) {
 
-    if (
-      now -
-      oldTimestamp >
-      windowMs
+    for (
+      const [
+        oldKey,
+        oldTimestamp,
+      ]
+      of recent.entries()
     ) {
 
-      recent.delete(
-        oldKey
-      );
+      if (
+        now -
+          oldTimestamp >
+        windowMs
+      ) {
+
+        recent.delete(
+          oldKey
+        );
+      }
     }
+
+
+    lastCleanupByUser.set(
+      userKey,
+      now
+    );
   }
 
 

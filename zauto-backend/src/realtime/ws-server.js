@@ -6,6 +6,10 @@ import {
 import jwt from "jsonwebtoken";
 
 import {
+  performance,
+} from "node:perf_hooks";
+
+import {
   JWT_SECRET,
 } from "../config/env.js";
 
@@ -197,6 +201,25 @@ export function initWebSocket(
       path:
         "/ws",
     });
+
+
+  wss.on(
+    "error",
+
+    (error) => {
+
+      // HTTP server startup errors nhu
+      // EADDRINUSE se duoc server.js xu ly.
+      // Handler nay ngan EventEmitter nem
+      // "Unhandled 'error' event".
+      console.error(
+        "[WS] SERVER ERROR:",
+        error?.code ??
+        error?.message ??
+        error
+      );
+    }
+  );
 
 
   wss.on(
@@ -469,10 +492,39 @@ export function broadcastUserEvent(
   }
 
 
+  let eventData =
+    data;
+
+
+  if (
+    type === "new_trip" &&
+    data &&
+    typeof data === "object" &&
+    data._latencyTrace &&
+    typeof data._latencyTrace ===
+      "object"
+  ) {
+    eventData = {
+      ...data,
+
+      _latencyTrace: {
+        ...data._latencyTrace,
+
+        wsBroadcastAtMs:
+          Date.now(),
+
+        wsBroadcastPerfMs:
+          performance.now(),
+      },
+    };
+  }
+
+
   const payload =
     JSON.stringify({
       type,
-      data,
+      data:
+        eventData,
 
       at:
         new Date()
