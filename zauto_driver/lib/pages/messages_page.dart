@@ -65,6 +65,8 @@ class _MessagesPageState extends State<MessagesPage>
 
   final Set<String> _pinningGroupIds = <String>{};
 
+  final Map<String, bool> _pendingPinValues = <String, bool>{};
+
   final Set<String> _deletingGroupIds = <String>{};
 
   @override
@@ -144,13 +146,40 @@ class _MessagesPageState extends State<MessagesPage>
 
         // ========================================
         // CONVERSATION STATE THAY DOI
+        //
+        // CAC STATE DON GIAN DUOC APPLY NGAY
+        // DE THIET BI THU HAI KHONG PHAI DOI
+        // 350ms + REST ROUND TRIP.
+        //
+        // VAN REFRESH NEN SAU DO DE RECONCILE.
         // ========================================
+
+        if (type == 'conversation_read') {
+          _applyRealtimeConversationRead(event);
+
+          scheduleRealtimeRefresh();
+
+          return;
+        }
+
+        if (type == 'conversation_pinned') {
+          _applyRealtimeConversationPinned(event);
+
+          scheduleRealtimeRefresh();
+
+          return;
+        }
+
+        if (type == 'conversation_deleted') {
+          _applyRealtimeConversationDeleted(event);
+
+          scheduleRealtimeRefresh();
+
+          return;
+        }
 
         if (type != 'conversation_message' &&
             type != 'conversation_message_updated' &&
-            type != 'conversation_read' &&
-            type != 'conversation_pinned' &&
-            type != 'conversation_deleted' &&
             type != 'new_trip' &&
             type != 'conversation_history_synced') {
           return;
@@ -185,6 +214,104 @@ class _MessagesPageState extends State<MessagesPage>
         debugPrint('MESSAGES REALTIME STREAM DONE');
       },
     );
+  }
+
+  Map<String, dynamic>? _eventDataMap(Map<String, dynamic> event) {
+    final rawData = event['data'];
+
+    if (rawData is! Map) {
+      return null;
+    }
+
+    return Map<String, dynamic>.from(rawData);
+  }
+
+  void _applyRealtimeConversationRead(Map<String, dynamic> event) {
+    final data = _eventDataMap(event);
+
+    if (data == null || !mounted) {
+      return;
+    }
+
+    final groupId = data['groupId']?.toString().trim();
+
+    if (groupId == null || groupId.isEmpty) {
+      return;
+    }
+
+    final index = conversations.indexWhere(
+      (item) => item['groupId']?.toString().trim() == groupId,
+    );
+
+    if (index < 0) {
+      return;
+    }
+
+    setState(() {
+      conversations[index]['unreadCount'] = 0;
+
+      final lastReadAt = data['lastReadAt'];
+
+      if (lastReadAt != null) {
+        conversations[index]['lastReadAt'] = lastReadAt;
+      }
+    });
+  }
+
+  void _applyRealtimeConversationPinned(Map<String, dynamic> event) {
+    final data = _eventDataMap(event);
+
+    if (data == null || !mounted) {
+      return;
+    }
+
+    final groupId = data['groupId']?.toString().trim();
+
+    if (groupId == null || groupId.isEmpty) {
+      return;
+    }
+
+    // Local request dang pending thi giu optimistic state.
+    // Refresh sau khi request ket thuc se lay backend truth.
+    if (_pinningGroupIds.contains(groupId)) {
+      return;
+    }
+
+    final index = conversations.indexWhere(
+      (item) => item['groupId']?.toString().trim() == groupId,
+    );
+
+    if (index < 0) {
+      return;
+    }
+
+    setState(() {
+      conversations[index]['pinned'] = data['pinned'] == true;
+
+      conversations[index]['pinnedAt'] = data['pinnedAt'];
+
+      _sortLocalConversations();
+    });
+  }
+
+  void _applyRealtimeConversationDeleted(Map<String, dynamic> event) {
+    final data = _eventDataMap(event);
+
+    if (data == null || !mounted) {
+      return;
+    }
+
+    final groupId = data['groupId']?.toString().trim();
+
+    if (groupId == null || groupId.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      conversations.removeWhere(
+        (item) => item['groupId']?.toString().trim() == groupId,
+      );
+    });
   }
 
   void scheduleRealtimeRefresh() {
@@ -318,6 +445,53 @@ class _MessagesPageState extends State<MessagesPage>
 
       final conversationResult = results[1];
 
+      // ========================================
+      // BAO VE LOCAL ACTION DANG PENDING
+      //
+      // Mot REST response cu khong duoc:
+      // - lam pin optimistic nhay nguoc lai
+      // - lam conversation dang xoa hien lai
+      // ========================================
+
+      final reconciledConversations = conversationResult
+          .where((item) {
+            final groupId = item['groupId']?.toString().trim();
+
+            if (groupId == null || groupId.isEmpty) {
+              return true;
+            }
+
+            return !_deletingGroupIds.contains(groupId);
+          })
+          .map((item) {
+            final copy = Map<String, dynamic>.from(item);
+
+            final groupId = copy['groupId']?.toString().trim();
+
+            if (groupId == null || groupId.isEmpty) {
+              return copy;
+            }
+
+            final pendingPin = _pendingPinValues[groupId];
+
+            if (pendingPin != null) {
+              copy['pinned'] = pendingPin;
+
+              final local = conversations.cast<Map<String, dynamic>?>().firstWhere(
+                (current) =>
+                    current?['groupId']?.toString().trim() == groupId,
+                orElse: () => null,
+              );
+
+              copy['pinnedAt'] = pendingPin
+                  ? local?['pinnedAt']
+                  : null;
+            }
+
+            return copy;
+          })
+          .toList();
+
       final groupResult = results[2];
 
       final enabled = <String>{};
@@ -339,7 +513,9 @@ class _MessagesPageState extends State<MessagesPage>
       setState(() {
         acceptedTrips = acceptedResult;
 
-        conversations = conversationResult;
+        conversations = reconciledConversations;
+
+        _sortLocalConversations();
 
         enabledGroupIds = enabled;
 
@@ -509,6 +685,8 @@ class _MessagesPageState extends State<MessagesPage>
 
     _pinningGroupIds.add(groupId);
 
+    _pendingPinValues[groupId] = nextPinned;
+
     // ========================================
     // OPTIMISTIC UI
     //
@@ -526,11 +704,28 @@ class _MessagesPageState extends State<MessagesPage>
     });
 
     try {
-      await backend.setConversationPinned(groupId: groupId, pinned: nextPinned);
+      final updated = await backend.setConversationPinned(
+        groupId: groupId,
+        pinned: nextPinned,
+      );
 
       if (!mounted) {
         return;
       }
+
+      setState(() {
+        final index = conversations.indexWhere(
+          (item) => item['groupId']?.toString().trim() == groupId,
+        );
+
+        if (index >= 0) {
+          conversations[index]['pinned'] = updated['pinned'] == true;
+
+          conversations[index]['pinnedAt'] = updated['pinnedAt'];
+
+          _sortLocalConversations();
+        }
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -557,8 +752,12 @@ class _MessagesPageState extends State<MessagesPage>
     } finally {
       _pinningGroupIds.remove(groupId);
 
+      _pendingPinValues.remove(groupId);
+
       if (mounted) {
         setState(() {});
+
+        await loadData(showLoading: false, showError: false);
       }
     }
   }
@@ -1056,9 +1255,24 @@ class _MessagesPageState extends State<MessagesPage>
 
       setState(() {
         conversations.removeWhere(
-          (item) => item['groupId']?.toString() == groupId,
+          (item) => item['groupId']?.toString().trim() == groupId,
         );
       });
+
+      // ========================================
+      // RECONCILE SAU DELETE
+      //
+      // Neu mot message moi den DUNG LUC delete
+      // vua ket thuc, backend co the da unhide
+      // conversation lai. Reload nay dam bao UI
+      // khong vo tinh xoa mat state moi hon.
+      // ========================================
+
+      await loadData(showLoading: false, showError: false);
+
+      if (!mounted) {
+        return;
+      }
 
       ScaffoldMessenger.of(
         context,
