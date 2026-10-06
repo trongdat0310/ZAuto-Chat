@@ -19,6 +19,12 @@ class ChatRealtimeController {
 
   final void Function(Map<String, dynamic> message) onMessage;
 
+  final VoidCallback onConnected;
+
+  final VoidCallback onDisconnected;
+
+  final VoidCallback onAuthError;
+
   StreamSubscription<Map<String, dynamic>>? _subscription;
 
   bool _disposed = false;
@@ -31,6 +37,9 @@ class ChatRealtimeController {
     required this.onReloadRequested,
     required this.onMarkReadRequested,
     required this.onMessage,
+    required this.onConnected,
+    required this.onDisconnected,
+    required this.onAuthError,
   });
 
   // ========================================
@@ -112,6 +121,8 @@ class ChatRealtimeController {
         '-> reload latest messages',
       );
 
+      onConnected();
+
       onReloadRequested(true);
 
       onMarkReadRequested();
@@ -170,6 +181,14 @@ class ChatRealtimeController {
 
     if (type == 'auth_error') {
       debugPrint('CHAT REALTIME AUTH ERROR');
+
+      onAuthError();
+
+      return;
+    }
+
+    if (type == 'realtime_disconnected') {
+      onDisconnected();
 
       return;
     }
