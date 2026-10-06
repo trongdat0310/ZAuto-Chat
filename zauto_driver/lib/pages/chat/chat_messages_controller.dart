@@ -111,8 +111,14 @@ class ChatMessagesController {
   // FETCH LATEST PAGE
   // ========================================
 
-  Future<ChatMessagesPageData> fetchLatestPage({int limit = pageSize}) async {
-    return _fetchPage(limit: limit);
+  Future<ChatMessagesPageData> fetchLatestPage({
+    int limit = pageSize,
+    bool includeDeletedLocal = false,
+  }) async {
+    return _fetchPage(
+      limit: limit,
+      includeDeletedLocal: includeDeletedLocal,
+    );
   }
 
   // ========================================
@@ -211,7 +217,9 @@ class ChatMessagesController {
         if (effectiveForce) {
           latestCount = await catchUpNewerMessages();
         } else {
-          final page = await fetchLatestPage();
+          final page = await fetchLatestPage(
+            includeDeletedLocal: true,
+          );
 
           if (_disposed) {
             return;
@@ -280,8 +288,13 @@ class ChatMessagesController {
   Future<ChatMessagesPageData> fetchNewerPage({
     required String afterId,
     int limit = pageSize,
+    bool includeDeletedLocal = false,
   }) async {
-    return _fetchPage(limit: limit, afterId: afterId);
+    return _fetchPage(
+      limit: limit,
+      afterId: afterId,
+      includeDeletedLocal: includeDeletedLocal,
+    );
   }
 
   // ========================================
@@ -354,6 +367,7 @@ class ChatMessagesController {
     required int limit,
     String? beforeId,
     String? afterId,
+    bool includeDeletedLocal = false,
   }) async {
     final page = await backend.getConversationMessagesPage(
       groupId: groupId,
@@ -362,7 +376,10 @@ class ChatMessagesController {
       afterId: afterId,
     );
 
-    final loadedMessages = extractMessages(page['messages']);
+    final loadedMessages = extractMessages(
+      page['messages'],
+      includeDeletedLocal: includeDeletedLocal,
+    );
 
     return ChatMessagesPageData(
       messages: loadedMessages,
@@ -561,7 +578,10 @@ class ChatMessagesController {
         return fetchedCount;
       }
 
-      final page = await fetchNewerPage(afterId: afterId);
+      final page = await fetchNewerPage(
+        afterId: afterId,
+        includeDeletedLocal: true,
+      );
 
       if (_disposed) {
         return fetchedCount;
@@ -631,7 +651,9 @@ class ChatMessagesController {
   }
 
   Future<int> _fallbackLatestPage() async {
-    final page = await fetchLatestPage();
+    final page = await fetchLatestPage(
+      includeDeletedLocal: true,
+    );
 
     if (_disposed) {
       return 0;
@@ -664,6 +686,28 @@ class ChatMessagesController {
   void mergeLatest(List<Map<String, dynamic>> latest, {required bool force}) {
     for (final incoming in latest) {
       final existingIndex = indexOfSame(messages, incoming);
+
+      final status = incoming['status']?.toString() ?? 'normal';
+
+      // ========================================
+      // TOMBSTONE TU BACKEND
+      //
+      // Co the den qua realtime HOAC REST reload
+      // sau reconnect. Neu message cu dang co
+      // tren UI thi phai go no ra.
+      // ========================================
+
+      if (status == 'deleted_local') {
+        if (existingIndex >= 0) {
+          messages.removeAt(existingIndex);
+        }
+
+        continue;
+      }
+
+      if (!shouldDisplayMessage(incoming)) {
+        continue;
+      }
 
       if (existingIndex >= 0) {
         messages[existingIndex] = incoming;
@@ -787,7 +831,10 @@ class ChatMessagesController {
   // CONVERT RAW API MESSAGE LIST
   // ========================================
 
-  List<Map<String, dynamic>> extractMessages(dynamic raw) {
+  List<Map<String, dynamic>> extractMessages(
+    dynamic raw, {
+    bool includeDeletedLocal = false,
+  }) {
     if (raw is! List) {
       return [];
     }
@@ -795,7 +842,15 @@ class ChatMessagesController {
     return raw
         .whereType<Map>()
         .map((item) => Map<String, dynamic>.from(item))
-        .where(shouldDisplayMessage)
+        .where((message) {
+          final status = message['status']?.toString() ?? 'normal';
+
+          if (includeDeletedLocal && status == 'deleted_local') {
+            return true;
+          }
+
+          return shouldDisplayMessage(message);
+        })
         .toList();
   }
 
