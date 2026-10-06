@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/app_config.dart';
-import '../../controllers/settings_controller.dart';
 
 import '../../services/backend_service.dart';
 import '../../services/chat_state_service.dart';
@@ -52,22 +51,12 @@ class ChatPage extends StatefulWidget {
   final String? targetMsgId;
   final String? targetCliMsgId;
 
-  final String? targetReplyText;
-
-  final int? targetAcceptedAtMs;
-
-  final bool targetSelfOnly;
-
   final AppRealtimeService realtimeService;
-
-  final SettingsController settingsController;
 
   const ChatPage({
     super.key,
 
     required this.realtimeService,
-
-    required this.settingsController,
 
     required this.groupId,
     required this.groupName,
@@ -75,9 +64,6 @@ class ChatPage extends StatefulWidget {
 
     this.targetMsgId,
     this.targetCliMsgId,
-    this.targetReplyText,
-    this.targetAcceptedAtMs,
-    this.targetSelfOnly = false,
   });
 
   @override
@@ -211,12 +197,6 @@ class _ChatPageState extends State<ChatPage> {
       targetMsgId: widget.targetMsgId,
 
       targetCliMsgId: widget.targetCliMsgId,
-
-      targetReplyText: widget.targetReplyText,
-
-      targetAcceptedAtMs: widget.targetAcceptedAtMs,
-
-      targetSelfOnly: widget.targetSelfOnly,
     );
 
     markReadController = ChatMarkReadController(
@@ -246,12 +226,6 @@ class _ChatPageState extends State<ChatPage> {
     );
 
     voiceController = ChatVoiceController();
-
-    // Mot group moi luon bat dau voi player rong.
-    // Tuyet doi khong tiep tuc/phat lai voice cua route truoc.
-    unawaited(
-      voiceController.stopAndReset(),
-    );
 
     messageController.addListener(_handleComposerChanged);
 
@@ -355,6 +329,8 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _confirmDeleteMessage(Map<String, dynamic> message) async {
+    final colorScheme = Theme.of(context).colorScheme;
+
     final confirmed = await showDialog<bool>(
       context: context,
 
@@ -376,6 +352,11 @@ class _ChatPageState extends State<ChatPage> {
             ),
 
             FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: colorScheme.error,
+                foregroundColor: colorScheme.onError,
+              ),
+
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
               },
@@ -2983,11 +2964,6 @@ class _ChatPageState extends State<ChatPage> {
     messageController.removeListener(_handleComposerChanged);
 
     messageController.dispose();
-
-    // Dung audio truoc khi route Chat bi huy.
-    unawaited(
-      voiceController.stopAndReset(),
-    );
 
     voiceController.dispose();
 
