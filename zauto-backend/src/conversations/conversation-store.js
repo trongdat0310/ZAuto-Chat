@@ -3,14 +3,6 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-import {
-  getUserMessageSettings,
-} from "../settings/user-message-settings-store.js";
-
-import {
-  shouldDisplayConversationEvent,
-} from "../settings/message-media-policy.js";
-
 
 const __filename =
   fileURLToPath(import.meta.url);
@@ -783,6 +775,25 @@ export function syncConversationGroups(
 
         pinnedAt:
           old?.pinnedAt ??
+          null,
+
+        // ========================================
+        // LOCAL DELETE STATE
+        //
+        // Khi user xoa conversation trong app,
+        // manual group sync khong duoc lam no
+        // xuat hien lai ngay lap tuc.
+        //
+        // Tin nhan moi se bo hidden o
+        // saveConversationMessage().
+        // ========================================
+
+        hidden:
+          old?.hidden ===
+          true,
+
+        deletedAt:
+          old?.deletedAt ??
           null,
 
         lastMessageId:
@@ -1878,6 +1889,69 @@ export function saveConversationMessage(
     {};
 
     // ========================================
+    // DEBUG VOICE PAYLOAD
+    // TAM THOI DE XAC DINH CAU TRUC AUDIO
+    // ========================================
+
+    const debugMsgType =
+      String(
+        data?.msgType ??
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+
+    if (
+      debugMsgType ===
+        "chat.voice" ||
+      debugMsgType ===
+        "chat.voice.msg" ||
+      debugMsgType ===
+        "chat.audio" ||
+      debugMsgType ===
+        "31"
+    ) {
+
+      console.log(
+        "\n========================================"
+      );
+
+      console.log(
+        "[VOICE DEBUG]"
+      );
+
+      console.log({
+        msgId:
+          data?.msgId ??
+          null,
+
+        cliMsgId:
+          data?.cliMsgId ??
+          null,
+
+        msgType:
+          data?.msgType ??
+          null,
+
+        content:
+          data?.content ??
+          null,
+
+        rawData:
+          data,
+      });
+
+      console.log(
+        "[VOICE DEBUG END]"
+      );
+
+      console.log(
+        "========================================\n"
+      );
+    }
+
+    // ========================================
     // BO QUA EVENT KHONG PHAI MESSAGE HIEN THI
     //
     // QUAN TRONG:
@@ -2089,6 +2163,12 @@ export function saveConversationMessage(
         null,
 
 
+      mediaFileSize:
+        genericMedia
+          ?.mediaFileSize ??
+        null,
+
+
       fileName:
         genericMedia
           ?.fileName ??
@@ -2156,8 +2236,6 @@ export function saveConversationMessage(
       mediaFileSize:
         voiceMedia
           ?.mediaFileSize ??
-        genericMedia
-          ?.mediaFileSize ??
         null,
 
       waveformSamples:
@@ -2196,6 +2274,40 @@ export function saveConversationMessage(
   messages.push(
     record
   );
+
+  // ========================================
+  // DEBUG VOICE RECORD DA LUU
+  // ========================================
+
+  if (
+    record.msgType ===
+    "chat.voice"
+  ) {
+
+    console.log(
+      "[VOICE SAVED]",
+      {
+        msgId:
+          record.msgId,
+
+        mediaType:
+          record.mediaType,
+
+        mediaUrl:
+          record.mediaUrl,
+
+        mediaDuration:
+          record.mediaDuration,
+
+        mediaFileSize:
+          record.mediaFileSize,
+
+        waveformSamples:
+          record.waveformSamples,
+      }
+    );
+  }
+
 
   messages.sort(
     (a, b) =>
@@ -2263,6 +2375,12 @@ export function saveConversationMessage(
       pinnedAt:
         null,
 
+      hidden:
+        false,
+
+      deletedAt:
+        null,
+
       lastIsSelf:
         null,
 
@@ -2313,6 +2431,27 @@ export function saveConversationMessage(
   if (groupName) {
     conversation.name =
       groupName;
+  }
+
+
+  // ========================================
+  // CONVERSATION DA BI XOA TRUOC DO
+  //
+  // Chi message moi that su moi dua no
+  // tro lai danh sach Messages.
+  // ========================================
+
+  if (
+    conversation.hidden ===
+    true
+  ) {
+
+    conversation.hidden =
+      false;
+
+
+    conversation.deletedAt =
+      null;
   }
 
   // ========================================
@@ -3178,6 +3317,29 @@ export function getUserConversationList(
     }
 
     // ========================================
+    // LOCAL DELETE MIGRATION
+    // ========================================
+
+    if (
+      !Object.prototype
+        .hasOwnProperty
+        .call(
+          conversation,
+          "hidden"
+        )
+    ) {
+
+      conversation.hidden =
+        false;
+
+      conversation.deletedAt =
+        null;
+
+      changed =
+        true;
+    }
+
+    // ========================================
     // unreadCount
     // ========================================
 
@@ -3255,32 +3417,16 @@ export function getUserConversationList(
   }
 
 
-  return sortConversations(
-    conversations
-  );
-}
-
-
-// ========================================
-// APPLY USER MEDIA DISPLAY SETTINGS
-// ========================================
-
-function visibleConversationMessages(
-  userId,
-  messages
-) {
-  const settings =
-    getUserMessageSettings(
-      userId
+  const visibleConversations =
+    conversations.filter(
+      item =>
+        item?.hidden !==
+        true
     );
 
 
-  return messages.filter(
-    message =>
-      shouldDisplayConversationEvent(
-        settings,
-        message
-      )
+  return sortConversations(
+    visibleConversations
   );
 }
 
@@ -3316,10 +3462,7 @@ export function getUserConversationMessages(
     );
 
 
-  return visibleConversationMessages(
-    userId,
-    messages
-  )
+  return messages
     .slice(
       -safeLimit
     )
@@ -3345,15 +3488,12 @@ export function getUserConversationMessagesPage(
 ) {
 
   const messages =
-    visibleConversationMessages(
-      userId,
-      readJson(
-        groupMessageFile(
-          userId,
-          groupId
-        ),
-        []
-      )
+    readJson(
+      groupMessageFile(
+        userId,
+        groupId
+      ),
+      []
     )
       .slice()
       .sort(
@@ -3567,7 +3707,6 @@ export function findUserConversationMessage(
   userId,
   groupId,
   {
-    id = null,
     msgId = null,
     cliMsgId = null,
   } = {}
@@ -3585,15 +3724,6 @@ export function findUserConversationMessage(
   return (
     messages.find(
       item => {
-
-        if (
-          id &&
-          item.id ===
-            String(id)
-        ) {
-          return true;
-        }
-
 
         if (
           msgId &&
@@ -3845,25 +3975,18 @@ export function deleteUserConversation(
     );
 
 
-  const beforeLength =
-    conversations.length;
-
-
-  const filtered =
-    conversations.filter(
+  const conversation =
+    conversations.find(
       item =>
         String(
           item?.groupId ??
           ""
-        ) !==
+        ) ===
         safeGroupId
     );
 
 
-  if (
-    filtered.length ===
-    beforeLength
-  ) {
+  if (!conversation) {
 
     return {
       deleted:
@@ -3875,14 +3998,124 @@ export function deleteUserConversation(
   }
 
 
+  const now =
+    new Date()
+      .toISOString();
+
+
+  // ========================================
+  // AN CONVERSATION KHOI APP
+  //
+  // Khong roi nhom Zalo.
+  // Khong xoa tin nhan tren Zalo.
+  //
+  // Giu mot tombstone nhe trong index de:
+  // - manual sync khong lam conversation song lai
+  // - message moi co the dua conversation tro lai
+  // ========================================
+
+  conversation.hidden =
+    true;
+
+
+  conversation.deletedAt =
+    now;
+
+
+  conversation.pinned =
+    false;
+
+
+  conversation.pinnedAt =
+    null;
+
+
+  conversation.lastMessageId =
+    null;
+
+
+  conversation.lastCliMsgId =
+    null;
+
+
+  conversation.lastContent =
+    null;
+
+
+  conversation.lastSenderName =
+    null;
+
+
+  conversation.lastIsSelf =
+    null;
+
+
+  conversation.lastMsgType =
+    null;
+
+
+  conversation.lastMessageAt =
+    null;
+
+
+  conversation.unreadCount =
+    0;
+
+
+  conversation.lastReadAt =
+    now;
+
+
+  conversation.lastReadMessageId =
+    null;
+
+
+  conversation.lastReadCliMsgId =
+    null;
+
+
+  conversation.lastReadMessageAt =
+    null;
+
+
+  conversation.updatedAt =
+    now;
+
+
+  // ========================================
+  // XOA LOCAL CHAT HISTORY
+  //
+  // Day chi la file cache/history cua ZAUTO.
+  // Tin nhan tren Zalo khong bi dong toi.
+  // ========================================
+
+  const messageFile =
+    groupMessageFile(
+      userId,
+      safeGroupId
+    );
+
+
+  if (
+    fs.existsSync(
+      messageFile
+    )
+  ) {
+
+    fs.unlinkSync(
+      messageFile
+    );
+  }
+
+
   sortConversations(
-    filtered
+    conversations
   );
 
 
   writeJsonAtomic(
     file,
-    filtered
+    conversations
   );
 
 
