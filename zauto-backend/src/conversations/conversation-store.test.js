@@ -10,6 +10,7 @@ import {
   deleteUserConversation,
   getUserConversationList,
   getUserConversationMessages,
+  getUserConversationMessagesPage,
   markConversationMessageDeletedLocal,
   markUserConversationRead,
   saveConversationMessage,
@@ -753,6 +754,112 @@ test(
           userId
         ).length,
         0
+      );
+
+    } finally {
+      cleanup(
+        userId
+      );
+    }
+  }
+);
+
+test(
+  "out of order history insert keeps cursor pagination chronological",
+  () => {
+    const userId =
+      `test-conversation-order-${process.pid}`;
+
+    cleanup(
+      userId
+    );
+
+
+    try {
+      const groupId =
+        "group-order";
+
+
+      for (
+        const [
+          id,
+          timestamp,
+        ]
+        of [
+          ["3", 3000],
+          ["1", 1000],
+          ["2", 2000],
+          ["4", 4000],
+        ]
+      ) {
+        saveConversationMessage(
+          userId,
+          {
+            groupName:
+              "Order Group",
+
+            message:
+              textMessage({
+                groupId,
+                msgId:
+                  `msg-${id}`,
+                cliMsgId:
+                  `cli-${id}`,
+                content:
+                  id,
+                timestamp,
+              }),
+          }
+        );
+      }
+
+
+      const latest =
+        getUserConversationMessagesPage(
+          userId,
+          groupId,
+          {
+            limit:
+              2,
+          }
+        );
+
+
+      assert.deepEqual(
+        latest.messages.map(
+          item =>
+            item.content
+        ),
+        [
+          "3",
+          "4",
+        ]
+      );
+
+
+      const older =
+        getUserConversationMessagesPage(
+          userId,
+          groupId,
+          {
+            limit:
+              2,
+
+            beforeId:
+              latest.messages[0].id,
+          }
+        );
+
+
+      assert.deepEqual(
+        older.messages.map(
+          item =>
+            item.content
+        ),
+        [
+          "1",
+          "2",
+        ]
       );
 
     } finally {
