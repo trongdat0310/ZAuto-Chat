@@ -283,6 +283,7 @@ class BackendService {
   Future<void> sendConversationMessage({
     required String groupId,
     required String text,
+    required String clientRequestId,
 
     String? replyToMsgId,
     String? replyToCliMsgId,
@@ -290,6 +291,7 @@ class BackendService {
     return messageApi.sendConversationMessage(
       groupId: groupId,
       text: text,
+      clientRequestId: clientRequestId,
       replyToMsgId: replyToMsgId,
       replyToCliMsgId: replyToCliMsgId,
     );
@@ -371,10 +373,12 @@ class BackendService {
   Future<void> sendConversationPhotos({
     required String groupId,
     required List<String> filePaths,
+    required String clientRequestId,
   }) async {
     return mediaApi.sendConversationPhotos(
       groupId: groupId,
       filePaths: filePaths,
+      clientRequestId: clientRequestId,
     );
   }
 
