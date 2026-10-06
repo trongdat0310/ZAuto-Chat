@@ -2186,15 +2186,44 @@ export function saveConversationMessage(
   };
 
 
+  const previousLast =
+    messages.length > 0
+      ? messages[
+          messages.length - 1
+        ]
+      : null;
+
+
   messages.push(
     record
   );
 
-  messages.sort(
-    (a, b) =>
-      Number(a.timestamp) -
-      Number(b.timestamp)
-  );
+
+  // ========================================
+  // GIU THU TU CHRONOLOGICAL
+  //
+  // Realtime binh thuong:
+  // timestamp moi >= timestamp cuoi
+  // -> append O(1), KHONG sort lai ca history.
+  //
+  // History sync / event den tre:
+  // chi khi timestamp bi lui moi sort.
+  // ========================================
+
+  if (
+    previousLast &&
+    Number(
+      previousLast.timestamp
+    ) >
+      timestamp
+  ) {
+
+    messages.sort(
+      (a, b) =>
+        Number(a.timestamp) -
+        Number(b.timestamp)
+    );
+  }
 
 
   writeJsonAtomic(
@@ -3372,6 +3401,9 @@ export function getUserConversationMessagesPage(
   } = {}
 ) {
 
+  // Message file duoc duy tri theo thu tu timestamp
+  // ngay luc ghi. Khong clone + sort lai toan bo history
+  // cho moi request pagination.
   const messages =
     readJson(
       groupMessageFile(
@@ -3379,13 +3411,7 @@ export function getUserConversationMessagesPage(
         groupId
       ),
       []
-    )
-      .slice()
-      .sort(
-        (a, b) =>
-          Number(a.timestamp) -
-          Number(b.timestamp)
-      );
+    );
 
 
   const safeLimit =
