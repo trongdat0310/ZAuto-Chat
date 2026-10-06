@@ -171,6 +171,10 @@ import {
 } from "./conversations/conversation-send-service.js";
 
 import {
+  runConversationSendOnce,
+} from "./conversations/conversation-send-idempotency.js";
+
+import {
   undoUserConversationMessage,
 } from "./conversations/conversation-undo-service.js";
 
@@ -3355,19 +3359,24 @@ app.post(
 
 
       const result =
-        await sendUserConversationMessage(
+        await runConversationSendOnce(
           req.user.id,
-          groupId,
-          text,
-          {
-            replyToMsgId:
-              replyTo?.msgId ??
-              null,
+          req.body?.clientRequestId,
+          () =>
+            sendUserConversationMessage(
+              req.user.id,
+              groupId,
+              text,
+              {
+                replyToMsgId:
+                  replyTo?.msgId ??
+                  null,
 
-            replyToCliMsgId:
-              replyTo?.cliMsgId ??
-              null,
-          }
+                replyToCliMsgId:
+                  replyTo?.cliMsgId ??
+                  null,
+              }
+            )
         );
 
 
@@ -3414,7 +3423,9 @@ app.post(
         error.code ===
           "MESSAGE_TOO_LONG" ||
         error.code ===
-          "INVALID_GROUP"
+          "INVALID_GROUP" ||
+        error.code ===
+          "INVALID_CLIENT_REQUEST_ID"
       ) {
 
         status =
@@ -3696,21 +3707,26 @@ app.post(
             // GUI QUA WORKER ZALO DANG CHAY
             // ========================================
 
-            await sendUserConversationPhoto(
+            await runConversationSendOnce(
               req.user.id,
+              req.body?.clientRequestId,
+              () =>
+                sendUserConversationPhoto(
+                  req.user.id,
 
-              req.params.groupId,
+                  req.params.groupId,
 
-              {
-                data:
-                  file.buffer,
+                  {
+                    data:
+                      file.buffer,
 
-                filename,
+                    filename,
 
-                width,
+                    width,
 
-                height,
-              }
+                    height,
+                  }
+                )
             );
 
 
@@ -4030,14 +4046,19 @@ app.post(
             );
 
 
-            await sendUserConversationPhotos(
+            await runConversationSendOnce(
               req.user.id,
+              req.body?.clientRequestId,
+              () =>
+                sendUserConversationPhotos(
+                  req.user.id,
 
-              req.params.groupId,
+                  req.params.groupId,
 
-              {
-                photos,
-              }
+                  {
+                    photos,
+                  }
+                )
             );
 
 
