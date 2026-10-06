@@ -226,6 +226,16 @@ class _MessagesPageState extends State<MessagesPage>
     return Map<String, dynamic>.from(rawData);
   }
 
+  Map<String, dynamic>? _findLocalConversation(String groupId) {
+    for (final conversation in conversations) {
+      if (conversation['groupId']?.toString().trim() == groupId.trim()) {
+        return conversation;
+      }
+    }
+
+    return null;
+  }
+
   void _applyRealtimeConversationRead(Map<String, dynamic> event) {
     final data = _eventDataMap(event);
 
@@ -477,15 +487,9 @@ class _MessagesPageState extends State<MessagesPage>
             if (pendingPin != null) {
               copy['pinned'] = pendingPin;
 
-              final local = conversations.cast<Map<String, dynamic>?>().firstWhere(
-                (current) =>
-                    current?['groupId']?.toString().trim() == groupId,
-                orElse: () => null,
-              );
+              final local = _findLocalConversation(groupId);
 
-              copy['pinnedAt'] = pendingPin
-                  ? local?['pinnedAt']
-                  : null;
+              copy['pinnedAt'] = pendingPin ? local?['pinnedAt'] : null;
             }
 
             return copy;
