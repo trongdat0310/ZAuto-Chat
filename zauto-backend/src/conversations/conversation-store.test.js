@@ -356,7 +356,7 @@ test(
                 "old message",
 
               timestamp:
-                1_700_000_000_000,
+                Date.now() - 10_000,
             }),
         }
       );
@@ -389,7 +389,7 @@ test(
                 "new message",
 
               timestamp:
-                1_700_000_100_000,
+                Date.now() + 1_000,
             }),
         }
       );
@@ -921,6 +921,16 @@ test(
             timestamp: Date.now() - 5000,
           }),
         }
+      );
+
+
+
+      // Old history replay alone must not revive the deleted conversation.
+      assert.equal(
+        getUserConversationList(
+          userId
+        ).length,
+        0
       );
 
       saveConversationMessage(
