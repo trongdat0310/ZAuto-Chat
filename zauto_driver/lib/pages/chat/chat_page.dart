@@ -3097,7 +3097,7 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
-    ChatStateService.instance.closeGroup();
+    ChatStateService.instance.closeGroup(widget.groupId);
 
     markReadController.dispose();
 
