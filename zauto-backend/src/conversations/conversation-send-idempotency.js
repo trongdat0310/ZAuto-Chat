@@ -191,11 +191,31 @@ export async function runConversationSendOnce(
   };
 
 
+  let execution;
+
+
+  try {
+
+    // Goi executor ngay de request dau tien
+    // chiem slot in-flight trong cung tick.
+    execution =
+      Promise.resolve(
+        executor()
+      );
+
+  } catch (error) {
+
+    sends.delete(
+      key
+    );
+
+
+    throw error;
+  }
+
+
   const promise =
-    Promise.resolve()
-      .then(
-        executor
-      )
+    execution
       .then(
         result => {
 
