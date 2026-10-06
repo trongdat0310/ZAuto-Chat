@@ -2360,8 +2360,10 @@ export function saveConversationMessage(
       false;
 
 
-    conversation.deletedAt =
-      null;
+    // IMPORTANT:
+    // deletedAt is also the local-history cutoff.
+    // Keep it after revive so a later Zalo history sync cannot
+    // make messages from before the user's delete visible again.
   }
 
   // ========================================
@@ -3345,6 +3347,68 @@ export function getUserConversationList(
 }
 
 
+function conversationHistoryCutoffMs(
+  userId,
+  groupId
+) {
+  const conversations =
+    readJson(
+      indexFile(userId),
+      []
+    );
+
+  const conversation =
+    conversations.find(
+      item =>
+        String(item?.groupId ?? "") ===
+        String(groupId ?? "")
+    );
+
+  const cutoff =
+    Date.parse(
+      conversation?.deletedAt ??
+      ""
+    );
+
+  return Number.isFinite(cutoff)
+    ? cutoff
+    : null;
+}
+
+
+function visibleConversationMessages(
+  userId,
+  groupId
+) {
+  const messages =
+    readJson(
+      groupMessageFile(
+        userId,
+        groupId
+      ),
+      []
+    );
+
+  const cutoff =
+    conversationHistoryCutoffMs(
+      userId,
+      groupId
+    );
+
+  if (cutoff === null) {
+    return messages;
+  }
+
+  return messages.filter(
+    item =>
+      Number(
+        item?.timestamp ??
+        0
+      ) > cutoff
+  );
+}
+
+
 // ========================================
 // READ MESSAGES
 // ========================================
@@ -3357,12 +3421,9 @@ export function getUserConversationMessages(
   } = {}
 ) {
   const messages =
-    readJson(
-      groupMessageFile(
-        userId,
-        groupId
-      ),
-      []
+    visibleConversationMessages(
+      userId,
+      groupId
     );
 
 
@@ -3405,12 +3466,9 @@ export function getUserConversationMessagesPage(
   // ngay luc ghi. Khong clone + sort lai toan bo history
   // cho moi request pagination.
   const messages =
-    readJson(
-      groupMessageFile(
-        userId,
-        groupId
-      ),
-      []
+    visibleConversationMessages(
+      userId,
+      groupId
     );
 
 
