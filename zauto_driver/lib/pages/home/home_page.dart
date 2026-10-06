@@ -511,7 +511,14 @@ class _HomePageState extends State<HomePage>
 
     notificationInitialized = true;
 
-    notificationHandler.initialize(context);
+    unawaited(
+      notificationHandler.initialize(context).catchError((Object error) {
+        debugPrint(
+          'HOME NOTIFICATION INIT ERROR: '
+          '$error',
+        );
+      }),
+    );
   }
 
   bool get _hasCountdownTrips {
