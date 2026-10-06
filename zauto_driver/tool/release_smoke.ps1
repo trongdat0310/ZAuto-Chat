@@ -57,6 +57,58 @@ function Find-BuildTool([string]$SdkRoot, [string]$FileName) {
     }
 
     return $null
+
+}
+
+function Find-JavaHome {
+    $javaFromPath = Resolve-CommandPath "java"
+
+    if ($javaFromPath) {
+        return Split-Path (Split-Path $javaFromPath -Parent) -Parent
+    }
+
+    $programFilesX86 = [Environment]::GetFolderPath("ProgramFilesX86")
+
+    $candidates = @(
+        $env:JAVA_HOME,
+        $env:STUDIO_JDK,
+        (Join-Path $env:ProgramFiles "Android\Android Studio\jbr"),
+        (Join-Path $env:ProgramFiles "Android\Android Studio\jre"),
+        (Join-Path $programFilesX86 "Android\Android Studio\jbr"),
+        (Join-Path $programFilesX86 "Android\Android Studio\jre"),
+        (Join-Path $env:LOCALAPPDATA "Programs\Android Studio\jbr"),
+        (Join-Path $env:LOCALAPPDATA "Programs\Android Studio\jre")
+    ) | Where-Object {
+        $_ -and (Test-Path (Join-Path $_ "bin\java.exe"))
+    }
+
+    return $candidates | Select-Object -First 1
+}
+
+function Ensure-JavaEnvironment {
+    $javaHome = Find-JavaHome
+
+    if (-not $javaHome) {
+        throw "Java runtime was not found. Open Android Studio once or install JDK 17, then retry."
+    }
+
+    $javaExe = Join-Path $javaHome "bin\java.exe"
+
+    if (-not (Test-Path $javaExe)) {
+        throw "Java executable was not found under: $javaHome"
+    }
+
+    $env:JAVA_HOME = $javaHome
+
+    $javaBin = Join-Path $javaHome "bin"
+
+    if (-not (($env:PATH -split ";") -contains $javaBin)) {
+        $env:PATH = "$javaBin;$env:PATH"
+    }
+
+    Write-Host "JAVA_HOME: $javaHome"
+
+    return $javaExe
 }
 
 $projectRoot = (Get-Location).Path
@@ -82,6 +134,12 @@ if ($sdkRoot) {
 }
 
 Write-Step "Verifying APK signature"
+
+$javaExe = Ensure-JavaEnvironment
+
+& $javaExe -version 2>&1 | Select-Object -First 2 | ForEach-Object {
+    Write-Host "Java: $_"
+}
 
 $apksigner = Resolve-CommandPath "apksigner"
 if (-not $apksigner) {
