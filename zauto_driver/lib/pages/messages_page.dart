@@ -411,12 +411,6 @@ class _MessagesPageState extends State<MessagesPage>
   }
 
   Future<void> _drainLoadQueue() async {
-    if (showLoading && mounted) {
-      setState(() {
-        loadError = null;
-      });
-    }
-
     try {
       while (_loadPending && mounted && !realtimeDisposed) {
         final showLoading = _pendingShowLoading;
@@ -455,6 +449,8 @@ class _MessagesPageState extends State<MessagesPage>
     if (showLoading) {
       setState(() {
         loading = true;
+
+        loadError = null;
       });
     }
 
