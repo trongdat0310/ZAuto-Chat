@@ -132,7 +132,7 @@ class NotificationFilterApi extends BackendApiBase {
       body: {
         'filter': filter,
         'messageText': messageText,
-        ?'groupId': groupId,
+        'groupId': ?groupId,
       },
     );
 
