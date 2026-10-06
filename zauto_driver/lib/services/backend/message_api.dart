@@ -148,6 +148,7 @@ class MessageApi extends BackendApiBase {
   Future<void> sendConversationMessage({
     required String groupId,
     required String text,
+    required String clientRequestId,
 
     String? replyToMsgId,
     String? replyToCliMsgId,
@@ -160,7 +161,10 @@ class MessageApi extends BackendApiBase {
 
     final encodedGroupId = Uri.encodeComponent(groupId);
 
-    final body = <String, dynamic>{'text': safeText};
+    final body = <String, dynamic>{
+      'text': safeText,
+      'clientRequestId': clientRequestId,
+    };
 
     // ========================================
     // REPLY
