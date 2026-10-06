@@ -11,6 +11,7 @@ import {
   getUserConversationList,
   getUserConversationMessages,
   markConversationMessageDeletedLocal,
+  markUserConversationRead,
   saveConversationMessage,
   setUserConversationPinned,
   syncConversationGroups,
@@ -563,3 +564,202 @@ test(
     }
   }
 );
+
+test(
+  "mark read clears unread and the next incoming message becomes unread again",
+  () => {
+    const userId =
+      `test-conversation-read-${process.pid}`;
+
+    cleanup(
+      userId
+    );
+
+
+    try {
+      syncConversationGroups(
+        userId,
+        [
+          {
+            groupId:
+              "group-read",
+
+            name:
+              "Read Group",
+          },
+        ]
+      );
+
+
+      saveConversationMessage(
+        userId,
+        {
+          groupName:
+            "Read Group",
+
+          message:
+            textMessage({
+              groupId:
+                "group-read",
+
+              msgId:
+                "msg-unread-1",
+
+              cliMsgId:
+                "cli-unread-1",
+
+              content:
+                "first unread",
+
+              timestamp:
+                Date.now() + 1000,
+            }),
+        }
+      );
+
+
+      let conversation =
+        getUserConversationList(
+          userId
+        )[0];
+
+
+      assert.equal(
+        conversation.unreadCount,
+        1
+      );
+
+
+      const read =
+        markUserConversationRead(
+          userId,
+          "group-read"
+        );
+
+
+      assert.equal(
+        read.unreadCount,
+        0
+      );
+
+
+      conversation =
+        getUserConversationList(
+          userId
+        )[0];
+
+
+      assert.equal(
+        conversation.unreadCount,
+        0
+      );
+
+
+      saveConversationMessage(
+        userId,
+        {
+          groupName:
+            "Read Group",
+
+          message:
+            textMessage({
+              groupId:
+                "group-read",
+
+              msgId:
+                "msg-unread-2",
+
+              cliMsgId:
+                "cli-unread-2",
+
+              content:
+                "second unread",
+
+              timestamp:
+                Date.now() + 5000,
+            }),
+        }
+      );
+
+
+      conversation =
+        getUserConversationList(
+          userId
+        )[0];
+
+
+      assert.equal(
+        conversation.unreadCount,
+        1
+      );
+
+    } finally {
+      cleanup(
+        userId
+      );
+    }
+  }
+);
+
+
+test(
+  "hidden conversation cannot be pinned by stale device state",
+  () => {
+    const userId =
+      `test-hidden-conversation-pin-${process.pid}`;
+
+    cleanup(
+      userId
+    );
+
+
+    try {
+      syncConversationGroups(
+        userId,
+        [
+          {
+            groupId:
+              "group-hidden-pin",
+
+            name:
+              "Hidden Pin",
+          },
+        ]
+      );
+
+
+      deleteUserConversation(
+        userId,
+        "group-hidden-pin"
+      );
+
+
+      const pinned =
+        setUserConversationPinned(
+          userId,
+          "group-hidden-pin",
+          true
+        );
+
+
+      assert.equal(
+        pinned,
+        null
+      );
+
+
+      assert.equal(
+        getUserConversationList(
+          userId
+        ).length,
+        0
+      );
+
+    } finally {
+      cleanup(
+        userId
+      );
+    }
+  }
+);
+
