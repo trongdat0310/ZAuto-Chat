@@ -942,15 +942,8 @@ class _ChatPageState extends State<ChatPage> {
   Future<void> _openVideo(Map<String, dynamic> message) async {
     final url = mediaController.messageMediaUrl(message);
 
-    debugPrint(
-      'OPEN VIDEO CALLED: '
-      'mediaUrl=$url',
-    );
-
     if (url == null || url.isEmpty) {
       _showTopNotice('Video không có đường dẫn');
-
-      debugPrint('OPEN VIDEO ABORT: EMPTY URL');
 
       return;
     }
@@ -960,14 +953,10 @@ class _ChatPageState extends State<ChatPage> {
     if (uri == null || !uri.hasScheme) {
       _showTopNotice('Đường dẫn video không hợp lệ');
 
-      debugPrint('OPEN VIDEO ABORT: INVALID URL');
-
       return;
     }
 
     try {
-      debugPrint('OPEN VIDEO NAVIGATING...');
-
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (context) {
@@ -2353,8 +2342,6 @@ class _ChatPageState extends State<ChatPage> {
 
     if (!scrollController.hasClients) {
       if (attempt >= 10) {
-        debugPrint('JUMP TO LATEST FAILED');
-
         return;
       }
 
