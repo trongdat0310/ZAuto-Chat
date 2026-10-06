@@ -89,6 +89,8 @@ class _ChatPageState extends State<ChatPage> {
 
   late final ChatMediaController mediaController;
 
+  ChatPhotoAlbumIndex? photoAlbumIndex;
+
   late final ChatReplyController replyController;
 
   final ScrollController scrollController = ScrollController();
@@ -2682,8 +2684,9 @@ class _ChatPageState extends State<ChatPage> {
     final mediaGroupId = mediaController.mediaGroupId(message);
 
     final album = mediaGroupId != null
-        ? mediaController.albumMessagesFor(messagesController.messages, message)
-        : [message];
+        ? (photoAlbumIndex?.albumFor(mediaGroupId, message) ??
+            <Map<String, dynamic>>[message])
+        : <Map<String, dynamic>>[message];
 
     // ========================================
     // PHOTO UI
@@ -2904,11 +2907,14 @@ class _ChatPageState extends State<ChatPage> {
       // ========================================
 
       if (mediaGroupId != null) {
-        final renderIndex = mediaController.albumRenderIndex(
-          messagesController.messages,
-          mediaGroupId,
-          targetIndex: targetController.targetIndex,
-        );
+        final renderIndex =
+            photoAlbumIndex?.renderIndexFor(
+              mediaGroupId,
+              targetIndex: targetController.targetIndex,
+              messages: messagesController.messages,
+              resolveGroupId: mediaController.mediaGroupId,
+            ) ??
+            -1;
 
         if (renderIndex != index) {
           return const SizedBox.shrink();
@@ -3126,6 +3132,10 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    photoAlbumIndex = mediaController.buildPhotoAlbumIndex(
+      messagesController.messages,
+    );
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
 
