@@ -137,9 +137,17 @@ Write-Step "Verifying APK signature"
 
 $javaExe = Ensure-JavaEnvironment
 
-& $javaExe -version 2>&1 | Select-Object -First 2 | ForEach-Object {
-    Write-Host "Java: $_"
+$javaVersionOutput = & cmd.exe /c '""' + $javaExe + '" -version 2>&1"'
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Java runtime check failed."
 }
+
+$javaVersionOutput |
+    Select-Object -First 2 |
+    ForEach-Object {
+        Write-Host "Java: $_"
+    }
 
 $apksigner = Resolve-CommandPath "apksigner"
 if (-not $apksigner) {
