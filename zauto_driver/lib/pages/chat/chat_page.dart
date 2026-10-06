@@ -773,7 +773,8 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _sendChatMessage() async {
-    if (actionsController.sendingMessage) {
+    if (actionsController.sendingMessage ||
+        actionsController.sendingPhoto) {
       return;
     }
 
@@ -864,7 +865,29 @@ class _ChatPageState extends State<ChatPage> {
         return;
       }
 
-      _showTopNotice('Gửi tin nhắn thất bại');
+      final errorText = error.toString().replaceFirst('Exception: ', '').trim();
+
+      final lower = errorText.toLowerCase();
+
+      final replyUnavailable =
+          lower.contains('khong con co the tra loi') ||
+          lower.contains('không còn có thể trả lời') ||
+          lower.contains('khong tim thay tin nhan can tra loi') ||
+          lower.contains('không tìm thấy tin nhắn cần trả lời');
+
+      if (replyUnavailable) {
+        setState(() {
+          replyController.clearReply();
+        });
+
+        _showTopNotice('Tin nhắn gốc đã bị xóa hoặc thu hồi.');
+      } else {
+        _showTopNotice(
+          errorText.isEmpty
+              ? 'Gửi tin nhắn thất bại'
+              : errorText,
+        );
+      }
 
       debugPrint('SEND MESSAGE ERROR: $error');
     } finally {
@@ -2073,6 +2096,13 @@ class _ChatPageState extends State<ChatPage> {
     }
 
     final incomingStatus = incoming['status']?.toString() ?? 'normal';
+
+    final replyCleared =
+        replyController.clearIfTargetUnavailable(incoming);
+
+    if (replyCleared) {
+      setState(() {});
+    }
 
     // ========================================
     // MESSAGE DA XOA
