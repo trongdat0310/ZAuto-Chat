@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -9,6 +10,15 @@ import '../config/app_config.dart';
 class AuthService {
   static const String _tokenKey =
       'zauto_auth_token';
+
+
+  static final StreamController<void>
+  _sessionInvalidatedController =
+      StreamController<void>.broadcast();
+
+
+  Stream<void> get sessionInvalidated =>
+      _sessionInvalidatedController.stream;
 
   static const FlutterSecureStorage _storage =
   FlutterSecureStorage();
@@ -252,5 +262,15 @@ class AuthService {
       key:
       _tokenKey,
     );
+  }
+
+
+  Future<void>
+  invalidateSession() async {
+    await clearLocalSession();
+
+    if (!_sessionInvalidatedController.isClosed) {
+      _sessionInvalidatedController.add(null);
+    }
   }
 }
