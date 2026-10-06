@@ -10,6 +10,9 @@ class BackendApiBase {
   static const Duration requestTimeout =
       Duration(seconds: 12);
 
+  static const Duration multipartRequestTimeout =
+      Duration(seconds: 90);
+
   final String baseUrl;
 
   final AuthService auth;
@@ -58,13 +61,13 @@ class BackendApiBase {
     final streamed = await _withNetworkHandling(
       request
           .send()
-          .timeout(requestTimeout),
+          .timeout(multipartRequestTimeout),
     );
 
     return _withNetworkHandling(
       http.Response
           .fromStream(streamed)
-          .timeout(requestTimeout),
+          .timeout(multipartRequestTimeout),
     );
   }
 
