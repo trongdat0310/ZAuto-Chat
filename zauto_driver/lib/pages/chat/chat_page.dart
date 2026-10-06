@@ -1110,6 +1110,50 @@ class _ChatPageState extends State<ChatPage> {
     return true;
   }
 
+  Future<String> _resolveMissingMessageReason({
+    String? msgId,
+    String? cliMsgId,
+  }) async {
+    final safeMsgId = msgId?.trim() ?? '';
+
+    final safeCliMsgId = cliMsgId?.trim() ?? '';
+
+    if (safeMsgId.isEmpty && safeCliMsgId.isEmpty) {
+      return 'not_found';
+    }
+
+    try {
+      final result = await backend.findConversationMessage(
+        groupId: widget.groupId,
+        msgId: safeMsgId.isEmpty ? null : safeMsgId,
+        cliMsgId: safeCliMsgId.isEmpty ? null : safeCliMsgId,
+      );
+
+      final reason = result['reason']?.toString().trim();
+
+      if (reason == 'deleted_local' || reason == 'recalled') {
+        return reason!;
+      }
+
+      final rawMessage = result['message'];
+
+      if (rawMessage is Map) {
+        final status = rawMessage['status']?.toString().trim();
+
+        if (status == 'deleted_local' || status == 'recalled') {
+          return status!;
+        }
+      }
+    } catch (error) {
+      debugPrint(
+        'CHAT RESOLVE MISSING MESSAGE REASON ERROR: '
+        '$error',
+      );
+    }
+
+    return 'not_found';
+  }
+
   Future<void> _seekTargetFromLatest() async {
     if (targetController.seekingTarget || !targetController.hasTarget) {
       return;
@@ -1152,7 +1196,16 @@ class _ChatPageState extends State<ChatPage> {
         // ========================================
 
         if (!messagesController.hasMoreOlder) {
-          targetController.setError('not_found');
+          final reason = await _resolveMissingMessageReason(
+            msgId: targetController.targetMsgId,
+            cliMsgId: targetController.targetCliMsgId,
+          );
+
+          if (!mounted) {
+            return;
+          }
+
+          targetController.setError(reason);
 
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _showTargetNotFound();
@@ -1164,7 +1217,16 @@ class _ChatPageState extends State<ChatPage> {
         final beforeId = messagesController.messages.first['id']?.toString();
 
         if (beforeId == null || beforeId.isEmpty) {
-          targetController.setError('not_found');
+          final reason = await _resolveMissingMessageReason(
+            msgId: targetController.targetMsgId,
+            cliMsgId: targetController.targetCliMsgId,
+          );
+
+          if (!mounted) {
+            return;
+          }
+
+          targetController.setError(reason);
 
           _showTargetNotFound();
 
@@ -1377,13 +1439,24 @@ class _ChatPageState extends State<ChatPage> {
 
         if (!messagesController.hasMoreOlder ||
             messagesController.messages.isEmpty) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Không tìm thấy tin nhắn gốc trong lịch sử.'),
-              ),
-            );
+          final reason = await _resolveMissingMessageReason(
+            msgId: quoteMsgId,
+            cliMsgId: quoteCliMsgId,
+          );
+
+          if (!mounted) {
+            return;
           }
+
+          final notice = switch (reason) {
+            'deleted_local' => 'Tin nhắn gốc đã bị xóa.',
+            'recalled' => 'Tin nhắn gốc đã được thu hồi.',
+            _ => 'Không tìm thấy tin nhắn gốc trong lịch sử.',
+          };
+
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(notice)));
 
           return;
         }
