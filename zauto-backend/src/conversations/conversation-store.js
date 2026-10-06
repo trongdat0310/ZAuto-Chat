@@ -2356,14 +2356,32 @@ export function saveConversationMessage(
     true
   ) {
 
-    conversation.hidden =
-      false;
+    const deletedAtMs =
+      Date.parse(
+        conversation.deletedAt ??
+        ""
+      );
 
 
-    // IMPORTANT:
-    // deletedAt is also the local-history cutoff.
-    // Keep it after revive so a later Zalo history sync cannot
-    // make messages from before the user's delete visible again.
+    const isAfterDelete =
+      !Number.isFinite(
+        deletedAtMs
+      ) ||
+      timestamp >
+        deletedAtMs;
+
+
+    // History sync may replay old messages after a local delete.
+    // Those records can be stored for dedupe/context, but they must
+    // NOT revive the conversation. Only a genuinely newer message
+    // may make the conversation visible again.
+    if (
+      isAfterDelete
+    ) {
+
+      conversation.hidden =
+        false;
+    }
   }
 
   // ========================================
