@@ -886,7 +886,9 @@ class _ChatPageState extends State<ChatPage> {
         }
       });
 
-      messageFocusNode.requestFocus();
+      // Giu focus hien tai tu nhien.
+      // Khong requestFocus lai sau async send vi tren Android
+      // co the lam IME dong mot nhip roi bat lai (keyboard flicker).
 
       // ========================================
       // CHI TU DONG CUON XUONG CUOI
