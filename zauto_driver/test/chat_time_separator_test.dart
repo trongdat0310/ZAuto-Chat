@@ -66,8 +66,33 @@ void main() {
         formatChatGapSeparator(
           newer,
           older,
+          now: DateTime(2026, 10, 7, 18, 0),
         ),
         '14:30',
+      );
+    },
+  );
+
+
+  test(
+    'historical same-day time groups keep full date and time',
+    () {
+      final older = messageAt(
+        DateTime(2026, 10, 4, 10, 0),
+      );
+
+      final newer = messageAt(
+        DateTime(2026, 10, 4, 10, 46),
+      );
+
+
+      expect(
+        formatChatGapSeparator(
+          newer,
+          older,
+          now: DateTime(2026, 10, 7, 12, 0),
+        ),
+        '04/10/2026 . 10:46',
       );
     },
   );
