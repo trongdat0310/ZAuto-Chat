@@ -105,6 +105,153 @@ String formatDateSeparator(Map<String, dynamic> message) {
 }
 
 // ========================================
+// TIME GROUPING
+//
+// Giong cac app chat:
+// - khac ngay: luon tach nhom
+// - cung ngay: tach neu cach nhau >= 30 phut
+// ========================================
+
+const Duration chatTimeGroupGap =
+    Duration(minutes: 30);
+
+bool shouldShowChatTimeSeparator(
+  Map<String, dynamic> newerMessage,
+  Map<String, dynamic> olderMessage,
+) {
+  final newerMs =
+      messageTimestampMs(newerMessage);
+
+  final olderMs =
+      messageTimestampMs(olderMessage);
+
+  if (newerMs == null || olderMs == null) {
+    return false;
+  }
+
+  if (
+    !isSameCalendarDay(
+      newerMessage,
+      olderMessage,
+    )
+  ) {
+    return true;
+  }
+
+  final gapMs =
+      (newerMs - olderMs).abs();
+
+  return gapMs >=
+      chatTimeGroupGap.inMilliseconds;
+}
+
+
+String _formatClock(
+  DateTime date,
+) {
+  return '${date.hour.toString().padLeft(2, '0')}:'
+      '${date.minute.toString().padLeft(2, '0')}';
+}
+
+
+String formatChatTimeSeparator(
+  Map<String, dynamic> message, {
+  DateTime? now,
+}) {
+  final timestampMs =
+      messageTimestampMs(message);
+
+  if (timestampMs == null) {
+    return '';
+  }
+
+  final date =
+      DateTime.fromMillisecondsSinceEpoch(
+        timestampMs,
+      ).toLocal();
+
+  final current =
+      (now ?? DateTime.now()).toLocal();
+
+  final clock =
+      _formatClock(date);
+
+  final isToday =
+      date.year == current.year &&
+      date.month == current.month &&
+      date.day == current.day;
+
+  if (isToday) {
+    return 'Hôm nay • $clock';
+  }
+
+  final yesterday =
+      DateTime(
+        current.year,
+        current.month,
+        current.day,
+      ).subtract(
+        const Duration(days: 1),
+      );
+
+  final isYesterday =
+      date.year == yesterday.year &&
+      date.month == yesterday.month &&
+      date.day == yesterday.day;
+
+  if (isYesterday) {
+    return 'Hôm qua • $clock';
+  }
+
+  return '${date.day.toString().padLeft(2, '0')}/'
+      '${date.month.toString().padLeft(2, '0')}/'
+      '${date.year} • $clock';
+}
+
+
+String formatChatGapSeparator(
+  Map<String, dynamic> newerMessage,
+  Map<String, dynamic> olderMessage,
+) {
+  if (
+    !shouldShowChatTimeSeparator(
+      newerMessage,
+      olderMessage,
+    )
+  ) {
+    return '';
+  }
+
+  if (
+    !isSameCalendarDay(
+      newerMessage,
+      olderMessage,
+    )
+  ) {
+    return formatChatTimeSeparator(
+      newerMessage,
+    );
+  }
+
+  final timestampMs =
+      messageTimestampMs(
+        newerMessage,
+      );
+
+  if (timestampMs == null) {
+    return '';
+  }
+
+  final date =
+      DateTime.fromMillisecondsSinceEpoch(
+        timestampMs,
+      ).toLocal();
+
+  return _formatClock(date);
+}
+
+
+// ========================================
 // DATE SEPARATOR UI
 // ========================================
 
