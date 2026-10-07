@@ -35,7 +35,9 @@ class _MessagesPageState extends State<MessagesPage>
 
   List<Map<String, dynamic>> acceptedTrips = [];
 
-  DateTime historySelectedDate = DateTime.now();
+  DateTime historyFromDate = DateTime.now();
+
+  DateTime historyToDate = DateTime.now();
 
   String? historySelectedGroupId;
 
@@ -184,6 +186,41 @@ class _MessagesPageState extends State<MessagesPage>
         // ========================================
 
         if (type == 'trip_accepted') {
+          scheduleRealtimeRefresh();
+
+          return;
+        }
+
+        if (type == 'group_notification_toggled') {
+          final groupId =
+              event['groupId']
+                  ?.toString()
+                  .trim();
+
+          final enabled =
+              event['enabled'] == true;
+
+          if (
+            groupId != null &&
+            groupId.isNotEmpty &&
+            mounted
+          ) {
+            setState(() {
+              if (enabled) {
+                enabledGroupIds.add(groupId);
+              } else {
+                enabledGroupIds.remove(groupId);
+
+                if (
+                  historySelectedGroupId ==
+                  groupId
+                ) {
+                  historySelectedGroupId = null;
+                }
+              }
+            });
+          }
+
           scheduleRealtimeRefresh();
 
           return;
@@ -573,6 +610,15 @@ class _MessagesPageState extends State<MessagesPage>
         _sortLocalConversations();
 
         enabledGroupIds = enabled;
+
+        if (
+          historySelectedGroupId != null &&
+          !enabled.contains(
+            historySelectedGroupId,
+          )
+        ) {
+          historySelectedGroupId = null;
+        }
 
         loading = false;
       });
@@ -1752,16 +1798,6 @@ class _MessagesPageState extends State<MessagesPage>
   }
 
 
-  bool _sameHistoryDay(
-    DateTime first,
-    DateTime second,
-  ) {
-    return first.year == second.year &&
-        first.month == second.month &&
-        first.day == second.day;
-  }
-
-
   String _formatHistoryDate(
     DateTime date,
   ) {
@@ -1796,6 +1832,28 @@ class _MessagesPageState extends State<MessagesPage>
     final byId =
         <String, String>{};
 
+    for (final conversation in conversations) {
+      final id =
+          conversation['groupId']
+              ?.toString()
+              .trim();
+
+      if (
+        id == null ||
+        id.isEmpty ||
+        !enabledGroupIds.contains(id)
+      ) {
+        continue;
+      }
+
+      byId[id] =
+          firstNonEmptyString([
+            conversation['name'],
+            conversation['groupName'],
+          ]) ??
+          'Nhóm Zalo';
+    }
+
     for (final trip in acceptedTrips) {
       final id =
           firstNonEmptyString([
@@ -1804,18 +1862,23 @@ class _MessagesPageState extends State<MessagesPage>
         trip['threadId'],
       ]);
 
-      if (id == null || id.isEmpty) {
+      if (
+        id == null ||
+        id.isEmpty ||
+        !enabledGroupIds.contains(id)
+      ) {
         continue;
       }
 
-      final name =
-          firstNonEmptyString([
-            trip['groupName'],
-            trip['sourceGroupName'],
-          ]) ??
-          'Nhóm Zalo';
-
-      byId[id] = name;
+      byId.putIfAbsent(
+        id,
+        () =>
+            firstNonEmptyString([
+              trip['groupName'],
+              trip['sourceGroupName'],
+            ]) ??
+            'Nhóm Zalo',
+      );
     }
 
     final result =
@@ -1843,15 +1906,16 @@ class _MessagesPageState extends State<MessagesPage>
   }
 
 
-  Future<void> _pickHistoryDate() async {
+  Future<void> _pickHistoryFromDate() async {
     final picked =
         await showDatePicker(
       context: context,
       initialDate:
-          historySelectedDate,
+          historyFromDate,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      helpText: 'Chọn ngày lịch sử nhận',
+      lastDate:
+          historyToDate,
+      helpText: 'Chọn ngày bắt đầu',
       cancelText: 'Hủy',
       confirmText: 'Chọn',
     );
@@ -1861,8 +1925,41 @@ class _MessagesPageState extends State<MessagesPage>
     }
 
     setState(() {
-      historySelectedDate =
-          picked;
+      historyFromDate = picked;
+
+      if (
+        historyToDate.isBefore(
+          historyFromDate,
+        )
+      ) {
+        historyToDate =
+            historyFromDate;
+      }
+    });
+  }
+
+
+  Future<void> _pickHistoryToDate() async {
+    final picked =
+        await showDatePicker(
+      context: context,
+      initialDate:
+          historyToDate,
+      firstDate:
+          historyFromDate,
+      lastDate:
+          DateTime.now(),
+      helpText: 'Chọn ngày kết thúc',
+      cancelText: 'Hủy',
+      confirmText: 'Chọn',
+    );
+
+    if (picked == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      historyToDate = picked;
     });
   }
 
@@ -1895,102 +1992,121 @@ class _MessagesPageState extends State<MessagesPage>
         16,
         12,
       ),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: _pickHistoryDate,
-              icon: const Icon(
-                Icons.calendar_today_outlined,
-                size: 18,
-              ),
-              label: Text(
-                _formatHistoryDate(
-                  historySelectedDate,
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed:
+                      _pickHistoryFromDate,
+                  icon: const Icon(
+                    Icons.date_range_outlined,
+                    size: 18,
+                  ),
+                  label: Text(
+                    'Từ ${_formatHistoryDate(historyFromDate)}',
+                    overflow:
+                        TextOverflow.ellipsis,
+                  ),
                 ),
-                overflow:
-                    TextOverflow.ellipsis,
               ),
-            ),
+
+              const SizedBox(width: 8),
+
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed:
+                      _pickHistoryToDate,
+                  icon: const Icon(
+                    Icons.event_available_outlined,
+                    size: 18,
+                  ),
+                  label: Text(
+                    'Đến ${_formatHistoryDate(historyToDate)}',
+                    overflow:
+                        TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ],
           ),
 
-          const SizedBox(width: 8),
+          const SizedBox(height: 8),
 
-          Expanded(
-            child: PopupMenuButton<String>(
-              tooltip: 'Lọc theo nhóm',
-              onSelected: (value) {
-                setState(() {
-                  historySelectedGroupId =
-                      value.isEmpty
-                          ? null
-                          : value;
-                });
-              },
-              itemBuilder: (context) {
-                return <PopupMenuEntry<String>>[
-                  const PopupMenuItem<String>(
-                    value: '',
+          PopupMenuButton<String>(
+            tooltip: 'Lọc theo nhóm',
+            onSelected: (value) {
+              setState(() {
+                historySelectedGroupId =
+                    value.isEmpty
+                        ? null
+                        : value;
+              });
+            },
+            itemBuilder: (context) {
+              return <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(
+                  value: '',
+                  child: Text(
+                    'Tất cả nhóm đang bật',
+                  ),
+                ),
+                ...historyGroupOptions.map(
+                  (option) =>
+                      PopupMenuItem<String>(
+                    value:
+                        option['id']!,
                     child: Text(
-                      'Tất cả nhóm',
+                      option['name'] ??
+                          'Nhóm Zalo',
+                      maxLines: 1,
+                      overflow:
+                          TextOverflow.ellipsis,
                     ),
-                  ),
-                  ...historyGroupOptions.map(
-                    (option) =>
-                        PopupMenuItem<String>(
-                      value:
-                          option['id']!,
-                      child: Text(
-                        option['name'] ??
-                            'Nhóm Zalo',
-                        maxLines: 1,
-                        overflow:
-                            TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                ];
-              },
-              child: Container(
-                height: 48,
-                padding:
-                    const EdgeInsets.symmetric(
-                  horizontal: 12,
-                ),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .outline,
-                  ),
-                  borderRadius:
-                      BorderRadius.circular(
-                    12,
                   ),
                 ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.groups_outlined,
-                      size: 20,
-                    ),
-
-                    const SizedBox(width: 8),
-
-                    Expanded(
-                      child: Text(
-                        _historyGroupLabel(),
-                        maxLines: 1,
-                        overflow:
-                            TextOverflow.ellipsis,
-                      ),
-                    ),
-
-                    const Icon(
-                      Icons.arrow_drop_down,
-                    ),
-                  ],
+              ];
+            },
+            child: Container(
+              height: 48,
+              padding:
+                  const EdgeInsets.symmetric(
+                horizontal: 12,
+              ),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .outline,
                 ),
+                borderRadius:
+                    BorderRadius.circular(
+                  12,
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.groups_outlined,
+                    size: 20,
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  Expanded(
+                    child: Text(
+                      _historyGroupLabel(),
+                      maxLines: 1,
+                      overflow:
+                          TextOverflow.ellipsis,
+                    ),
+                  ),
+
+                  const Icon(
+                    Icons.arrow_drop_down,
+                  ),
+                ],
               ),
             ),
           ),
@@ -2260,12 +2376,29 @@ class _MessagesPageState extends State<MessagesPage>
       final acceptedAt =
           _acceptedTripTime(trip);
 
+      if (acceptedAt == null) {
+        return false;
+      }
+
+      final from =
+          DateTime(
+        historyFromDate.year,
+        historyFromDate.month,
+        historyFromDate.day,
+      );
+
+      final toExclusive =
+          DateTime(
+        historyToDate.year,
+        historyToDate.month,
+        historyToDate.day,
+      ).add(
+        const Duration(days: 1),
+      );
+
       if (
-        acceptedAt == null ||
-        !_sameHistoryDay(
-          acceptedAt,
-          historySelectedDate,
-        )
+        acceptedAt.isBefore(from) ||
+        !acceptedAt.isBefore(toExclusive)
       ) {
         return false;
       }
