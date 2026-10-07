@@ -117,56 +117,31 @@ class ZautoDriverApp extends StatelessWidget {
           // ========================================
 
           builder: (context, child) {
-            return Listener(
+            return GestureDetector(
               behavior:
                   HitTestBehavior.translucent,
 
-              onPointerDown: (event) {
+              // ========================================
+              // GLOBAL KEYBOARD DISMISS
+              //
+              // Dung gesture arena thay vi raw pointer:
+              // - tap vung trong -> parent win -> unfocus
+              // - tap button/control -> child win -> KHONG unfocus
+              //
+              // Nho vay nut Send trong Chat giu nguyen keyboard,
+              // trong khi tap ra ngoai van ha keyboard nhu cu.
+              // ========================================
+
+              onTap: () {
                 final focus =
                     FocusManager.instance.primaryFocus;
 
                 if (
-                  focus == null ||
-                  !focus.hasFocus
+                  focus != null &&
+                  focus.hasFocus
                 ) {
-                  return;
+                  focus.unfocus();
                 }
-
-
-                final focusContext =
-                    focus.context;
-
-                final renderObject =
-                    focusContext
-                        ?.findRenderObject();
-
-
-                if (
-                  renderObject is RenderBox &&
-                  renderObject.hasSize
-                ) {
-                  final localPosition =
-                      renderObject.globalToLocal(
-                    event.position,
-                  );
-
-
-                  final insideFocusedField =
-                      localPosition.dx >= 0 &&
-                      localPosition.dy >= 0 &&
-                      localPosition.dx <=
-                          renderObject.size.width &&
-                      localPosition.dy <=
-                          renderObject.size.height;
-
-
-                  if (insideFocusedField) {
-                    return;
-                  }
-                }
-
-
-                focus.unfocus();
               },
 
               child:
