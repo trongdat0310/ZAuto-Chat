@@ -426,3 +426,181 @@ test(
     }
   }
 );
+
+test(
+  "trip history supports group date and content filters",
+  async () => {
+    const userId =
+      `test-message-history-filter-${process.pid}`;
+
+    cleanup(
+      userId
+    );
+
+
+    try {
+      const first =
+        saveUserMessage(
+          userId,
+          {
+            groupId:
+              "group-a",
+
+            groupName:
+              "Nhóm A",
+
+            senderId:
+              "sender-a",
+
+            senderName:
+              "Tài xế A",
+
+            zaloMessageId:
+              "history-1",
+
+            content:
+              "Đón khách sân bay",
+          }
+        );
+
+
+      const second =
+        saveUserMessage(
+          userId,
+          {
+            groupId:
+              "group-b",
+
+            groupName:
+              "Nhóm B",
+
+            senderId:
+              "sender-b",
+
+            senderName:
+              "Tài xế B",
+
+            zaloMessageId:
+              "history-2",
+
+            content:
+              "Cuốc đi trung tâm",
+          }
+        );
+
+
+      first.message.receivedAt =
+        "2026-10-06T02:00:00.000Z";
+
+      second.message.receivedAt =
+        "2026-10-07T03:00:00.000Z";
+
+
+      const byGroup =
+        getUserMessages(
+          userId,
+          {
+            limit:
+              100,
+
+            groupId:
+              "group-a",
+          }
+        );
+
+
+      assert.deepEqual(
+        byGroup.map(
+          item =>
+            item.content
+        ),
+        [
+          "Đón khách sân bay",
+        ]
+      );
+
+
+      const byDate =
+        getUserMessages(
+          userId,
+          {
+            limit:
+              100,
+
+            from:
+              "2026-10-07T00:00:00.000Z",
+
+            to:
+              "2026-10-07T23:59:59.999Z",
+          }
+        );
+
+
+      assert.deepEqual(
+        byDate.map(
+          item =>
+            item.content
+        ),
+        [
+          "Cuốc đi trung tâm",
+        ]
+      );
+
+
+      const byContent =
+        getUserMessages(
+          userId,
+          {
+            limit:
+              100,
+
+            q:
+              "SÂN BAY",
+          }
+        );
+
+
+      assert.deepEqual(
+        byContent.map(
+          item =>
+            item.content
+        ),
+        [
+          "Đón khách sân bay",
+        ]
+      );
+
+
+      const combined =
+        getUserMessages(
+          userId,
+          {
+            limit:
+              100,
+
+            groupId:
+              "group-a",
+
+            q:
+              "khách",
+          }
+        );
+
+
+      assert.equal(
+        combined.length,
+        1
+      );
+
+    } finally {
+      await flushUserMessages(
+        userId
+      );
+
+      cleanup(
+        userId
+      );
+    }
+  }
+);
+
