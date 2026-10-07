@@ -35,6 +35,10 @@ class _MessagesPageState extends State<MessagesPage>
 
   List<Map<String, dynamic>> acceptedTrips = [];
 
+  DateTime historySelectedDate = DateTime.now();
+
+  String? historySelectedGroupId;
+
   Set<String> enabledGroupIds = {};
 
   bool loading = true;
@@ -79,6 +83,8 @@ class _MessagesPageState extends State<MessagesPage>
 
     tabController = TabController(length: 3, vsync: this);
 
+    tabController.addListener(_handleTabChanged);
+
     realtimeConnected = widget.realtimeService.isConnected;
 
     realtimeAuthFailed = widget.realtimeService.hasAuthFailed;
@@ -96,6 +102,15 @@ class _MessagesPageState extends State<MessagesPage>
     loadData();
     startRealtime();
   }
+
+  void _handleTabChanged() {
+    if (!mounted || tabController.indexIsChanging) {
+      return;
+    }
+
+    setState(() {});
+  }
+
 
   void startRealtime() {
     if (realtimeDisposed || realtimeStarted) {
@@ -1715,145 +1730,575 @@ class _MessagesPageState extends State<MessagesPage>
   // HISTORY PLACEHOLDER
   // ========================================
 
-  Widget buildAcceptedHistory() {
-    if (acceptedTrips.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+  DateTime? _acceptedTripTime(
+    Map<String, dynamic> trip,
+  ) {
+    final acceptedAt =
+        DateTime.tryParse(
+          trip['acceptedAt']
+                  ?.toString() ??
+              '',
+        )?.toLocal();
 
-          children: [
-            Icon(Icons.history, size: 68),
-
-            SizedBox(height: 16),
-
-            Text(
-              'Chưa có cuốc đã nhận',
-
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-            ),
-
-            SizedBox(height: 8),
-
-            Text('Các cuốc bạn đã nhận sẽ xuất hiện tại đây.'),
-          ],
-        ),
-      );
+    if (acceptedAt != null) {
+      return acceptedAt;
     }
 
-    if (acceptedFiltered.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    return DateTime.tryParse(
+      trip['receivedAt']
+              ?.toString() ??
+          '',
+    )?.toLocal();
+  }
 
-          children: [
-            Icon(Icons.search_off_outlined, size: 60),
 
-            SizedBox(height: 16),
+  bool _sameHistoryDay(
+    DateTime first,
+    DateTime second,
+  ) {
+    return first.year == second.year &&
+        first.month == second.month &&
+        first.day == second.day;
+  }
 
-            Text(
-              'Không tìm thấy cuốc',
 
-              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
-            ),
+  String _formatHistoryDate(
+    DateTime date,
+  ) {
+    String twoDigits(int value) =>
+        value.toString().padLeft(2, '0');
 
-            SizedBox(height: 8),
+    return '${twoDigits(date.day)}/'
+        '${twoDigits(date.month)}/'
+        '${date.year}';
+  }
 
-            Text('Thử tìm bằng nội dung, tên nhóm hoặc người gửi.'),
-          ],
-        ),
-      );
+
+  String _formatHistoryDateTime(
+    DateTime? date,
+  ) {
+    if (date == null) {
+      return '—';
     }
 
-    return RefreshIndicator(
-      onRefresh: () {
-        return loadData(showLoading: false);
-      },
+    String twoDigits(int value) =>
+        value.toString().padLeft(2, '0');
 
-      child: ListView.separated(
-        physics: const AlwaysScrollableScrollPhysics(),
+    return '${twoDigits(date.day)}/'
+        '${twoDigits(date.month)}/'
+        '${date.year}  '
+        '${twoDigits(date.hour)}:'
+        '${twoDigits(date.minute)}';
+  }
 
-        itemCount: acceptedFiltered.length,
 
-        separatorBuilder: (_, _) => const Divider(height: 1),
+  List<Map<String, String>> get historyGroupOptions {
+    final byId =
+        <String, String>{};
 
-        itemBuilder: (context, index) {
-          final trip = acceptedFiltered[index];
+    for (final trip in acceptedTrips) {
+      final id =
+          firstNonEmptyString([
+        trip['sourceThreadId'],
+        trip['groupId'],
+        trip['threadId'],
+      ]);
 
-          final content = trip['content']?.toString() ?? 'Cuốc đã nhận';
+      if (id == null || id.isEmpty) {
+        continue;
+      }
 
-          final groupName = trip['groupName']?.toString() ?? 'Nhóm Zalo';
+      final name =
+          firstNonEmptyString([
+            trip['groupName'],
+            trip['sourceGroupName'],
+          ]) ??
+          'Nhóm Zalo';
 
-          final senderName =
-              trip['senderName']?.toString() ?? 'Không rõ người gửi';
+      byId[id] = name;
+    }
 
-          final acceptedAt = DateTime.tryParse(
-            trip['acceptedAt']?.toString() ?? '',
-          );
+    final result =
+        byId.entries
+            .map(
+              (entry) =>
+                  <String, String>{
+                'id': entry.key,
+                'name': entry.value,
+              },
+            )
+            .toList();
 
-          String timeText = '';
+    result.sort(
+      (a, b) =>
+          (a['name'] ?? '')
+              .toLowerCase()
+              .compareTo(
+                (b['name'] ?? '')
+                    .toLowerCase(),
+              ),
+    );
 
-          if (acceptedAt != null) {
-            final local = acceptedAt.toLocal();
+    return result;
+  }
 
-            final hour = local.hour.toString().padLeft(2, '0');
 
-            final minute = local.minute.toString().padLeft(2, '0');
+  Future<void> _pickHistoryDate() async {
+    final picked =
+        await showDatePicker(
+      context: context,
+      initialDate:
+          historySelectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      helpText: 'Chọn ngày lịch sử nhận',
+      cancelText: 'Hủy',
+      confirmText: 'Chọn',
+    );
 
-            timeText = '$hour:$minute';
-          }
+    if (picked == null || !mounted) {
+      return;
+    }
 
-          return ListTile(
-            onTap: () => openAcceptedTrip(trip),
+    setState(() {
+      historySelectedDate =
+          picked;
+    });
+  }
 
-            leading: const CircleAvatar(child: Icon(Icons.local_taxi)),
 
-            title: Text(content, maxLines: 2, overflow: TextOverflow.ellipsis),
+  String _historyGroupLabel() {
+    final selected =
+        historySelectedGroupId;
 
-            subtitle: Text(
-              '$groupName\n'
-              '$senderName',
+    if (selected == null) {
+      return 'Tất cả nhóm';
+    }
 
-              maxLines: 2,
+    for (final option in historyGroupOptions) {
+      if (option['id'] == selected) {
+        return option['name'] ??
+            'Nhóm Zalo';
+      }
+    }
 
-              overflow: TextOverflow.ellipsis,
+    return 'Nhóm Zalo';
+  }
+
+
+  Widget _buildAcceptedHistoryFilters() {
+    return Padding(
+      padding:
+          const EdgeInsets.fromLTRB(
+        16,
+        4,
+        16,
+        12,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: _pickHistoryDate,
+              icon: const Icon(
+                Icons.calendar_today_outlined,
+                size: 18,
+              ),
+              label: Text(
+                _formatHistoryDate(
+                  historySelectedDate,
+                ),
+                overflow:
+                    TextOverflow.ellipsis,
+              ),
             ),
+          ),
 
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+          const SizedBox(width: 8),
 
-              crossAxisAlignment: CrossAxisAlignment.end,
+          Expanded(
+            child: PopupMenuButton<String>(
+              tooltip: 'Lọc theo nhóm',
+              onSelected: (value) {
+                setState(() {
+                  historySelectedGroupId =
+                      value.isEmpty
+                          ? null
+                          : value;
+                });
+              },
+              itemBuilder: (context) {
+                return <PopupMenuEntry<String>>[
+                  const PopupMenuItem<String>(
+                    value: '',
+                    child: Text(
+                      'Tất cả nhóm',
+                    ),
+                  ),
+                  ...historyGroupOptions.map(
+                    (option) =>
+                        PopupMenuItem<String>(
+                      value:
+                          option['id']!,
+                      child: Text(
+                        option['name'] ??
+                            'Nhóm Zalo',
+                        maxLines: 1,
+                        overflow:
+                            TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ];
+              },
+              child: Container(
+                height: 48,
+                padding:
+                    const EdgeInsets.symmetric(
+                  horizontal: 12,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .outline,
+                  ),
+                  borderRadius:
+                      BorderRadius.circular(
+                    12,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.groups_outlined,
+                      size: 20,
+                    ),
 
-              children: [
-                Text(timeText),
+                    const SizedBox(width: 8),
 
-                const SizedBox(height: 4),
+                    Expanded(
+                      child: Text(
+                        _historyGroupLabel(),
+                        maxLines: 1,
+                        overflow:
+                            TextOverflow.ellipsis,
+                      ),
+                    ),
 
-                const Icon(Icons.chevron_right),
-              ],
+                    const Icon(
+                      Icons.arrow_drop_down,
+                    ),
+                  ],
+                ),
+              ),
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
 
+
+  Widget _historyDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Padding(
+      padding:
+          const EdgeInsets.only(
+        top: 7,
+      ),
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 17,
+          ),
+
+          const SizedBox(width: 7),
+
+          SizedBox(
+            width: 82,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight:
+                    FontWeight.w600,
+              ),
+            ),
+          ),
+
+          Expanded(
+            child: Text(
+              value.isEmpty
+                  ? '—'
+                  : value,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  Widget _buildAcceptedTripCard(
+    Map<String, dynamic> trip,
+  ) {
+    final content =
+        trip['content']
+                ?.toString() ??
+            'Cuốc đã nhận';
+
+    final groupName =
+        firstNonEmptyString([
+          trip['groupName'],
+          trip['sourceGroupName'],
+        ]) ??
+        'Nhóm Zalo';
+
+    final senderName =
+        firstNonEmptyString([
+          trip['senderName'],
+          trip['senderId'],
+        ]) ??
+        'Không rõ người gửi';
+
+    final acceptedAt =
+        _acceptedTripTime(trip);
+
+    return Card(
+      margin:
+          const EdgeInsets.fromLTRB(
+        16,
+        0,
+        16,
+        12,
+      ),
+      clipBehavior:
+          Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          unawaited(
+            openAcceptedTrip(trip),
+          );
+        },
+        child: Padding(
+          padding:
+              const EdgeInsets.all(
+            14,
+          ),
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    color: Colors.green,
+                    size: 20,
+                  ),
+
+                  const SizedBox(width: 7),
+
+                  const Text(
+                    'Đã nhận',
+                    style: TextStyle(
+                      fontWeight:
+                          FontWeight.w700,
+                      color: Colors.green,
+                    ),
+                  ),
+
+                  const Spacer(),
+
+                  Text(
+                    _formatHistoryDateTime(
+                      acceptedAt,
+                    ),
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall,
+                  ),
+
+                  const SizedBox(width: 3),
+
+                  const Icon(
+                    Icons.chevron_right,
+                    size: 20,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              Text(
+                content,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight:
+                      FontWeight.w600,
+                ),
+              ),
+
+              _historyDetailRow(
+                icon:
+                    Icons.schedule_outlined,
+                label: 'Nhận lúc',
+                value:
+                    _formatHistoryDateTime(
+                  acceptedAt,
+                ),
+              ),
+
+              _historyDetailRow(
+                icon:
+                    Icons.groups_outlined,
+                label: 'Nhóm',
+                value: groupName,
+              ),
+
+              _historyDetailRow(
+                icon:
+                    Icons.person_outline,
+                label: 'Người gửi',
+                value: senderName,
+              ),
+
+              _historyDetailRow(
+                icon:
+                    Icons.flag_outlined,
+                label: 'Trạng thái',
+                value: 'Đã nhận',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+
+  Widget buildAcceptedHistory() {
+    final items =
+        acceptedFiltered;
+
+    return RefreshIndicator(
+      onRefresh: () {
+        return loadData(
+          showLoading: false,
+        );
+      },
+      child: ListView(
+        physics:
+            const AlwaysScrollableScrollPhysics(),
+        padding:
+            const EdgeInsets.only(
+          top: 4,
+          bottom: 20,
+        ),
+        children: [
+          _buildAcceptedHistoryFilters(),
+
+          if (items.isEmpty)
+            const Padding(
+              padding:
+                  EdgeInsets.only(
+                top: 100,
+                left: 32,
+                right: 32,
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.history,
+                    size: 68,
+                  ),
+
+                  SizedBox(height: 16),
+
+                  Text(
+                    'Không có cuốc đã nhận',
+                    textAlign:
+                        TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight:
+                          FontWeight.w600,
+                    ),
+                  ),
+
+                  SizedBox(height: 8),
+
+                  Text(
+                    'Thử chọn ngày, nhóm khác hoặc thay đổi nội dung tìm kiếm.',
+                    textAlign:
+                        TextAlign.center,
+                  ),
+                ],
+              ),
+            )
+          else
+            ...items.map(
+              _buildAcceptedTripCard,
+            ),
+        ],
+      ),
+    );
+  }
+
+
   List<Map<String, dynamic>> get acceptedFiltered {
-    if (searchText.isEmpty) {
-      return acceptedTrips;
-    }
+    final selectedGroup =
+        historySelectedGroupId;
 
     return acceptedTrips.where((trip) {
-      final content = trip['content']?.toString().toLowerCase() ?? '';
+      final acceptedAt =
+          _acceptedTripTime(trip);
 
-      final groupName = trip['groupName']?.toString().toLowerCase() ?? '';
+      if (
+        acceptedAt == null ||
+        !_sameHistoryDay(
+          acceptedAt,
+          historySelectedDate,
+        )
+      ) {
+        return false;
+      }
 
-      final senderName = trip['senderName']?.toString().toLowerCase() ?? '';
+      if (selectedGroup != null) {
+        final groupId =
+            firstNonEmptyString([
+          trip['sourceThreadId'],
+          trip['groupId'],
+          trip['threadId'],
+        ]);
 
-      return content.contains(searchText) ||
-          groupName.contains(searchText) ||
-          senderName.contains(searchText);
+        if (groupId != selectedGroup) {
+          return false;
+        }
+      }
+
+      if (searchText.isNotEmpty) {
+        final content =
+            trip['content']
+                    ?.toString()
+                    .toLowerCase() ??
+                '';
+
+        if (!content.contains(searchText)) {
+          return false;
+        }
+      }
+
+      return true;
     }).toList();
   }
+
 
   @override
   void dispose() {
@@ -1876,6 +2321,10 @@ class _MessagesPageState extends State<MessagesPage>
 
     realtimeRefreshTimer?.cancel();
     realtimeRefreshTimer = null;
+
+    tabController.removeListener(
+      _handleTabChanged,
+    );
 
     tabController.dispose();
     searchController.dispose();
@@ -2006,7 +2455,9 @@ class _MessagesPageState extends State<MessagesPage>
                     controller: searchController,
 
                     decoration: InputDecoration(
-                      hintText: 'Tìm kiếm cuộc trò chuyện...',
+                      hintText: tabController.index == 2
+                          ? 'Tìm theo nội dung cuốc...'
+                          : 'Tìm kiếm cuộc trò chuyện...',
 
                       prefixIcon: const Icon(Icons.search),
 
