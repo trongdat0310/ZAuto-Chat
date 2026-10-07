@@ -1642,7 +1642,30 @@ app.get(
     const messages =
       getUserMessages(
         req.user.id,
-        requestedLimit
+        {
+          limit:
+            requestedLimit,
+
+          from:
+            req.query.from ??
+            null,
+
+          to:
+            req.query.to ??
+            null,
+
+          groupId:
+            req.query.groupId ??
+            null,
+
+          status:
+            req.query.status ??
+            null,
+
+          q:
+            req.query.q ??
+            null,
+        }
       );
 
 
