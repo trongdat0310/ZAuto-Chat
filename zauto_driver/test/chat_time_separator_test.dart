@@ -12,6 +12,46 @@ Map<String, dynamic> messageAt(DateTime time) {
 
 void main() {
   test(
+    'chat time formatter uses today yesterday and dated labels',
+    () {
+      final now =
+          DateTime(2026, 10, 7, 21, 30);
+
+      expect(
+        formatChatTimeSeparator(
+          messageAt(
+            DateTime(2026, 10, 7, 9, 5),
+          ),
+          now: now,
+        ),
+        'Hôm nay • 09:05',
+      );
+
+      expect(
+        formatChatTimeSeparator(
+          messageAt(
+            DateTime(2026, 10, 6, 22, 10),
+          ),
+          now: now,
+        ),
+        'Hôm qua • 22:10',
+      );
+
+      expect(
+        formatChatTimeSeparator(
+          messageAt(
+            DateTime(2026, 10, 5, 18, 45),
+          ),
+          now: now,
+        ),
+        '05/10/2026 • 18:45',
+      );
+    },
+  );
+
+
+
+  test(
     'same-day messages under 30 minutes stay in one time group',
     () {
       final older = messageAt(
