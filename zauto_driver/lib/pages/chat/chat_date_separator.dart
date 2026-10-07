@@ -192,6 +192,24 @@ String formatChatGapSeparator(
     return '';
   }
 
+  // Khac ngay:
+  // - Hom nay -> Hôm nay • HH:mm
+  // - Hom qua -> Hôm qua • HH:mm
+  // - Cu hon -> dd/MM/yyyy • HH:mm
+  if (
+    !isSameCalendarDay(
+      newerMessage,
+      olderMessage,
+    )
+  ) {
+    return formatChatTimeSeparator(
+      newerMessage,
+      now: now,
+    );
+  }
+
+  // Cung ngay nhung cach nhau >= 30 phut:
+  // chi hien gio.
   final timestampMs =
       messageTimestampMs(
         newerMessage,
@@ -206,33 +224,7 @@ String formatChatGapSeparator(
         timestampMs,
       ).toLocal();
 
-  final current =
-      (now ?? DateTime.now()).toLocal();
-
-  final isToday =
-      date.year == current.year &&
-      date.month == current.month &&
-      date.day == current.day;
-
-  // Hom nay:
-  // separator trong ngay chi can hien gio.
-  if (
-    isToday &&
-    isSameCalendarDay(
-      newerMessage,
-      olderMessage,
-    )
-  ) {
-    return _formatClock(date);
-  }
-
-  // Moi ngay cu:
-  // separator nao cung hien day du ngay + gio,
-  // ke ca khi 2 message van cung mot ngay.
-  return '${date.day.toString().padLeft(2, '0')}/'
-      '${date.month.toString().padLeft(2, '0')}/'
-      '${date.year} . '
-      '${_formatClock(date)}';
+  return _formatClock(date);
 }
 
 
