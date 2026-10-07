@@ -1055,6 +1055,21 @@ app.post(
         );
 
 
+      broadcastUserEvent(
+        userId,
+        "group_notification_toggled",
+        {
+          groupId,
+          enabled:
+            result.enabled,
+
+          groupName:
+            group.name ??
+            null,
+        }
+      );
+
+
       res.json({
         success: true,
 
