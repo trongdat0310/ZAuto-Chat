@@ -75,7 +75,7 @@ void main() {
 
 
   test(
-    'historical same-day time groups keep full date and time',
+    'historical same-day time groups still show clock only',
     () {
       final older = messageAt(
         DateTime(2026, 10, 4, 10, 0),
@@ -92,7 +92,7 @@ void main() {
           older,
           now: DateTime(2026, 10, 7, 12, 0),
         ),
-        '04/10/2026 . 10:46',
+        '10:46',
       );
     },
   );
@@ -116,6 +116,57 @@ void main() {
           older,
         ),
         isTrue,
+      );
+    },
+  );
+
+
+  test(
+    'different-day labels use today yesterday or full date',
+    () {
+      final now =
+          DateTime(2026, 10, 7, 12, 0);
+
+
+      expect(
+        formatChatGapSeparator(
+          messageAt(
+            DateTime(2026, 10, 7, 9, 5),
+          ),
+          messageAt(
+            DateTime(2026, 10, 6, 23, 50),
+          ),
+          now: now,
+        ),
+        'Hôm nay • 09:05',
+      );
+
+
+      expect(
+        formatChatGapSeparator(
+          messageAt(
+            DateTime(2026, 10, 6, 22, 10),
+          ),
+          messageAt(
+            DateTime(2026, 10, 5, 23, 50),
+          ),
+          now: now,
+        ),
+        'Hôm qua • 22:10',
+      );
+
+
+      expect(
+        formatChatGapSeparator(
+          messageAt(
+            DateTime(2026, 10, 5, 18, 45),
+          ),
+          messageAt(
+            DateTime(2026, 10, 4, 23, 50),
+          ),
+          now: now,
+        ),
+        '05/10/2026 • 18:45',
       );
     },
   );
