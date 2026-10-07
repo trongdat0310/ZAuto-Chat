@@ -192,39 +192,14 @@ String formatChatGapSeparator(
     return '';
   }
 
-  // Khac ngay:
-  // - Hom nay -> Hôm nay • HH:mm
-  // - Hom qua -> Hôm qua • HH:mm
-  // - Cu hon -> dd/MM/yyyy • HH:mm
-  if (
-    !isSameCalendarDay(
-      newerMessage,
-      olderMessage,
-    )
-  ) {
-    return formatChatTimeSeparator(
-      newerMessage,
-      now: now,
-    );
-  }
-
-  // Cung ngay nhung cach nhau >= 30 phut:
-  // chi hien gio.
-  final timestampMs =
-      messageTimestampMs(
-        newerMessage,
-      );
-
-  if (timestampMs == null) {
-    return '';
-  }
-
-  final date =
-      DateTime.fromMillisecondsSinceEpoch(
-        timestampMs,
-      ).toLocal();
-
-  return _formatClock(date);
+  // Moi separator deu dung cung mot format:
+  // - Hom nay: Hôm nay • HH:mm
+  // - Hom qua: Hôm qua • HH:mm
+  // - Cu hon: dd/MM/yyyy • HH:mm
+  return formatChatTimeSeparator(
+    newerMessage,
+    now: now,
+  );
 }
 
 
