@@ -139,8 +139,22 @@ class BackendService {
     );
   }
 
-  Future<List<Map<String, dynamic>>> getMessages({int limit = 100}) {
-    return tripApi.getMessages(limit: limit);
+  Future<List<Map<String, dynamic>>> getMessages({
+    int limit = 100,
+    DateTime? from,
+    DateTime? to,
+    String? groupId,
+    String? status,
+    String? query,
+  }) {
+    return tripApi.getMessages(
+      limit: limit,
+      from: from,
+      to: to,
+      groupId: groupId,
+      status: status,
+      query: query,
+    );
   }
 
   Future<Map<String, dynamic>> ignoreMessage(String messageId) {
