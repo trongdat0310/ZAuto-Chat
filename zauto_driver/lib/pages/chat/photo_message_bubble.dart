@@ -332,47 +332,151 @@ class PhotoMessageBubble extends StatelessWidget {
     // ========================================
     // 4+ PHOTOS
     //
-    // [          PHOTO 1          ]
+    // HIEN TOI DA 6 ANH.
     //
-    // [ PHOTO2 ][ PHOTO3 ][ PHOTO4 ]
+    // [      PHOTO 1      ][ PHOTO 2 ]
+    // [ PHOTO 3 ][ PHOTO 4 ][ PHOTO 5 ]
+    // [        PHOTO 6 / +N OVERLAY        ]
+    //
+    // Neu album > 6, anh thu 6 hien +N.
     // ========================================
+
+    if (album.length == 4) {
+      final itemWidth = (width - gap) / 2;
+
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+
+            children: [
+              _buildAlbumPhotoTile(
+                album[0],
+                width: itemWidth,
+                height: 180,
+              ),
+
+              const SizedBox(width: gap),
+
+              _buildAlbumPhotoTile(
+                album[1],
+                width: itemWidth,
+                height: 180,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: gap),
+
+          Row(
+            mainAxisSize: MainAxisSize.min,
+
+            children: [
+              _buildAlbumPhotoTile(
+                album[2],
+                width: itemWidth,
+                height: 180,
+              ),
+
+              const SizedBox(width: gap),
+
+              _buildAlbumPhotoTile(
+                album[3],
+                width: itemWidth,
+                height: 180,
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
 
     final smallWidth = (width - gap * 2) / 3;
 
-    final extra = album.length > 4 ? album.length - 4 : 0;
+    final extra =
+        album.length > 6
+            ? album.length - 6
+            : 0;
+
+    final visibleCount =
+        math.min(
+          album.length,
+          6,
+        );
+
+    final firstRow = <Widget>[
+      _buildAlbumPhotoTile(
+        album[0],
+        width: (width - gap) / 2,
+        height: 170,
+      ),
+
+      const SizedBox(width: gap),
+
+      _buildAlbumPhotoTile(
+        album[1],
+        width: (width - gap) / 2,
+        height: 170,
+      ),
+    ];
+
+    final secondRow = <Widget>[];
+
+    for (
+      var index = 2;
+      index < math.min(5, visibleCount);
+      index += 1
+    ) {
+      if (secondRow.isNotEmpty) {
+        secondRow.add(
+          const SizedBox(width: gap),
+        );
+      }
+
+      secondRow.add(
+        _buildAlbumPhotoTile(
+          album[index],
+          width: smallWidth,
+          height: 110,
+        ),
+      );
+    }
+
+    final children = <Widget>[
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: firstRow,
+      ),
+
+      const SizedBox(height: gap),
+
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: secondRow,
+      ),
+    ];
+
+    if (visibleCount >= 6) {
+      children.add(
+        const SizedBox(height: gap),
+      );
+
+      children.add(
+        _buildAlbumPhotoTile(
+          album[5],
+          width: width,
+          height: 120,
+          extraCount: extra,
+        ),
+      );
+    }
 
     return Column(
       mainAxisSize: MainAxisSize.min,
-
-      children: [
-        _buildAlbumPhotoTile(album[0], width: width, height: 225),
-
-        const SizedBox(height: gap),
-
-        Row(
-          mainAxisSize: MainAxisSize.min,
-
-          children: [
-            _buildAlbumPhotoTile(album[1], width: smallWidth, height: 105),
-
-            const SizedBox(width: gap),
-
-            _buildAlbumPhotoTile(album[2], width: smallWidth, height: 105),
-
-            const SizedBox(width: gap),
-
-            _buildAlbumPhotoTile(
-              album[3],
-
-              width: smallWidth,
-
-              height: 105,
-
-              extraCount: extra,
-            ),
-          ],
-        ),
-      ],
+      children: children,
     );
   }
 }
