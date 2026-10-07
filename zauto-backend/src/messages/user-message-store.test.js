@@ -604,3 +604,94 @@ test(
   }
 );
 
+test(
+  "trip history supports accepted status filtering",
+  async () => {
+    const userId =
+      `test-message-history-status-${process.pid}`;
+
+    cleanup(
+      userId
+    );
+
+
+    try {
+      const accepted =
+        saveUserMessage(
+          userId,
+          {
+            groupId:
+              "group-a",
+
+            senderId:
+              "sender-a",
+
+            zaloMessageId:
+              "status-accepted",
+
+            content:
+              "Cuốc đã nhận",
+          }
+        );
+
+      const fresh =
+        saveUserMessage(
+          userId,
+          {
+            groupId:
+              "group-a",
+
+            senderId:
+              "sender-b",
+
+            zaloMessageId:
+              "status-new",
+
+            content:
+              "Cuốc mới",
+          }
+        );
+
+
+      accepted.message.status =
+        "accepted";
+
+      fresh.message.status =
+        "new";
+
+
+      const result =
+        getUserMessages(
+          userId,
+          {
+            limit:
+              100,
+
+            status:
+              "accepted",
+          }
+        );
+
+
+      assert.deepEqual(
+        result.map(
+          item =>
+            item.content
+        ),
+        [
+          "Cuốc đã nhận",
+        ]
+      );
+
+    } finally {
+      await flushUserMessages(
+        userId
+      );
+
+      cleanup(
+        userId
+      );
+    }
+  }
+);
+
