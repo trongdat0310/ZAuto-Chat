@@ -52,7 +52,7 @@ class PhotoMessageBubble extends StatelessWidget {
       return _buildSinglePhoto(album.first);
     }
 
-    return _buildAlbum();
+    return _buildAlbum(context);
   }
 
   // ========================================
@@ -169,6 +169,7 @@ class PhotoMessageBubble extends StatelessWidget {
   // ========================================
 
   Widget _buildAlbumPhotoTile(
+    BuildContext context,
     Map<String, dynamic> message, {
     required double width,
     required double height,
@@ -271,7 +272,7 @@ class PhotoMessageBubble extends StatelessWidget {
   // ALBUM
   // ========================================
 
-  Widget _buildAlbum() {
+  Widget _buildAlbum(BuildContext context) {
     const width = 300.0;
 
     const gap = 4.0;
@@ -287,11 +288,11 @@ class PhotoMessageBubble extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
 
         children: [
-          _buildAlbumPhotoTile(album[0], width: itemWidth, height: 190),
+          _buildAlbumPhotoTile(context, album[0], width: itemWidth, height: 190),
 
           const SizedBox(width: gap),
 
-          _buildAlbumPhotoTile(album[1], width: itemWidth, height: 190),
+          _buildAlbumPhotoTile(context, album[1], width: itemWidth, height: 190),
         ],
       );
     }
@@ -312,17 +313,17 @@ class PhotoMessageBubble extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
 
         children: [
-          _buildAlbumPhotoTile(album[0], width: bigWidth, height: 224),
+          _buildAlbumPhotoTile(context, album[0], width: bigWidth, height: 224),
 
           const SizedBox(width: gap),
 
           Column(
             children: [
-              _buildAlbumPhotoTile(album[1], width: smallWidth, height: 110),
+              _buildAlbumPhotoTile(context, album[1], width: smallWidth, height: 110),
 
               const SizedBox(height: gap),
 
-              _buildAlbumPhotoTile(album[2], width: smallWidth, height: 110),
+              _buildAlbumPhotoTile(context, album[2], width: smallWidth, height: 110),
             ],
           ),
         ],
@@ -352,7 +353,7 @@ class PhotoMessageBubble extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
 
             children: [
-              _buildAlbumPhotoTile(
+              _buildAlbumPhotoTile(context, 
                 album[0],
                 width: itemWidth,
                 height: 180,
@@ -360,7 +361,7 @@ class PhotoMessageBubble extends StatelessWidget {
 
               const SizedBox(width: gap),
 
-              _buildAlbumPhotoTile(
+              _buildAlbumPhotoTile(context, 
                 album[1],
                 width: itemWidth,
                 height: 180,
@@ -374,7 +375,7 @@ class PhotoMessageBubble extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
 
             children: [
-              _buildAlbumPhotoTile(
+              _buildAlbumPhotoTile(context, 
                 album[2],
                 width: itemWidth,
                 height: 180,
@@ -382,7 +383,7 @@ class PhotoMessageBubble extends StatelessWidget {
 
               const SizedBox(width: gap),
 
-              _buildAlbumPhotoTile(
+              _buildAlbumPhotoTile(context, 
                 album[3],
                 width: itemWidth,
                 height: 180,
@@ -408,7 +409,7 @@ class PhotoMessageBubble extends StatelessWidget {
         );
 
     final firstRow = <Widget>[
-      _buildAlbumPhotoTile(
+      _buildAlbumPhotoTile(context, 
         album[0],
         width: (width - gap) / 2,
         height: 170,
@@ -416,7 +417,7 @@ class PhotoMessageBubble extends StatelessWidget {
 
       const SizedBox(width: gap),
 
-      _buildAlbumPhotoTile(
+      _buildAlbumPhotoTile(context, 
         album[1],
         width: (width - gap) / 2,
         height: 170,
@@ -437,7 +438,7 @@ class PhotoMessageBubble extends StatelessWidget {
       }
 
       secondRow.add(
-        _buildAlbumPhotoTile(
+        _buildAlbumPhotoTile(context, 
           album[index],
           width: smallWidth,
           height: 110,
@@ -465,7 +466,7 @@ class PhotoMessageBubble extends StatelessWidget {
       );
 
       children.add(
-        _buildAlbumPhotoTile(
+        _buildAlbumPhotoTile(context, 
           album[5],
           width: width,
           height: 120,
