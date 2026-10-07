@@ -586,14 +586,19 @@ class _HistoryPageState extends State<HistoryPage> {
                 tooltip: 'Lọc theo nhóm',
                 onSelected: (value) {
                   unawaited(
-                    _setGroup(value),
+                    _setGroup(
+                      value == null ||
+                              value.isEmpty
+                          ? null
+                          : value,
+                    ),
                   );
                 },
                 itemBuilder: (context) {
                   final items =
                       <PopupMenuEntry<String?>>[
                     const PopupMenuItem<String?>(
-                      value: null,
+                      value: '',
                       child: Text(
                         'Tất cả nhóm',
                       ),
