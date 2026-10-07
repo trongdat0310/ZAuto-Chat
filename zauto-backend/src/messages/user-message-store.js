@@ -812,26 +812,202 @@ export function saveUserMessage(
 
 export function getUserMessages(
   userId,
-  limit = 100
+  options = 100
 ) {
   const messages =
     readUserMessages(userId);
+
+
+  const normalized =
+    typeof options ===
+      "object" &&
+    options !== null
+      ? options
+      : {
+          limit:
+            options,
+        };
 
 
   const safeLimit =
     Math.max(
       1,
       Math.min(
-        Number(limit) || 100,
+        Number(
+          normalized.limit
+        ) || 100,
         500
       )
     );
 
 
-  return messages.slice(
-    0,
-    safeLimit
-  );
+  const safeGroupId =
+    String(
+      normalized.groupId ??
+      ""
+    ).trim();
+
+
+  const safeStatus =
+    String(
+      normalized.status ??
+      ""
+    ).trim();
+
+
+  const safeQuery =
+    String(
+      normalized.q ??
+      ""
+    )
+      .trim()
+      .toLocaleLowerCase();
+
+
+  const fromMs =
+    normalized.from
+      ? Date.parse(
+          String(
+            normalized.from
+          )
+        )
+      : NaN;
+
+
+  const toMs =
+    normalized.to
+      ? Date.parse(
+          String(
+            normalized.to
+          )
+        )
+      : NaN;
+
+
+  const result =
+    [];
+
+
+  for (
+    const message
+    of messages
+  ) {
+
+    if (
+      safeGroupId &&
+      String(
+        message.groupId ??
+        ""
+      ) !== safeGroupId
+    ) {
+      continue;
+    }
+
+
+    if (
+      safeStatus &&
+      String(
+        message.status ??
+        ""
+      ) !== safeStatus
+    ) {
+      continue;
+    }
+
+
+    if (safeQuery) {
+      const haystack =
+        [
+          message.content,
+          message.groupName,
+          message.senderName,
+          message.senderId,
+        ]
+          .map(
+            value =>
+              String(
+                value ??
+                ""
+              )
+          )
+          .join("\n")
+          .toLocaleLowerCase();
+
+
+      if (
+        !haystack.includes(
+          safeQuery
+        )
+      ) {
+        continue;
+      }
+    }
+
+
+    if (
+      Number.isFinite(
+        fromMs
+      ) ||
+      Number.isFinite(
+        toMs
+      )
+    ) {
+      const receivedMs =
+        Date.parse(
+          String(
+            message.receivedAt ??
+            ""
+          )
+        );
+
+
+      if (
+        !Number.isFinite(
+          receivedMs
+        )
+      ) {
+        continue;
+      }
+
+
+      if (
+        Number.isFinite(
+          fromMs
+        ) &&
+        receivedMs <
+          fromMs
+      ) {
+        continue;
+      }
+
+
+      if (
+        Number.isFinite(
+          toMs
+        ) &&
+        receivedMs >
+          toMs
+      ) {
+        continue;
+      }
+    }
+
+
+    result.push(
+      message
+    );
+
+
+    if (
+      result.length >=
+      safeLimit
+    ) {
+      break;
+    }
+  }
+
+
+  return result;
 }
 
 
