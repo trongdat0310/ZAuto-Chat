@@ -139,31 +139,6 @@ class PhotoMessageBubble extends StatelessWidget {
     );
   }
 
-  double? _photoAspectRatio(
-    Map<String, dynamic> message,
-  ) {
-    final params = resolvePhotoParams(message);
-
-    final width = double.tryParse(
-      (message['mediaWidth'] ?? params['width'] ?? '').toString(),
-    );
-
-    final height = double.tryParse(
-      (message['mediaHeight'] ?? params['height'] ?? '').toString(),
-    );
-
-    if (
-      width == null ||
-      height == null ||
-      width <= 0 ||
-      height <= 0
-    ) {
-      return null;
-    }
-
-    return width / height;
-  }
-
   // ========================================
   // ALBUM TILE
   // ========================================
@@ -176,8 +151,6 @@ class PhotoMessageBubble extends StatelessWidget {
     int extraCount = 0,
   }) {
     final photoUrl = resolvePhotoUrl(message);
-
-    final aspectRatio = _photoAspectRatio(message);
 
     if (photoUrl == null || photoUrl.isEmpty) {
       return SizedBox(
@@ -218,27 +191,20 @@ class PhotoMessageBubble extends StatelessWidget {
                 ColoredBox(
                   color: Theme.of(context).colorScheme.surfaceContainerHighest,
 
-                  child: Center(
-                    child: AspectRatio(
-                      // Neu backend co kich thuoc goc thi giu dung ti le anh.
-                      // Fallback 1:1 van dung BoxFit.contain nen bitmap
-                      // tuyet doi khong bi keo gian.
-                      aspectRatio: aspectRatio ?? 1.0,
+                  child: _RetryNetworkImage(
+                    url: photoUrl,
 
-                      child: _RetryNetworkImage(
-                        url: photoUrl,
+                    // Giu dung ti le bitmap.
+                    // cover chi crop phan du, KHONG keo meo anh.
+                    fit: BoxFit.cover,
 
-                        fit: BoxFit.contain,
-
-                        fallback: const Center(
-                          child: Icon(Icons.broken_image_outlined),
-                        ),
-
-                        cacheWidth: (width * 2.5).round(),
-
-                        cacheHeight: (height * 2.5).round(),
-                      ),
+                    fallback: const Center(
+                      child: Icon(Icons.broken_image_outlined),
                     ),
+
+                    cacheWidth: (width * 2.5).round(),
+
+                    cacheHeight: (height * 2.5).round(),
                   ),
                 ),
 
@@ -333,13 +299,18 @@ class PhotoMessageBubble extends StatelessWidget {
     // ========================================
     // 4+ PHOTOS
     //
-    // HIEN TOI DA 6 ANH.
+    // HIEN TOI DA 5 ANH.
     //
-    // [      PHOTO 1      ][ PHOTO 2 ]
-    // [ PHOTO 3 ][ PHOTO 4 ][ PHOTO 5 ]
-    // [        PHOTO 6 / +N OVERLAY        ]
+    // 4 anh:
+    // [ 1 ][ 2 ]
+    // [ 3 ][ 4 ]
     //
-    // Neu album > 6, anh thu 6 hien +N.
+    // 5+ anh:
+    // [    1    ][    2    ]
+    // [ 3 ][ 4 ][ 5 / +N ]
+    //
+    // Anh luon giu dung ti le bitmap.
+    // BoxFit.cover chi crop phan du.
     // ========================================
 
     if (album.length == 4) {
@@ -353,18 +324,20 @@ class PhotoMessageBubble extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
 
             children: [
-              _buildAlbumPhotoTile(context, 
+              _buildAlbumPhotoTile(
+                context,
                 album[0],
                 width: itemWidth,
-                height: 180,
+                height: 170,
               ),
 
               const SizedBox(width: gap),
 
-              _buildAlbumPhotoTile(context, 
+              _buildAlbumPhotoTile(
+                context,
                 album[1],
                 width: itemWidth,
-                height: 180,
+                height: 170,
               ),
             ],
           ),
@@ -375,18 +348,20 @@ class PhotoMessageBubble extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
 
             children: [
-              _buildAlbumPhotoTile(context, 
+              _buildAlbumPhotoTile(
+                context,
                 album[2],
                 width: itemWidth,
-                height: 180,
+                height: 170,
               ),
 
               const SizedBox(width: gap),
 
-              _buildAlbumPhotoTile(context, 
+              _buildAlbumPhotoTile(
+                context,
                 album[3],
                 width: itemWidth,
-                height: 180,
+                height: 170,
               ),
             ],
           ),
@@ -395,89 +370,76 @@ class PhotoMessageBubble extends StatelessWidget {
     }
 
 
-    final smallWidth = (width - gap * 2) / 3;
+    final topWidth = (width - gap) / 2;
+
+    final bottomWidth = (width - gap * 2) / 3;
 
     final extra =
-        album.length > 6
-            ? album.length - 6
+        album.length > 5
+            ? album.length - 5
             : 0;
 
-    final visibleCount =
-        math.min(
-          album.length,
-          6,
-        );
-
-    final firstRow = <Widget>[
-      _buildAlbumPhotoTile(context, 
-        album[0],
-        width: (width - gap) / 2,
-        height: 170,
-      ),
-
-      const SizedBox(width: gap),
-
-      _buildAlbumPhotoTile(context, 
-        album[1],
-        width: (width - gap) / 2,
-        height: 170,
-      ),
-    ];
-
-    final secondRow = <Widget>[];
-
-    for (
-      var index = 2;
-      index < math.min(5, visibleCount);
-      index += 1
-    ) {
-      if (secondRow.isNotEmpty) {
-        secondRow.add(
-          const SizedBox(width: gap),
-        );
-      }
-
-      secondRow.add(
-        _buildAlbumPhotoTile(context, 
-          album[index],
-          width: smallWidth,
-          height: 110,
-        ),
-      );
-    }
-
-    final children = <Widget>[
-      Row(
-        mainAxisSize: MainAxisSize.min,
-        children: firstRow,
-      ),
-
-      const SizedBox(height: gap),
-
-      Row(
-        mainAxisSize: MainAxisSize.min,
-        children: secondRow,
-      ),
-    ];
-
-    if (visibleCount >= 6) {
-      children.add(
-        const SizedBox(height: gap),
-      );
-
-      children.add(
-        _buildAlbumPhotoTile(context, 
-          album[5],
-          width: width,
-          height: 120,
-          extraCount: extra,
-        ),
-      );
-    }
 
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: children,
+
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+
+          children: [
+            _buildAlbumPhotoTile(
+              context,
+              album[0],
+              width: topWidth,
+              height: 170,
+            ),
+
+            const SizedBox(width: gap),
+
+            _buildAlbumPhotoTile(
+              context,
+              album[1],
+              width: topWidth,
+              height: 170,
+            ),
+          ],
+        ),
+
+        const SizedBox(height: gap),
+
+        Row(
+          mainAxisSize: MainAxisSize.min,
+
+          children: [
+            _buildAlbumPhotoTile(
+              context,
+              album[2],
+              width: bottomWidth,
+              height: 110,
+            ),
+
+            const SizedBox(width: gap),
+
+            _buildAlbumPhotoTile(
+              context,
+              album[3],
+              width: bottomWidth,
+              height: 110,
+            ),
+
+            const SizedBox(width: gap),
+
+            _buildAlbumPhotoTile(
+              context,
+              album[4],
+              width: bottomWidth,
+              height: 110,
+              extraCount: extra,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
