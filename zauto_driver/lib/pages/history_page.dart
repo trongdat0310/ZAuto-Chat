@@ -30,7 +30,8 @@ class _HistoryPageState extends State<HistoryPage> {
 
   bool loading = true;
 
-  DateTime? selectedDate;
+  DateTime? selectedDate =
+      DateTime.now();
 
   String? selectedGroupId;
 
@@ -162,6 +163,7 @@ class _HistoryPageState extends State<HistoryPage> {
         from: _filterFrom,
         to: _filterTo,
         groupId: selectedGroupId,
+        status: 'accepted',
         query: searchController.text,
       );
 
@@ -249,7 +251,8 @@ class _HistoryPageState extends State<HistoryPage> {
     searchController.clear();
 
     setState(() {
-      selectedDate = null;
+      selectedDate =
+          DateTime.now();
       selectedGroupId = null;
     });
 
@@ -257,11 +260,29 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   bool get hasFilters =>
-      selectedDate != null ||
       selectedGroupId != null ||
       searchController.text
           .trim()
-          .isNotEmpty;
+          .isNotEmpty ||
+      !_isToday(
+        selectedDate,
+      );
+
+  bool _isToday(
+    DateTime? date,
+  ) {
+    if (date == null) {
+      return false;
+    }
+
+    final now =
+        DateTime.now();
+
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
+  }
+
 
   String _groupName(
     String? groupId,
