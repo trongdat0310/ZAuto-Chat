@@ -24,7 +24,6 @@ class HomePage extends StatefulWidget {
 
   final VoidCallback onOpenAutoAcceptFilter;
 
-  final VoidCallback onOpenHistory;
 
   final AppRealtimeService realtimeService;
 
@@ -35,7 +34,6 @@ class HomePage extends StatefulWidget {
     required this.onOpenGroups,
     required this.onOpenNotificationFilter,
     required this.onOpenAutoAcceptFilter,
-    required this.onOpenHistory,
     required this.settingsController,
   });
 
@@ -1514,21 +1512,7 @@ class _HomePageState extends State<HomePage>
                       onTap: widget.onOpenAutoAcceptFilter,
                     ),
 
-                    const Divider(height: 1),
 
-                    // ==================================
-                    // LICH SU NHAN
-                    // ==================================
-                    homeSettingItem(
-                      icon: Icons.history_rounded,
-
-                      title: 'Lịch sử nhận',
-
-                      subtitle:
-                          'Xem cuốc đã lưu, lọc theo ngày và nhóm',
-
-                      onTap: widget.onOpenHistory,
-                    ),
                   ],
                 ),
               ),
