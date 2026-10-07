@@ -6,6 +6,7 @@ import '../pages/home/home_page.dart';
 import '../pages/filter/filter_page.dart';
 import '../pages/account_page.dart';
 import '../pages/groups_page.dart';
+import '../pages/history_page.dart';
 import '../pages/messages_page.dart';
 import '../pages/settings/settings_page.dart';
 import '../pages/zalo_link_page.dart';
@@ -126,6 +127,8 @@ class _MainScreenState extends State<MainScreen> {
               onOpenNotificationFilter: openNotificationFilter,
 
               onOpenAutoAcceptFilter: openAutoAcceptFilter,
+
+              onOpenHistory: openHistoryFromHome,
 
               settingsController: settingsController,
             )
@@ -301,6 +304,16 @@ class _MainScreenState extends State<MainScreen> {
       });
     }
   }
+
+  Future<void> openHistoryFromHome() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            const HistoryPage(),
+      ),
+    );
+  }
+
 
   void openNotificationFilter() {
     setState(() {
