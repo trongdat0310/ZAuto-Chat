@@ -139,6 +139,31 @@ class PhotoMessageBubble extends StatelessWidget {
     );
   }
 
+  double? _photoAspectRatio(
+    Map<String, dynamic> message,
+  ) {
+    final params = resolvePhotoParams(message);
+
+    final width = double.tryParse(
+      (message['mediaWidth'] ?? params['width'] ?? '').toString(),
+    );
+
+    final height = double.tryParse(
+      (message['mediaHeight'] ?? params['height'] ?? '').toString(),
+    );
+
+    if (
+      width == null ||
+      height == null ||
+      width <= 0 ||
+      height <= 0
+    ) {
+      return null;
+    }
+
+    return width / height;
+  }
+
   // ========================================
   // ALBUM TILE
   // ========================================
@@ -150,6 +175,8 @@ class PhotoMessageBubble extends StatelessWidget {
     int extraCount = 0,
   }) {
     final photoUrl = resolvePhotoUrl(message);
+
+    final aspectRatio = _photoAspectRatio(message);
 
     if (photoUrl == null || photoUrl.isEmpty) {
       return SizedBox(
@@ -187,18 +214,31 @@ class PhotoMessageBubble extends StatelessWidget {
               fit: StackFit.expand,
 
               children: [
-                _RetryNetworkImage(
-                  url: photoUrl,
+                ColoredBox(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
 
-                  fit: BoxFit.cover,
+                  child: Center(
+                    child: AspectRatio(
+                      // Neu backend co kich thuoc goc thi giu dung ti le anh.
+                      // Fallback 1:1 van dung BoxFit.contain nen bitmap
+                      // tuyet doi khong bi keo gian.
+                      aspectRatio: aspectRatio ?? 1.0,
 
-                  fallback: const Center(
-                    child: Icon(Icons.broken_image_outlined),
+                      child: _RetryNetworkImage(
+                        url: photoUrl,
+
+                        fit: BoxFit.contain,
+
+                        fallback: const Center(
+                          child: Icon(Icons.broken_image_outlined),
+                        ),
+
+                        cacheWidth: (width * 2.5).round(),
+
+                        cacheHeight: (height * 2.5).round(),
+                      ),
+                    ),
                   ),
-
-                  cacheWidth: (width * 2.5).round(),
-
-                  cacheHeight: (height * 2.5).round(),
                 ),
 
                 if (extraCount > 0)
