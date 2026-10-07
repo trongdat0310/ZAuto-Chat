@@ -202,9 +202,12 @@ class PhotoMessageBubble extends StatelessWidget {
                       child: Icon(Icons.broken_image_outlined),
                     ),
 
+                    // Chi gioi han mot chieu decode de codec
+                    // tu giu aspect ratio goc cua bitmap.
+                    // Neu truyen ca width + height theo tile,
+                    // mot so codec co the resize bitmap thanh dung
+                    // kich thuoc tile va lam anh bi keo meo.
                     cacheWidth: (width * 2.5).round(),
-
-                    cacheHeight: (height * 2.5).round(),
                   ),
                 ),
 
