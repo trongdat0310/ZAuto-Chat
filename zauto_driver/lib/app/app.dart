@@ -89,6 +89,37 @@ ThemeData _buildTheme(
 }
 
 
+class GlobalKeyboardDismissRegion extends StatelessWidget {
+  final Widget child;
+
+  const GlobalKeyboardDismissRegion({
+    super.key,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+
+      onTap: () {
+        final focus =
+            FocusManager.instance.primaryFocus;
+
+        if (
+          focus != null &&
+          focus.hasFocus
+        ) {
+          focus.unfocus();
+        }
+      },
+
+      child: child,
+    );
+  }
+}
+
+
 class ZautoDriverApp extends StatelessWidget {
   final SettingsController settingsController;
 
@@ -117,33 +148,7 @@ class ZautoDriverApp extends StatelessWidget {
           // ========================================
 
           builder: (context, child) {
-            return GestureDetector(
-              behavior:
-                  HitTestBehavior.translucent,
-
-              // ========================================
-              // GLOBAL KEYBOARD DISMISS
-              //
-              // Dung gesture arena thay vi raw pointer:
-              // - tap vung trong -> parent win -> unfocus
-              // - tap button/control -> child win -> KHONG unfocus
-              //
-              // Nho vay nut Send trong Chat giu nguyen keyboard,
-              // trong khi tap ra ngoai van ha keyboard nhu cu.
-              // ========================================
-
-              onTap: () {
-                final focus =
-                    FocusManager.instance.primaryFocus;
-
-                if (
-                  focus != null &&
-                  focus.hasFocus
-                ) {
-                  focus.unfocus();
-                }
-              },
-
+            return GlobalKeyboardDismissRegion(
               child:
                   child ??
                   const SizedBox.shrink(),
