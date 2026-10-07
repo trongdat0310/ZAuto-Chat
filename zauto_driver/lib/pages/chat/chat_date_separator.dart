@@ -170,44 +170,13 @@ String formatChatTimeSeparator(
         timestampMs,
       ).toLocal();
 
-  final current =
-      (now ?? DateTime.now()).toLocal();
-
   final clock =
       _formatClock(date);
 
-  final isToday =
-      date.year == current.year &&
-      date.month == current.month &&
-      date.day == current.day;
-
-  if (isToday) {
-    return 'Hôm nay • $clock';
-  }
-
-  final yesterday =
-      DateTime(
-        current.year,
-        current.month,
-        current.day,
-      ).subtract(
-        const Duration(days: 1),
-      );
-
-  final isYesterday =
-      date.year == yesterday.year &&
-      date.month == yesterday.month &&
-      date.day == yesterday.day;
-
-  if (isYesterday) {
-    return 'Hôm qua • $clock';
-  }
-
   return '${date.day.toString().padLeft(2, '0')}/'
       '${date.month.toString().padLeft(2, '0')}/'
-      '${date.year} • $clock';
+      '${date.year} · $clock';
 }
-
 
 String formatChatGapSeparator(
   Map<String, dynamic> newerMessage,
