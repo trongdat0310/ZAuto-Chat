@@ -118,18 +118,26 @@ class ChatMessageList extends StatelessWidget {
           final olderMessage = messages[messageIndex - 1];
 
           // ========================================
-          // CUNG NGAY
+          // TIME GROUP
+          //
+          // - khac ngay: hien ngay + gio
+          // - cung ngay cach nhau >= 30 phut: hien gio
+          // - tin sat nhau: khong chen separator
           // ========================================
 
-          if (isSameCalendarDay(currentMessage, olderMessage)) {
+          final label =
+              formatChatGapSeparator(
+            currentMessage,
+            olderMessage,
+          );
+
+          if (label.isEmpty) {
             return const SizedBox(height: 0);
           }
 
-          // ========================================
-          // KHAC NGAY
-          // ========================================
-
-          return ChatDateSeparator(label: formatDateSeparator(currentMessage));
+          return ChatDateSeparator(
+            label: label,
+          );
         },
       ),
     );
