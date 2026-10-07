@@ -68,14 +68,14 @@ void main() {
           older,
           now: DateTime(2026, 10, 7, 18, 0),
         ),
-        '14:30',
+        'Hôm nay • 14:30',
       );
     },
   );
 
 
   test(
-    'historical same-day time groups still show clock only',
+    'historical same-day time groups show full day label and clock',
     () {
       final older = messageAt(
         DateTime(2026, 10, 4, 10, 0),
@@ -92,7 +92,7 @@ void main() {
           older,
           now: DateTime(2026, 10, 7, 12, 0),
         ),
-        '10:46',
+        '04/10/2026 • 10:46',
       );
     },
   );
