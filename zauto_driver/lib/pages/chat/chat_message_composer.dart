@@ -172,24 +172,22 @@ class ChatMessageComposer extends StatelessWidget {
 
                     height: 46,
 
-                    child: ExcludeFocus(
-                      child: IconButton(
-                        tooltip: 'Gửi ảnh',
+                    child: IconButton(
+                      tooltip: 'Gửi ảnh',
 
-                        onPressed: disabled || sendingMessage || sendingPhoto
-                            ? null
-                            : onPickPhoto,
+                      onPressed: disabled || sendingMessage || sendingPhoto
+                          ? null
+                          : onPickPhoto,
 
-                        icon: sendingPhoto
-                            ? const SizedBox(
-                                width: 20,
+                      icon: sendingPhoto
+                          ? const SizedBox(
+                              width: 20,
 
-                                height: 20,
+                              height: 20,
 
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.photo_outlined),
-                      ),
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.photo_outlined),
                     ),
                   ),
 
