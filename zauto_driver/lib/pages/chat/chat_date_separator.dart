@@ -180,8 +180,9 @@ String formatChatTimeSeparator(
 
 String formatChatGapSeparator(
   Map<String, dynamic> newerMessage,
-  Map<String, dynamic> olderMessage,
-) {
+  Map<String, dynamic> olderMessage, {
+  DateTime? now,
+}) {
   if (
     !shouldShowChatTimeSeparator(
       newerMessage,
@@ -189,17 +190,6 @@ String formatChatGapSeparator(
     )
   ) {
     return '';
-  }
-
-  if (
-    !isSameCalendarDay(
-      newerMessage,
-      olderMessage,
-    )
-  ) {
-    return formatChatTimeSeparator(
-      newerMessage,
-    );
   }
 
   final timestampMs =
@@ -216,7 +206,33 @@ String formatChatGapSeparator(
         timestampMs,
       ).toLocal();
 
-  return _formatClock(date);
+  final current =
+      (now ?? DateTime.now()).toLocal();
+
+  final isToday =
+      date.year == current.year &&
+      date.month == current.month &&
+      date.day == current.day;
+
+  // Hom nay:
+  // separator trong ngay chi can hien gio.
+  if (
+    isToday &&
+    isSameCalendarDay(
+      newerMessage,
+      olderMessage,
+    )
+  ) {
+    return _formatClock(date);
+  }
+
+  // Moi ngay cu:
+  // separator nao cung hien day du ngay + gio,
+  // ke ca khi 2 message van cung mot ngay.
+  return '${date.day.toString().padLeft(2, '0')}/'
+      '${date.month.toString().padLeft(2, '0')}/'
+      '${date.year} . '
+      '${_formatClock(date)}';
 }
 
 
