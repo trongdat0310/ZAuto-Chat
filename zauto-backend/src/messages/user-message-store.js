@@ -916,26 +916,16 @@ export function getUserMessages(
 
 
     if (safeQuery) {
-      const haystack =
-        [
-          message.content,
-          message.groupName,
-          message.senderName,
-          message.senderId,
-        ]
-          .map(
-            value =>
-              String(
-                value ??
-                ""
-              )
-          )
-          .join("\n")
+      const content =
+        String(
+          message.content ??
+          ""
+        )
           .toLocaleLowerCase();
 
 
       if (
-        !haystack.includes(
+        !content.includes(
           safeQuery
         )
       ) {
