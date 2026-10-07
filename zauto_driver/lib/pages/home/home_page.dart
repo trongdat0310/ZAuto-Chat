@@ -1425,7 +1425,11 @@ class _HomePageState extends State<HomePage>
                       shape: BoxShape.circle,
 
                       color: connectionStatus == 'Đã kết nối realtime'
-                          ? colorScheme.primary
+                          ? Colors.green
+                          : connectionStatus == 'Đang kết nối lại...'
+                          ? Colors.amber
+                          : connectionStatus == 'Xác thực realtime thất bại'
+                          ? colorScheme.error
                           : colorScheme.onSurfaceVariant,
                     ),
                   ),
