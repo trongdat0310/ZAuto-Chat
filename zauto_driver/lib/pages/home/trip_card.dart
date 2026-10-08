@@ -10,6 +10,7 @@ class TripCard extends StatelessWidget {
   final VoidCallback onAccept;
 
   final VoidCallback onIgnore;
+  final VoidCallback onSwipeReply;
 
   const TripCard({
     super.key,
@@ -21,6 +22,7 @@ class TripCard extends StatelessWidget {
     required this.onAccept,
 
     required this.onIgnore,
+    required this.onSwipeReply,
   });
 
   String formatTripCountdown(int seconds) {
@@ -162,7 +164,13 @@ class TripCard extends StatelessWidget {
       ),
     );
 
-    return Card(
+    return GestureDetector(
+      onHorizontalDragEnd: settingsController.settings.swipeToReply && !processing
+          ? (details) {
+              if ((details.primaryVelocity ?? 0) < -250) onSwipeReply();
+            }
+          : null,
+      child: Card(
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -307,6 +315,7 @@ class TripCard extends StatelessWidget {
         ),
       ),
       ), // InkWell
+      ), // Card
     );
   }
 }
