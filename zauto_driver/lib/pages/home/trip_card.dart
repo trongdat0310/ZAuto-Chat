@@ -306,6 +306,7 @@ class TripCard extends StatelessWidget {
           ],
         ),
       ),
+      ), // InkWell
     );
   }
 }
