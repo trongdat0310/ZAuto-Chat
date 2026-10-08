@@ -39,7 +39,7 @@ class _MessagesPageState extends State<MessagesPage>
 
   DateTime historyToDate = DateTime.now();
 
-  String? historySelectedGroupId;
+  Set<String> historySelectedGroupIds = <String>{};
 
   Set<String> enabledGroupIds = {};
 
@@ -215,12 +215,7 @@ class _MessagesPageState extends State<MessagesPage>
               } else {
                 enabledGroupIds.remove(groupId);
 
-                if (
-                  historySelectedGroupId ==
-                  groupId
-                ) {
-                  historySelectedGroupId = null;
-                }
+                historySelectedGroupIds.remove(groupId);
               }
             });
           }
@@ -615,14 +610,7 @@ class _MessagesPageState extends State<MessagesPage>
 
         enabledGroupIds = enabled;
 
-        if (
-          historySelectedGroupId != null &&
-          !enabled.contains(
-            historySelectedGroupId,
-          )
-        ) {
-          historySelectedGroupId = null;
-        }
+        historySelectedGroupIds.removeWhere((id) => !enabled.contains(id));
 
         loading = false;
       });
@@ -828,7 +816,7 @@ class _MessagesPageState extends State<MessagesPage>
   Future<void> openHistoryFilters() async {
     var from = historyFromDate;
     var to = historyToDate;
-    var group = historySelectedGroupId;
+    final selectedGroups = <String>{...historySelectedGroupIds};
     var preset = 'custom';
     final today = DateTime.now();
     DateTime day(DateTime d) => DateTime(d.year, d.month, d.day);
@@ -939,22 +927,57 @@ class _MessagesPageState extends State<MessagesPage>
                     const SizedBox(height: 24),
                     Text('NHÓM', style: Theme.of(sheetContext).textTheme.labelLarge),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: group != null && groups.any((item) => item['id'] == group)
-                          ? group : '',
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.groups_outlined),
-                      ),
-                      items: [
-                        const DropdownMenuItem(value: '', child: Text('Tất cả nhóm')),
-                        ...groups.map((item) => DropdownMenuItem(
-                          value: item['id']!,
-                          child: Text(item['name'] ?? 'Nhóm Zalo', overflow: TextOverflow.ellipsis),
-                        )),
-                      ],
-                      onChanged: (value) => updateSheet(() => group = value == '' ? null : value),
+                    OutlinedButton.icon(
+                      onPressed: () async {
+                        await showDialog<void>(
+                          context: sheetContext,
+                          builder: (dialogContext) => StatefulBuilder(
+                            builder: (dialogContext, updateDialog) => AlertDialog(
+                              title: const Text('Chọn nhóm'),
+                              content: SizedBox(
+                                width: double.maxFinite,
+                                child: groups.isEmpty
+                                    ? const Text('Chưa có nhóm đang bật thông báo')
+                                    : ListView(
+                                        shrinkWrap: true,
+                                        children: [
+                                          CheckboxListTile(
+                                            title: const Text('Tất cả nhóm'),
+                                            value: selectedGroups.isEmpty,
+                                            onChanged: (_) => updateDialog(() => selectedGroups.clear()),
+                                          ),
+                                          ...groups.map((item) {
+                                            final id = item['id']!;
+                                            return CheckboxListTile(
+                                              title: Text(item['name'] ?? 'Nhóm Zalo'),
+                                              value: selectedGroups.contains(id),
+                                              onChanged: (checked) => updateDialog(() {
+                                                if (checked == true) {
+                                                  selectedGroups.add(id);
+                                                } else {
+                                                  selectedGroups.remove(id);
+                                                }
+                                              }),
+                                            );
+                                          }),
+                                        ],
+                                      ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(dialogContext),
+                                  child: const Text('Xong'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                        updateSheet(() {});
+                      },
+                      icon: const Icon(Icons.groups_outlined),
+                      label: Text(selectedGroups.isEmpty
+                          ? 'Tất cả nhóm'
+                          : 'Đã chọn ${selectedGroups.length} nhóm'),
                     ),
                     const SizedBox(height: 28),
                     Row(children: [
@@ -963,7 +986,7 @@ class _MessagesPageState extends State<MessagesPage>
                           preset = 'today';
                           from = day(DateTime.now());
                           to = from;
-                          group = null;
+                          selectedGroups.clear();
                         }),
                         child: const Text('Xóa lọc'),
                       )),
@@ -973,7 +996,7 @@ class _MessagesPageState extends State<MessagesPage>
                           setState(() {
                             historyFromDate = from;
                             historyToDate = to;
-                            historySelectedGroupId = group;
+                            historySelectedGroupIds = <String>{...selectedGroups}..removeWhere((id) => !enabledGroupIds.contains(id));
                           });
                           Navigator.pop(sheetContext);
                         },
@@ -2222,21 +2245,8 @@ class _MessagesPageState extends State<MessagesPage>
 
 
   String _historyGroupLabel() {
-    final selected =
-        historySelectedGroupId;
-
-    if (selected == null) {
-      return 'Tất cả nhóm';
-    }
-
-    for (final option in historyGroupOptions) {
-      if (option['id'] == selected) {
-        return option['name'] ??
-            'Nhóm Zalo';
-      }
-    }
-
-    return 'Nhóm Zalo';
+    if (historySelectedGroupIds.isEmpty) return 'Tất cả nhóm';
+    return 'Đã chọn ${historySelectedGroupIds.length} nhóm';
   }
 
 
@@ -2624,8 +2634,7 @@ class _MessagesPageState extends State<MessagesPage>
 
 
   List<Map<String, dynamic>> get acceptedFiltered {
-    final selectedGroup =
-        historySelectedGroupId;
+    final selectedGroups = historySelectedGroupIds;
 
     return acceptedTrips.where((trip) {
       final acceptedAt =
@@ -2658,7 +2667,7 @@ class _MessagesPageState extends State<MessagesPage>
         return false;
       }
 
-      if (selectedGroup != null) {
+      if (selectedGroups.isNotEmpty) {
         final groupId =
             firstNonEmptyString([
           trip['sourceThreadId'],
@@ -2666,7 +2675,7 @@ class _MessagesPageState extends State<MessagesPage>
           trip['threadId'],
         ]);
 
-        if (groupId != selectedGroup) {
+        if (!selectedGroups.contains(groupId)) {
           return false;
         }
       }
