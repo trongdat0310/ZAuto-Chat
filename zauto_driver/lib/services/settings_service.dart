@@ -20,6 +20,8 @@ class SettingsService {
   static const _acceptReplyTextKey =
       'accept_reply_text';
 
+  static const _quickTapAcceptKey = 'quick_tap_accept';
+  static const _swipeToReplyKey = 'swipe_to_reply';
   static const _playTripSoundKey =
       'play_trip_sound';
 
@@ -70,6 +72,8 @@ class SettingsService {
       ) ??
           'ok',
 
+      quickTapAccept: prefs.getBool(_quickTapAcceptKey) ?? false,
+      swipeToReply: prefs.getBool(_swipeToReplyKey) ?? true,
       playTripSound:
       prefs.getBool(
         _playTripSoundKey,
@@ -150,6 +154,8 @@ class SettingsService {
 
     );
 
+    await prefs.setBool(_quickTapAcceptKey, settings.quickTapAccept);
+    await prefs.setBool(_swipeToReplyKey, settings.swipeToReply);
     await prefs.setBool(
 
       _playTripSoundKey,
