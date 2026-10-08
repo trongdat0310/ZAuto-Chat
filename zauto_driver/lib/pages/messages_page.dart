@@ -35,6 +35,8 @@ class _MessagesPageState extends State<MessagesPage>
 
   List<Map<String, dynamic>> acceptedTrips = [];
 
+  String historyDatePreset = 'today';
+
   DateTime historyFromDate = DateTime.now();
 
   DateTime historyToDate = DateTime.now();
@@ -817,10 +819,8 @@ class _MessagesPageState extends State<MessagesPage>
     var from = historyFromDate;
     var to = historyToDate;
     final selectedGroups = <String>{...historySelectedGroupIds};
-    var preset = 'custom';
-    final today = DateTime.now();
+    var preset = historyDatePreset;
     DateTime day(DateTime d) => DateTime(d.year, d.month, d.day);
-    if (day(from) == day(today) && day(to) == day(today)) preset = 'today';
     final groups = historyGroupOptions;
 
     await showModalBottomSheet<void>(
@@ -994,6 +994,7 @@ class _MessagesPageState extends State<MessagesPage>
                       Expanded(child: FilledButton(
                         onPressed: () {
                           setState(() {
+                            historyDatePreset = preset;
                             historyFromDate = from;
                             historyToDate = to;
                             historySelectedGroupIds = <String>{...selectedGroups}..removeWhere((id) => !enabledGroupIds.contains(id));
