@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_config.dart';
 
 import '../../services/backend_service.dart';
+import '../../services/settings_service.dart';
 import '../../services/chat_state_service.dart';
 import '../../services/app_realtime_service.dart';
 import '../../services/media_download_service.dart';
@@ -102,6 +103,13 @@ class _ChatPageState extends State<ChatPage> {
   final FocusNode messageFocusNode = FocusNode();
 
   bool canSendMessage = false;
+  bool swipeToReplyEnabled = true;
+
+  Future<void> loadSwipePreference() async {
+    final saved = await SettingsService().load();
+    if (mounted) setState(() => swipeToReplyEnabled = saved.swipeToReply);
+  }
+
 
   Timer? topNoticeTimer;
 
@@ -185,6 +193,7 @@ class _ChatPageState extends State<ChatPage> {
   void initState() {
     super.initState();
 
+    loadSwipePreference();
     ChatStateService.instance.openGroup(widget.groupId);
 
     messagesController = ChatMessagesController(
@@ -2731,6 +2740,7 @@ class _ChatPageState extends State<ChatPage> {
     // ========================================
 
     return PhotoMediaRow(
+      swipeEnabled: swipeToReplyEnabled,
       rowKey: isTarget ? targetMessageKey : ValueKey('chat-media-$stableKey'),
 
       isSelf: isSelf,
@@ -2779,6 +2789,7 @@ class _ChatPageState extends State<ChatPage> {
         index.toString();
 
     return SimpleMediaRow(
+      swipeEnabled: swipeToReplyEnabled,
       rowKey: isTarget ? targetMessageKey : ValueKey('chat-media-$stableKey'),
 
       isSelf: isSelf,
@@ -3035,7 +3046,7 @@ class _ChatPageState extends State<ChatPage> {
 
       highlighted: isTarget && targetController.highlightTarget,
 
-      swipeEnabled: status == 'normal',
+      swipeEnabled: swipeToReplyEnabled && status == 'normal',
 
       senderAvatar: isSelf
           ? null
