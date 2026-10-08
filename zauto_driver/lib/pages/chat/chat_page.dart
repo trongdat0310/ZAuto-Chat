@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_config.dart';
 
 import '../../services/backend_service.dart';
+import '../../services/settings_service.dart';
 import '../../services/chat_state_service.dart';
 import '../../services/app_realtime_service.dart';
 import '../../services/media_download_service.dart';
@@ -181,11 +182,57 @@ class _ChatPageState extends State<ChatPage> {
   final GlobalKey targetMessageKey = GlobalKey();
 
   final BackendService backend = BackendService(baseUrl: AppConfig.backendUrl);
+  bool _quickTapAcceptEnabled = false;
+  bool _quickAcceptBusy = false;
+
+  Future<void> _loadQuickTapAccept() async {
+    final settings = await SettingsService().load();
+    if (mounted) setState(() => _quickTapAcceptEnabled = settings.quickTapAccept);
+  }
+
+  Future<void> _acceptChatMessage(Map<String, dynamic> message) async {
+    if (!_quickTapAcceptEnabled || _quickAcceptBusy || message['isSelf'] == true) return;
+    final msgId = (message['msgId'] ?? '').toString().trim();
+    final cliMsgId = (message['cliMsgId'] ?? '').toString().trim();
+    if (msgId.isEmpty && cliMsgId.isEmpty) return;
+
+    _quickAcceptBusy = true;
+    try {
+      final pending = await backend.getMessages(
+        limit: 500,
+        groupId: widget.groupId,
+        status: 'new',
+      );
+      Map<String, dynamic>? matched;
+      for (final trip in pending) {
+        final sourceMsgId = (trip['sourceMsgId'] ?? trip['zaloMessageId'] ?? '').toString();
+        final sourceCliMsgId = (trip['sourceCliMsgId'] ?? trip['clientMessageId'] ?? '').toString();
+        if ((msgId.isNotEmpty && msgId == sourceMsgId) ||
+            (cliMsgId.isNotEmpty && cliMsgId == sourceCliMsgId)) {
+          matched = trip;
+          break;
+        }
+      }
+      if (matched == null) return;
+      final id = matched['id']?.toString();
+      if (id == null || id.isEmpty) return;
+      final settings = await SettingsService().load();
+      await backend.acceptMessage(id, replyText: settings.acceptReplyText);
+      if (mounted) _showTopNotice('Đã nhận cuốc');
+    } catch (error) {
+      if (mounted) _showTopNotice('Không thể nhận cuốc: $error');
+    } finally {
+      _quickAcceptBusy = false;
+    }
+  }
+
+
 
   @override
   void initState() {
     super.initState();
 
+    _loadQuickTapAccept();
     ChatStateService.instance.openGroup(widget.groupId);
 
     messagesController = ChatMessagesController(
@@ -3049,6 +3096,10 @@ class _ChatPageState extends State<ChatPage> {
             ),
 
       bubble: bubble,
+
+      onTap: _quickTapAcceptEnabled && !isSelf && status == 'normal'
+          ? () => _acceptChatMessage(message)
+          : null,
 
       onReply: () {
         _startReply(message);
