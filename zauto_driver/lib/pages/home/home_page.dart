@@ -877,7 +877,18 @@ class _HomePageState extends State<HomePage>
         replyToMsgId: msgId.isEmpty ? null : msgId,
         replyToCliMsgId: cliMsgId.isEmpty ? null : cliMsgId,
       );
-      if (mounted) cancelTripReply(trip);
+      if (!mounted) return true;
+      final tripId = trip['id']?.toString();
+      setState(() {
+        trip['_replying'] = false;
+        trip['_uiStatus'] = 'replied';
+      });
+      _stopTripCountdownTimerIfIdle();
+      Future<void>.delayed(const Duration(milliseconds: 1500), () {
+        if (mounted && tripId != null && tripId.isNotEmpty) {
+          removeTrip(tripId);
+        }
+      });
       return true;
     } catch (error) {
       if (mounted) {
