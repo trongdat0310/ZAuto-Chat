@@ -280,7 +280,7 @@ class _TripCardState extends State<TripCard> {
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: widget.settingsController.settings.quickTapAccept && !processing && !replying ? widget.onAccept : null,
+        onTap: null,
         child: Padding(
         padding: const EdgeInsets.all(18),
 
