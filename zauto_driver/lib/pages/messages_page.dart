@@ -2686,6 +2686,7 @@ class _MessagesPageState extends State<MessagesPage>
 
           const SizedBox(height: 8),
 
+          if (tabController.index != 2) ...[
           // ========================================
           // SYNC LINE
           // ========================================
@@ -2723,6 +2724,8 @@ class _MessagesPageState extends State<MessagesPage>
           ),
 
           const Divider(height: 1),
+
+          ],
 
           // ========================================
           // TAB CONTENT
