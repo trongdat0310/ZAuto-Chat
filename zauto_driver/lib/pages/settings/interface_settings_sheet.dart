@@ -54,6 +54,9 @@ class InterfaceSettingsSheet extends StatefulWidget {
 }
 
 class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
+  late bool quickTapAccept;
+  late bool swipeToReply;
+
   late String selectedTheme;
 
   late double notificationFontSize;
@@ -66,6 +69,8 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
   void initState() {
     super.initState();
 
+    quickTapAccept = widget.settingsController.settings.quickTapAccept;
+    swipeToReply = widget.settingsController.settings.swipeToReply;
     selectedTheme = widget.initialTheme;
 
     notificationFontSize = widget.initialFontSize;
@@ -341,15 +346,12 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                 // QUICK ACCEPT
                 // GIU NGUYEN DISABLED
                 // ========================================
-                const SwitchListTile(
-                  value: false,
-
-                  onChanged: null,
-
-                  title: Text('Chạm vào tin nhắn để nhận nhanh'),
-
-                  secondary: Icon(Icons.lock_outline),
-                ),
+                SwitchListTile(
+ value: quickTapAccept,
+ onChanged: (value) async { setState(() => quickTapAccept = value); await widget.settingsController.updateQuickTapAccept(value); },
+ title: const Text('Chạm vào tin nhắn để nhận nhanh'),
+ subtitle: const Text('Chạm vào thẻ cuốc để nhận'),
+),
 
                 const Divider(height: 1),
 
@@ -357,15 +359,12 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                 // SWIPE REPLY
                 // GIU NGUYEN DISABLED
                 // ========================================
-                const SwitchListTile(
-                  value: false,
-
-                  onChanged: null,
-
-                  title: Text('Vuốt để trả lời thông báo'),
-
-                  secondary: Icon(Icons.lock_outline),
-                ),
+                SwitchListTile(
+ value: swipeToReply,
+ onChanged: (value) async { setState(() => swipeToReply = value); await widget.settingsController.updateSwipeToReply(value); },
+ title: const Text('Vuốt để trả lời thông báo'),
+ subtitle: const Text('Vuốt trái tin nhắn trong Chat để trả lời'),
+),
 
                 const Divider(height: 1),
 
