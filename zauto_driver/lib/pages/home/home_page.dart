@@ -859,8 +859,8 @@ class _HomePageState extends State<HomePage>
 
   Future<bool> sendTripReply(Map<String, dynamic> trip, String text) async {
     final groupId = (trip['groupId'] ?? trip['sourceThreadId'] ?? '').toString();
-    final msgId = (trip['zaloMsgId'] ?? trip['msgId'] ?? '').toString();
-    final cliMsgId = (trip['zaloCliMsgId'] ?? trip['cliMsgId'] ?? '').toString();
+    final msgId = (trip['sourceMsgId'] ?? trip['zaloMessageId'] ?? trip['msgId'] ?? '').toString().trim();
+    final cliMsgId = (trip['sourceCliMsgId'] ?? trip['clientMessageId'] ?? trip['cliMsgId'] ?? '').toString().trim();
     if (groupId.isEmpty || (msgId.isEmpty && cliMsgId.isEmpty)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
