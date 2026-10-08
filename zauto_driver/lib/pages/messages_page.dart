@@ -49,6 +49,10 @@ class _MessagesPageState extends State<MessagesPage>
 
   String searchText = '';
 
+  String notificationFilter = 'all';
+
+  String pinFilter = 'all';
+
   DateTime? lastSyncAt;
 
   StreamSubscription<Map<String, dynamic>>? realtimeSubscription;
@@ -733,8 +737,96 @@ class _MessagesPageState extends State<MessagesPage>
     return name.contains(searchText) || content.contains(searchText);
   }
 
+  bool matchesConversationFilters(Map<String, dynamic> conversation) {
+    final groupId = conversation['groupId']?.toString() ?? '';
+    final enabled = enabledGroupIds.contains(groupId);
+    final pinned = conversation['pinned'] == true;
+    if (notificationFilter == 'enabled' && !enabled) return false;
+    if (notificationFilter == 'disabled' && enabled) return false;
+    if (pinFilter == 'pinned' && !pinned) return false;
+    if (pinFilter == 'unpinned' && pinned) return false;
+    return true;
+  }
+
+  Future<void> openConversationFilters() async {
+    var selectedNotification = notificationFilter;
+    var selectedPin = pinFilter;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, updateSheet) {
+          Widget choices(String title, String value, void Function(String) change,
+              List<(String, String)> options) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Theme.of(sheetContext).textTheme.labelLarge),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: options.map((option) => ChoiceChip(
+                    label: Text(option.$2),
+                    selected: value == option.$1,
+                    onSelected: (_) => updateSheet(() => change(option.$1)),
+                  )).toList(),
+                ),
+              ],
+            );
+          }
+          return SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Lọc nhóm', style: Theme.of(sheetContext).textTheme.titleLarge),
+                  const SizedBox(height: 28),
+                  choices('NHẬN THÔNG BÁO', selectedNotification,
+                    (value) => selectedNotification = value,
+                    [('all', 'Tất cả'), ('enabled', 'Đang bật'), ('disabled', 'Đang tắt')]),
+                  const SizedBox(height: 24),
+                  choices('GHIM', selectedPin,
+                    (value) => selectedPin = value,
+                    [('all', 'Tất cả'), ('pinned', 'Đã ghim'), ('unpinned', 'Chưa ghim')]),
+                  const SizedBox(height: 30),
+                  Row(children: [
+                    Expanded(child: OutlinedButton(
+                      onPressed: selectedNotification == 'all' && selectedPin == 'all'
+                          ? null
+                          : () => updateSheet(() {
+                              selectedNotification = 'all';
+                              selectedPin = 'all';
+                            }),
+                      child: const Text('Xóa lọc'),
+                    )),
+                    const SizedBox(width: 12),
+                    Expanded(child: FilledButton(
+                      onPressed: () {
+                        setState(() {
+                          notificationFilter = selectedNotification;
+                          pinFilter = selectedPin;
+                        });
+                        Navigator.pop(sheetContext);
+                      },
+                      child: const Text('Áp dụng'),
+                    )),
+                  ]),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   List<Map<String, dynamic>> get allFiltered {
-    return conversations.where(matchesSearch).toList();
+    return conversations.where((conversation) => matchesSearch(conversation) && matchesConversationFilters(conversation)).toList();
   }
 
   List<Map<String, dynamic>> get notifyingFiltered {
@@ -745,7 +837,7 @@ class _MessagesPageState extends State<MessagesPage>
         return false;
       }
 
-      return matchesSearch(conversation);
+      return matchesSearch(conversation) && matchesConversationFilters(conversation);
     }).toList();
   }
 
@@ -2604,9 +2696,11 @@ class _MessagesPageState extends State<MessagesPage>
                 const SizedBox(width: 8),
 
                 IconButton(
-                  onPressed: widget.onOpenSettings,
+                  onPressed: openConversationFilters,
 
-                  icon: const Icon(Icons.settings, size: 28),
+                  tooltip: 'Lọc nhóm',
+
+                  icon: const Icon(Icons.filter_alt, size: 28),
                 ),
               ],
             ),
