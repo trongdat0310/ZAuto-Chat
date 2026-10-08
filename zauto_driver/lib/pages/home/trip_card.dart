@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../controllers/settings_controller.dart';
 
-class TripCard extends StatelessWidget {
+class TripCard extends StatefulWidget {
   final Map<String, dynamic> trip;
 
   final SettingsController settingsController;
@@ -11,6 +11,8 @@ class TripCard extends StatelessWidget {
 
   final VoidCallback onIgnore;
   final VoidCallback onSwipeReply;
+  final VoidCallback onCancelReply;
+  final Future<bool> Function(String text) onSendReply;
 
   const TripCard({
     super.key,
@@ -23,7 +25,52 @@ class TripCard extends StatelessWidget {
 
     required this.onIgnore,
     required this.onSwipeReply,
+    required this.onCancelReply,
+    required this.onSendReply,
   });
+
+  @override
+  State<TripCard> createState() => _TripCardState();
+}
+
+class _TripCardState extends State<TripCard> {
+  final TextEditingController _replyController = TextEditingController();
+  final FocusNode _replyFocus = FocusNode();
+  bool _sending = false;
+
+  @override
+  void didUpdateWidget(covariant TripCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.trip['_replying'] == true && oldWidget.trip['_replying'] != true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.trip['_replying'] == true) _replyFocus.requestFocus();
+      });
+    }
+    if (widget.trip['_replying'] != true && oldWidget.trip['_replying'] == true) {
+      _replyController.clear();
+      _replyFocus.unfocus();
+    }
+  }
+
+  @override
+  void dispose() {
+    _replyController.dispose();
+    _replyFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _sendReply() async {
+    final value = _replyController.text.trim();
+    if (value.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    final success = await widget.onSendReply(value);
+    if (!mounted) return;
+    setState(() => _sending = false);
+    if (success) {
+      _replyController.clear();
+      _replyFocus.unfocus();
+    }
+  }
 
   String formatTripCountdown(int seconds) {
     final safeSeconds = seconds < 0 ? 0 : seconds;
@@ -40,21 +87,22 @@ class TripCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    final content = trip['content']?.toString() ?? 'Cuốc mới';
+    final content = widget.trip['content']?.toString() ?? 'Cuốc mới';
 
-    final groupName = trip['groupName']?.toString() ?? 'Nhóm Zalo';
+    final groupName = widget.trip['groupName']?.toString() ?? 'Nhóm Zalo';
 
-    final senderName = trip['senderName']?.toString() ?? 'Không rõ người gửi';
+    final senderName = widget.trip['senderName']?.toString() ?? 'Không rõ người gửi';
 
-    final status = trip['_uiStatus']?.toString() ?? 'new';
+    final status = widget.trip['_uiStatus']?.toString() ?? 'new';
 
-    final remainingSeconds = trip['_remainingSeconds'] is int
-        ? trip['_remainingSeconds'] as int
-        : settingsController.settings.tripDisplaySeconds;
+    final remainingSeconds = widget.trip['_remainingSeconds'] is int
+        ? widget.trip['_remainingSeconds'] as int
+        : widget.settingsController.settings.tripDisplaySeconds;
 
     final isCountdownWarning = remainingSeconds <= 3;
 
     final processing = status == 'accepting' || status == 'ignoring';
+    final replying = widget.trip['_replying'] == true;
 
     // ========================================
     // SUCCESS STATUS
@@ -127,7 +175,7 @@ class TripCard extends StatelessWidget {
         onPressed: processing
             ? null
             : () {
-                onIgnore();
+                widget.onIgnore();
               },
 
         icon: status == 'ignoring'
@@ -148,7 +196,7 @@ class TripCard extends StatelessWidget {
         onPressed: processing
             ? null
             : () {
-                onAccept();
+                widget.onAccept();
               },
 
         icon: status == 'accepting'
@@ -165,16 +213,16 @@ class TripCard extends StatelessWidget {
     );
 
     return GestureDetector(
-      onHorizontalDragEnd: settingsController.settings.swipeToReply && !processing
+      onHorizontalDragEnd: widget.settingsController.settings.swipeToReply && !processing && !replying
           ? (details) {
-              if ((details.primaryVelocity ?? 0) < -250) onSwipeReply();
+              if ((details.primaryVelocity ?? 0) < -250) widget.onSwipeReply();
             }
           : null,
       child: Card(
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: settingsController.settings.quickTapAccept && !processing ? onAccept : null,
+        onTap: widget.settingsController.settings.quickTapAccept && !processing && !replying ? widget.onAccept : null,
         child: Padding(
         padding: const EdgeInsets.all(18),
 
@@ -269,7 +317,7 @@ class TripCard extends StatelessWidget {
             // ========================================
             ValueListenableBuilder<double>(
               valueListenable:
-                  settingsController.notificationFontSize,
+                  widget.settingsController.notificationFontSize,
 
               builder: (context, fontSize, _) {
                 return Text(
@@ -299,18 +347,50 @@ class TripCard extends StatelessWidget {
             // ========================================
             // BUTTONS
             // ========================================
-            Row(
-              children:
-                  // ========================================
-                  // NHAN BEN TRAI
-                  // ========================================
-                  settingsController.settings.acceptButtonPosition == 'left'
-                  ? [acceptButton, const SizedBox(width: 12), ignoreButton]
-                  // ========================================
-                  // NHAN BEN PHAI
-                  // ========================================
-                  : [ignoreButton, const SizedBox(width: 12), acceptButton],
-            ),
+            if (replying)
+              TapRegion(
+                onTapOutside: (_) {
+                  if (!_sending) widget.onCancelReply();
+                },
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _replyController,
+                        focusNode: _replyFocus,
+                        autofocus: true,
+                        maxLines: 1,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _sendReply(),
+                        decoration: const InputDecoration(
+                          hintText: 'Trả lời tin nhắn...',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Gửi',
+                      onPressed: _sending ? null : _sendReply,
+                      icon: _sending
+                          ? const SizedBox(width: 20, height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.send),
+                    ),
+                    IconButton(
+                      tooltip: 'Hủy trả lời',
+                      onPressed: _sending ? null : widget.onCancelReply,
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Row(
+                children: widget.settingsController.settings.acceptButtonPosition == 'left'
+                    ? [acceptButton, const SizedBox(width: 12), ignoreButton]
+                    : [ignoreButton, const SizedBox(width: 12), acceptButton],
+              ),
           ],
         ),
       ),
