@@ -218,6 +218,10 @@ class _TripCardState extends State<TripCard> {
     final canSwipe = widget.settingsController.settings.swipeToReply &&
         !processing && !replying;
 
+    final progress = canSwipe
+        ? (-_dragOffset / _triggerDrag).clamp(0.0, 1.0).toDouble()
+        : 0.0;
+
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onHorizontalDragUpdate: canSwipe
@@ -239,12 +243,39 @@ class _TripCardState extends State<TripCard> {
       onHorizontalDragCancel: canSwipe
           ? () => setState(() => _dragOffset = 0)
           : null,
-      child: AnimatedContainer(
-        duration: _dragOffset == 0
-            ? const Duration(milliseconds: 220)
-            : Duration.zero,
-        curve: Curves.easeOutCubic,
-        transform: Matrix4.translationValues(_dragOffset, 0, 0),
+      child: Stack(
+        alignment: Alignment.centerRight,
+        children: [
+          Positioned(
+            right: 18,
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: progress,
+                child: Transform.scale(
+                  scale: 0.75 + (0.25 * progress),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.reply_rounded,
+                      size: 22,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          AnimatedContainer(
+            duration: _dragOffset == 0
+                ? const Duration(milliseconds: 220)
+                : Duration.zero,
+            curve: Curves.easeOutCubic,
+            transform: Matrix4.translationValues(_dragOffset, 0, 0),
         child: Card(
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
@@ -424,6 +455,8 @@ class _TripCardState extends State<TripCard> {
       ), // InkWell
       ), // Card
       ), // AnimatedContainer
+        ],
+      ), // Stack
     );
   }
 }
