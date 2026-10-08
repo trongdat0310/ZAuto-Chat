@@ -825,6 +825,171 @@ class _MessagesPageState extends State<MessagesPage>
     );
   }
 
+  Future<void> openHistoryFilters() async {
+    var from = historyFromDate;
+    var to = historyToDate;
+    var group = historySelectedGroupId;
+    var preset = 'custom';
+    final today = DateTime.now();
+    DateTime day(DateTime d) => DateTime(d.year, d.month, d.day);
+    if (day(from) == day(today) && day(to) == day(today)) preset = 'today';
+    final groups = historyGroupOptions;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, updateSheet) {
+          void selectPreset(String value) {
+            updateSheet(() {
+              preset = value;
+              final now = DateTime.now();
+              final current = day(now);
+              final weekStart = current.subtract(Duration(days: current.weekday - 1));
+              switch (value) {
+                case 'today':
+                  from = current; to = current;
+                case 'yesterday':
+                  from = current.subtract(const Duration(days: 1)); to = from;
+                case 'week':
+                  from = weekStart; to = current;
+                case 'lastWeek':
+                  from = weekStart.subtract(const Duration(days: 7));
+                  to = weekStart.subtract(const Duration(days: 1));
+                case 'month':
+                  from = DateTime(now.year, now.month); to = current;
+                case 'lastMonth':
+                  from = DateTime(now.year, now.month - 1);
+                  to = DateTime(now.year, now.month, 0);
+                case 'custom':
+                  break;
+              }
+            });
+          }
+
+          Future<void> pickDate(bool isFrom) async {
+            final picked = await showDatePicker(
+              context: sheetContext,
+              initialDate: isFrom ? from : to,
+              firstDate: isFrom ? DateTime(2020) : from,
+              lastDate: isFrom ? to : DateTime.now(),
+            );
+            if (picked != null) {
+              updateSheet(() {
+                preset = 'custom';
+                if (isFrom) { from = picked; } else { to = picked; }
+              });
+            }
+          }
+
+          Widget dateField(String label, DateTime date, bool isFrom) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () => pickDate(isFrom),
+                  icon: const Icon(Icons.calendar_month_outlined),
+                  label: Text(_formatHistoryDate(date)),
+                ),
+              ],
+            );
+          }
+
+          return SafeArea(
+            top: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(20, 12, 20,
+                MediaQuery.of(sheetContext).viewInsets.bottom + 24),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Bộ lọc', style: Theme.of(sheetContext).textTheme.headlineSmall),
+                    const SizedBox(height: 28),
+                    Text('NGÀY NHẬN', style: Theme.of(sheetContext).textTheme.labelLarge),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8, runSpacing: 8,
+                      children: [
+                        ('today', 'Hôm nay'),
+                        ('yesterday', 'Hôm qua'),
+                        ('week', 'Tuần này'),
+                        ('lastWeek', 'Tuần trước'),
+                        ('month', 'Tháng này'),
+                        ('lastMonth', 'Tháng trước'),
+                        ('custom', 'Chọn khoảng thời gian'),
+                      ].map((item) => ChoiceChip(
+                        label: Text(item.$2),
+                        selected: preset == item.$1,
+                        onSelected: (_) => selectPreset(item.$1),
+                      )).toList(),
+                    ),
+                    if (preset == 'custom') ...[
+                      const SizedBox(height: 16),
+                      Row(children: [
+                        Expanded(child: dateField('Từ ngày', from, true)),
+                        const SizedBox(width: 12),
+                        Expanded(child: dateField('Đến ngày', to, false)),
+                      ]),
+                    ],
+                    const SizedBox(height: 24),
+                    Text('NHÓM', style: Theme.of(sheetContext).textTheme.labelLarge),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: group != null && groups.any((item) => item['id'] == group)
+                          ? group : '',
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.groups_outlined),
+                      ),
+                      items: [
+                        const DropdownMenuItem(value: '', child: Text('Tất cả nhóm')),
+                        ...groups.map((item) => DropdownMenuItem(
+                          value: item['id']!,
+                          child: Text(item['name'] ?? 'Nhóm Zalo', overflow: TextOverflow.ellipsis),
+                        )),
+                      ],
+                      onChanged: (value) => updateSheet(() => group = value == '' ? null : value),
+                    ),
+                    const SizedBox(height: 28),
+                    Row(children: [
+                      Expanded(child: OutlinedButton(
+                        onPressed: () => updateSheet(() {
+                          preset = 'today';
+                          from = day(DateTime.now());
+                          to = from;
+                          group = null;
+                        }),
+                        child: const Text('Xóa lọc'),
+                      )),
+                      const SizedBox(width: 12),
+                      Expanded(child: FilledButton(
+                        onPressed: () {
+                          setState(() {
+                            historyFromDate = from;
+                            historyToDate = to;
+                            historySelectedGroupId = group;
+                          });
+                          Navigator.pop(sheetContext);
+                        },
+                        child: const Text('Áp dụng'),
+                      )),
+                    ]),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   List<Map<String, dynamic>> get allFiltered {
     return conversations.where((conversation) => matchesSearch(conversation) && matchesConversationFilters(conversation)).toList();
   }
@@ -2410,8 +2575,6 @@ class _MessagesPageState extends State<MessagesPage>
           bottom: 20,
         ),
         children: [
-          _buildAcceptedHistoryFilters(),
-
           if (items.isEmpty)
             const Padding(
               padding:
@@ -2696,7 +2859,9 @@ class _MessagesPageState extends State<MessagesPage>
                 const SizedBox(width: 8),
 
                 IconButton(
-                  onPressed: openConversationFilters,
+                  onPressed: () => tabController.index == 2
+                      ? openHistoryFilters()
+                      : openConversationFilters(),
 
                   tooltip: 'Lọc nhóm',
 
