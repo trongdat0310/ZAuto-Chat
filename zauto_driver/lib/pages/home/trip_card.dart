@@ -37,6 +37,9 @@ class _TripCardState extends State<TripCard> {
   final TextEditingController _replyController = TextEditingController();
   final FocusNode _replyFocus = FocusNode();
   bool _sending = false;
+  double _dragOffset = 0;
+  static const double _maxDrag = 96;
+  static const double _triggerDrag = 58;
 
   @override
   void didUpdateWidget(covariant TripCard oldWidget) {
@@ -212,13 +215,37 @@ class _TripCardState extends State<TripCard> {
       ),
     );
 
+    final canSwipe = widget.settingsController.settings.swipeToReply &&
+        !processing && !replying;
+
     return GestureDetector(
-      onHorizontalDragEnd: widget.settingsController.settings.swipeToReply && !processing && !replying
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragUpdate: canSwipe
           ? (details) {
-              if ((details.primaryVelocity ?? 0) < -250) widget.onSwipeReply();
+              setState(() {
+                _dragOffset = (_dragOffset + details.delta.dx)
+                    .clamp(-_maxDrag, 0.0);
+              });
             }
           : null,
-      child: Card(
+      onHorizontalDragEnd: canSwipe
+          ? (details) {
+              final shouldReply = _dragOffset <= -_triggerDrag ||
+                  ((details.primaryVelocity ?? 0) < -450 && _dragOffset < -20);
+              setState(() => _dragOffset = 0);
+              if (shouldReply) widget.onSwipeReply();
+            }
+          : null,
+      onHorizontalDragCancel: canSwipe
+          ? () => setState(() => _dragOffset = 0)
+          : null,
+      child: AnimatedContainer(
+        duration: _dragOffset == 0
+            ? const Duration(milliseconds: 220)
+            : Duration.zero,
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.translationValues(_dragOffset, 0, 0),
+        child: Card(
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -396,6 +423,7 @@ class _TripCardState extends State<TripCard> {
       ),
       ), // InkWell
       ), // Card
+      ), // AnimatedContainer
     );
   }
 }
