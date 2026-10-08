@@ -164,8 +164,10 @@ class TripCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-
-      child: Padding(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: settingsController.settings.quickTapAccept && !processing ? onAccept : null,
+        child: Padding(
         padding: const EdgeInsets.all(18),
 
         child: Column(
