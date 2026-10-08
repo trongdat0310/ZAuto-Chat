@@ -111,7 +111,7 @@ class _TripCardState extends State<TripCard> {
     // SUCCESS STATUS
     // ========================================
 
-    if (status == 'accepted') {
+    if (status == 'accepted' || status == 'replied') {
       return Card(
         margin: const EdgeInsets.only(bottom: 12),
 
@@ -130,9 +130,9 @@ class _TripCardState extends State<TripCard> {
 
               const SizedBox(width: 14),
 
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Đã nhận cuốc',
+                  status == 'replied' ? 'Đã trả lời' : 'Đã nhận cuốc',
 
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
                 ),
