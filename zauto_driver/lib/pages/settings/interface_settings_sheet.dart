@@ -363,7 +363,7 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
  value: swipeToReply,
  onChanged: (value) async { setState(() => swipeToReply = value); await widget.settingsController.updateSwipeToReply(value); },
  title: const Text('Vuốt để trả lời thông báo'),
- subtitle: const Text('Vuốt trái tin nhắn trong Chat để trả lời'),
+ subtitle: const Text('Vuốt trái thẻ cuốc ở Home để nhập trả lời'),
 ),
 
                 const Divider(height: 1),
