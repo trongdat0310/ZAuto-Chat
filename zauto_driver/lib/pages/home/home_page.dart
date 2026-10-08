@@ -834,6 +834,84 @@ class _HomePageState extends State<HomePage>
     }
   }
 
+  Future<void> replyToTrip(Map<String, dynamic> trip) async {
+    final groupId = (trip['groupId'] ?? trip['sourceThreadId'] ?? '').toString();
+    final msgId = (trip['zaloMsgId'] ?? trip['msgId'] ?? '').toString();
+    final cliMsgId = (trip['zaloCliMsgId'] ?? trip['cliMsgId'] ?? '').toString();
+    if (groupId.isEmpty || (msgId.isEmpty && cliMsgId.isEmpty)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không tìm thấy thông tin tin nhắn gốc để trả lời')),
+        );
+      }
+      return;
+    }
+    final controller = TextEditingController();
+    var sending = false;
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, updateDialog) => AlertDialog(
+            title: const Text('Trả lời cuốc'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(trip['content']?.toString() ?? '', maxLines: 3,
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  maxLines: 3,
+                  minLines: 1,
+                  decoration: const InputDecoration(
+                    labelText: 'Nội dung trả lời',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: sending ? null : () => Navigator.pop(dialogContext),
+                child: const Text('Hủy'),
+              ),
+              FilledButton(
+                onPressed: sending ? null : () async {
+                  final text = controller.text.trim();
+                  if (text.isEmpty) return;
+                  updateDialog(() => sending = true);
+                  try {
+                    await backend.sendConversationMessage(
+                      groupId: groupId,
+                      text: text,
+                      clientRequestId: 'trip-reply-${DateTime.now().microsecondsSinceEpoch}',
+                      replyToMsgId: msgId.isEmpty ? null : msgId,
+                      replyToCliMsgId: cliMsgId.isEmpty ? null : cliMsgId,
+                    );
+                    if (dialogContext.mounted) Navigator.pop(dialogContext);
+                  } catch (error) {
+                    if (dialogContext.mounted) {
+                      updateDialog(() => sending = false);
+                      ScaffoldMessenger.of(dialogContext).showSnackBar(
+                        SnackBar(content: Text('Không thể trả lời: $error')),
+                      );
+                    }
+                  }
+                },
+                child: const Text('Gửi'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+
   Future<void> loadHomeSummary() async {
     try {
       final groups = await backend.getGroups();
@@ -1552,6 +1630,7 @@ class _HomePageState extends State<HomePage>
                       onIgnore: () {
                         ignoreTrip(activeTrips[index]);
                       },
+                      onSwipeReply: () => replyToTrip(activeTrips[index]),
                     );
                   },
                 ),
