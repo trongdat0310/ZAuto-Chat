@@ -719,13 +719,13 @@ async function storeConversationEvent(
   // ========================================
 
   if (
-    message?.type !==
-    ThreadType.Group
+    message?.type !== ThreadType.Group &&
+    message?.type !== ThreadType.User
   ) {
-
     return null;
   }
 
+  const isPrivate = message.type === ThreadType.User;
 
   const groupId =
     String(
@@ -805,7 +805,7 @@ async function storeConversationEvent(
 
   try {
 
-    groupName =
+    groupName = isPrivate ? (data?.dName ?? data?.senderName ?? 'Tin nhắn riêng') :
       await getUserGroupName(
         userId,
         groupId
@@ -880,6 +880,15 @@ async function storeConversationEvent(
   // ========================================
   // LUU VAO CONVERSATION STORE
   // ========================================
+
+  if (isPrivate) {
+    syncConversationGroups(userId, [{
+      groupId,
+      name: groupName,
+      type: 'user',
+      avatar: senderAvatar,
+    }]);
+  }
 
   const saved =
     saveConversationMessage(
