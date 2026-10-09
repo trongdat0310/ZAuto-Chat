@@ -85,6 +85,8 @@ class _MessagesPageState extends State<MessagesPage>
 
   final Set<String> _deletingGroupIds = <String>{};
 
+  final Map<String, bool> _pendingNotificationValues = <String, bool>{};
+
   @override
   void initState() {
     super.initState();
@@ -601,6 +603,14 @@ class _MessagesPageState extends State<MessagesPage>
         enabled.add(id);
       }
 
+      for (final entry in _pendingNotificationValues.entries) {
+        if (entry.value) {
+          enabled.add(entry.key);
+        } else {
+          enabled.remove(entry.key);
+        }
+      }
+
       setState(() {
         loadError = null;
 
@@ -1073,7 +1083,8 @@ class _MessagesPageState extends State<MessagesPage>
     }
 
     if (_pinningGroupIds.contains(groupId) ||
-        _deletingGroupIds.contains(groupId)) {
+        _deletingGroupIds.contains(groupId) ||
+        _pendingNotificationValues.containsKey(groupId)) {
       return;
     }
 
@@ -1395,12 +1406,86 @@ class _MessagesPageState extends State<MessagesPage>
     );
   }
 
+  Future<void> _toggleConversationNotifications(
+    Map<String, dynamic> conversation,
+  ) async {
+    final groupId = conversation['groupId']?.toString().trim() ?? '';
+    if (conversation['type'] != 'group' || groupId.isEmpty || !mounted) {
+      return;
+    }
+    if (_pendingNotificationValues.containsKey(groupId) ||
+        _pinningGroupIds.contains(groupId) ||
+        _deletingGroupIds.contains(groupId)) {
+      return;
+    }
+
+    final wasEnabled = enabledGroupIds.contains(groupId);
+    final nextEnabled = !wasEnabled;
+    setState(() {
+      _pendingNotificationValues[groupId] = nextEnabled;
+      if (nextEnabled) {
+        enabledGroupIds.add(groupId);
+      } else {
+        enabledGroupIds.remove(groupId);
+      }
+    });
+
+    try {
+      final enabled = await backend.toggleGroup(groupId, nextEnabled);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _pendingNotificationValues[groupId] = enabled;
+        if (enabled) {
+          enabledGroupIds.add(groupId);
+        } else {
+          enabledGroupIds.remove(groupId);
+          historySelectedGroupIds.remove(groupId);
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            enabled ? 'Đã thêm nhóm vào thông báo' : 'Đã bỏ nhóm khỏi thông báo',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        if (wasEnabled) {
+          enabledGroupIds.add(groupId);
+        } else {
+          enabledGroupIds.remove(groupId);
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Không thể cập nhật thông báo nhóm: $error')),
+      );
+    } finally {
+      _pendingNotificationValues.remove(groupId);
+      if (mounted) {
+        setState(() {});
+        await loadData(showLoading: false, showError: false);
+      }
+    }
+  }
+
   Future<void> _showConversationActions(
     Map<String, dynamic> conversation,
   ) async {
     final colorScheme = Theme.of(context).colorScheme;
 
     final pinned = conversation['pinned'] == true;
+
+    final isGroup = conversation['type'] == 'group';
+
+    final notifying = enabledGroupIds.contains(
+      conversation['groupId']?.toString().trim() ?? '',
+    );
 
     final name = conversation['name']?.toString() ?? 'Nhóm Zalo';
 
@@ -1409,7 +1494,8 @@ class _MessagesPageState extends State<MessagesPage>
     final actionBusy =
         groupId.isNotEmpty &&
         (_pinningGroupIds.contains(groupId) ||
-            _deletingGroupIds.contains(groupId));
+            _deletingGroupIds.contains(groupId) ||
+            _pendingNotificationValues.containsKey(groupId));
 
     await showDialog<void>(
       context: context,
@@ -1523,6 +1609,38 @@ class _MessagesPageState extends State<MessagesPage>
                           },
                   ),
 
+                  if (isGroup)
+                    ListTile(
+                      minLeadingWidth: 34,
+                      leading: Icon(
+                        notifying
+                            ? Icons.notifications_off_outlined
+                            : Icons.notifications_active_outlined,
+                        size: 27,
+                        color: colorScheme.primary,
+                      ),
+                      title: Text(
+                        notifying
+                            ? 'Bỏ nhóm khỏi thông báo'
+                            : 'Thêm nhóm vào thông báo',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 22,
+                        vertical: 5,
+                      ),
+                      enabled: !actionBusy,
+                      onTap: actionBusy
+                          ? null
+                          : () {
+                              Navigator.of(dialogContext).pop();
+                              _toggleConversationNotifications(conversation);
+                            },
+                    ),
+
                   // ========================================
                   // DELETE
                   // ========================================
@@ -1635,7 +1753,8 @@ class _MessagesPageState extends State<MessagesPage>
     }
 
     if (_deletingGroupIds.contains(groupId) ||
-        _pinningGroupIds.contains(groupId)) {
+        _pinningGroupIds.contains(groupId) ||
+        _pendingNotificationValues.containsKey(groupId)) {
       return;
     }
 
@@ -1718,7 +1837,8 @@ class _MessagesPageState extends State<MessagesPage>
     final actionBusy =
         groupId.isNotEmpty &&
         (_pinningGroupIds.contains(groupId) ||
-            _deletingGroupIds.contains(groupId));
+            _deletingGroupIds.contains(groupId) ||
+            _pendingNotificationValues.containsKey(groupId));
 
     // ========================================
     // UNREAD
