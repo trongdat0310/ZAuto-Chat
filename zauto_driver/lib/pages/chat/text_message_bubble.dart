@@ -253,7 +253,9 @@ class TextMessageBubble extends StatelessWidget {
       final start = int.tryParse((item['pos'] ?? item['start'] ?? '').toString());
       final length = int.tryParse((item['len'] ?? item['length'] ?? '').toString());
       if (start == null || length == null || start < 0 || length <= 0 ||
-          start + length > value.length) continue;
+          start + length > value.length) {
+        continue;
+      }
       ranges.add((start: start, end: start + length));
     }
     ranges.sort((a, b) => a.start.compareTo(b.start));
