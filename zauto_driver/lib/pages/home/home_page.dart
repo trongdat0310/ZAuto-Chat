@@ -803,17 +803,6 @@ class _HomePageState extends State<HomePage>
         trip['_uiStatus'] = 'accepted';
       });
 
-      // ========================================
-      // CHO NGUOI DUNG THAY "DA NHAN"
-      // ROI MOI BIEN MAT
-      // ========================================
-
-      await Future.delayed(const Duration(milliseconds: 1500));
-
-      if (!mounted) {
-        return;
-      }
-
       removeTrip(tripId);
       await _openAcceptedMessage(trip, response);
     } catch (error) {
@@ -906,8 +895,6 @@ class _HomePageState extends State<HomePage>
         trip['_uiStatus'] = 'replied';
       });
       _stopTripCountdownTimerIfIdle();
-      await Future.delayed(const Duration(milliseconds: 1500));
-      if (!mounted) return true;
       removeTrip(tripId);
       await _openAcceptedMessage(trip, response);
       return true;
