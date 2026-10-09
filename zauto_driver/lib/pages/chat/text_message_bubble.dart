@@ -8,6 +8,7 @@ class TextMessageBubble extends StatelessWidget {
   final String senderName;
 
   final String content;
+  final List<Map<String, dynamic>> mentions;
 
   final String timeText;
 
@@ -29,6 +30,7 @@ class TextMessageBubble extends StatelessWidget {
     required this.isRecalled,
     required this.senderName,
     required this.content,
+    this.mentions = const [],
     required this.timeText,
     required this.hasQuote,
     required this.quoteSender,
@@ -211,17 +213,15 @@ class TextMessageBubble extends StatelessWidget {
           // ========================================
           // NOI DUNG
           // ========================================
-          Text(
-            content,
-
-            style: TextStyle(
-              fontSize: 15,
-
-              height: 1.25,
-
-              color: normalText,
-
-              fontStyle: isRecalled ? FontStyle.italic : FontStyle.normal,
+          Text.rich(
+            TextSpan(
+              style: TextStyle(
+                fontSize: 15,
+                height: 1.25,
+                color: normalText,
+                fontStyle: isRecalled ? FontStyle.italic : FontStyle.normal,
+              ),
+              children: _mentionSpans(content, mentions, colorScheme.primary),
             ),
           ),
 
@@ -243,4 +243,35 @@ class TextMessageBubble extends StatelessWidget {
       ),
     );
   }
+  List<InlineSpan> _mentionSpans(
+    String value,
+    List<Map<String, dynamic>> entries,
+    Color mentionColor,
+  ) {
+    final ranges = <({int start, int end})>[];
+    for (final item in entries) {
+      final start = int.tryParse((item['pos'] ?? item['start'] ?? '').toString());
+      final length = int.tryParse((item['len'] ?? item['length'] ?? '').toString());
+      if (start == null || length == null || start < 0 || length <= 0 ||
+          start + length > value.length) continue;
+      ranges.add((start: start, end: start + length));
+    }
+    ranges.sort((a, b) => a.start.compareTo(b.start));
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+    for (final range in ranges) {
+      if (range.start < cursor) continue;
+      if (range.start > cursor) {
+        spans.add(TextSpan(text: value.substring(cursor, range.start)));
+      }
+      spans.add(TextSpan(
+        text: value.substring(range.start, range.end),
+        style: TextStyle(color: mentionColor, fontWeight: FontWeight.w600),
+      ));
+      cursor = range.end;
+    }
+    if (cursor < value.length) spans.add(TextSpan(text: value.substring(cursor)));
+    return spans;
+  }
+
 }
