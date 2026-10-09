@@ -12,6 +12,7 @@ import {
 
 import {
   findUserConversationMessage,
+  getUserConversationList,
 } from "./conversation-store.js";
 
 
@@ -114,17 +115,21 @@ sendUserConversationMessage(
   }
 
 
+  const conversation = getUserConversationList(safeUserId)
+    .find(item => String(item.groupId) === safeGroupId);
+  const isPrivate = conversation?.type === 'user';
+
   // ========================================
   // KIEM TRA GROUP
   // ========================================
 
-  const groups =
+  const groups = isPrivate ? [] :
     await getUserGroups(
       safeUserId
     );
 
 
-  const groupExists =
+  const groupExists = isPrivate ||
     groups.some(
       item =>
         String(
@@ -309,7 +314,7 @@ sendUserConversationMessage(
 
       safeGroupId,
 
-      ThreadType.Group
+      isPrivate ? ThreadType.User : ThreadType.Group
     );
 
 
