@@ -284,7 +284,7 @@ sendUserConversationMessage(
   // ========================================
 
   const senderId = String(
-    mentionTarget?.senderId ?? mentionTarget?.rawData?.uidFrom ?? ""
+    mentionTarget?.uidFrom ?? mentionTarget?.rawData?.uidFrom ?? ""
   ).trim();
   const senderName = String(mentionTarget?.senderName ?? "")
     .trim().replace(/^@+/, "");
