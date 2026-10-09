@@ -96,7 +96,7 @@ class _ChatPageState extends State<ChatPage> {
 
   final ScrollController scrollController = ScrollController();
 
-  final TextEditingController messageController = TextEditingController();
+  final TextEditingController messageController = _MentionTextController();
 
   final ImagePicker imagePicker = ImagePicker();
 
@@ -358,6 +358,7 @@ class _ChatPageState extends State<ChatPage> {
       final senderName = (message['senderName'] ?? '').toString().trim().replaceFirst(RegExp(r'^@+'), '');
       if (senderName.isNotEmpty) {
         final mention = '@$senderName ';
+        messageController.mentionPrefix = mention;
         if (!messageController.text.startsWith(mention)) {
           messageController.text = '$mention${messageController.text}';
         }
@@ -379,6 +380,7 @@ class _ChatPageState extends State<ChatPage> {
 
     setState(() {
       replyController.cancelReply();
+      messageController.mentionPrefix = null;
     });
   }
 
@@ -3351,5 +3353,34 @@ class _ChatPageState extends State<ChatPage> {
         ],
       ),
     );
+  }
+}
+
+class _MentionTextController extends TextEditingController {
+  String? mentionPrefix;
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    final prefix = mentionPrefix;
+    if (prefix == null || !text.startsWith(prefix)) {
+      return TextSpan(style: style, text: text);
+    }
+    return TextSpan(style: style, children: [
+      TextSpan(
+        text: prefix,
+        style: style?.copyWith(
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w600,
+        ) ?? TextStyle(
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      TextSpan(text: text.substring(prefix.length)),
+    ]);
   }
 }
