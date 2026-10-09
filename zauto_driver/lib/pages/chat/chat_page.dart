@@ -96,7 +96,7 @@ class _ChatPageState extends State<ChatPage> {
 
   final ScrollController scrollController = ScrollController();
 
-  final TextEditingController messageController = _MentionTextController();
+  final _MentionTextController messageController = _MentionTextController();
 
   final ImagePicker imagePicker = ImagePicker();
 
