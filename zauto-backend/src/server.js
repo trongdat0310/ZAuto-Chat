@@ -147,6 +147,7 @@ import {
 
 import {
   getUserConversationList,
+  syncConversationGroups,
   getUserConversationMessages,
   getUserConversationMessagesPage,
   findUserConversationMessage,
@@ -3369,6 +3370,18 @@ app.patch(
 // ========================================
 
 // Private Zalo message to the original sender of a group message.
+app.post("/api/me/conversations/private/open", requireAuth, async (req, res) => {
+  const userId = String(req.body?.userId ?? "").trim();
+  const name = String(req.body?.name ?? "Người dùng Zalo").trim();
+  if (!userId) return res.status(400).json({ error: "Missing user ID" });
+  syncConversationGroups(req.user.id, [{
+    groupId: userId,
+    name,
+    type: "user",
+  }]);
+  return res.json({ success: true, groupId: userId });
+});
+
 app.post("/api/me/messages/private/send", requireAuth, async (req, res) => {
   try {
     const userId = String(req.body?.userId ?? "").trim();
