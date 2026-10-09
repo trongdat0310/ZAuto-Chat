@@ -3368,6 +3368,23 @@ app.patch(
 // SEND / REPLY MESSAGE TO ZALO GROUP
 // ========================================
 
+// Private Zalo message to the original sender of a group message.
+app.post("/api/me/messages/private/send", requireAuth, async (req, res) => {
+  try {
+    const userId = String(req.body?.userId ?? "").trim();
+    const text = String(req.body?.text ?? "").trim();
+    if (!userId || !text || text.length > 2000) {
+      return res.status(400).json({ error: "Nguoi nhan hoac noi dung khong hop le." });
+    }
+    const api = await connectUserZalo(req.user.id);
+    const { ThreadType } = await import("zca-js");
+    await api.sendMessage(text, userId, ThreadType.User);
+    return res.json({ success: true, sent: true });
+  } catch (error) {
+    return res.status(500).json({ error: error.message ?? "Khong gui duoc tin nhan rieng." });
+  }
+});
+
 app.post(
   "/api/me/conversations/:groupId/messages/send",
 
