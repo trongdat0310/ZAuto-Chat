@@ -882,9 +882,10 @@ async function storeConversationEvent(
   // ========================================
 
   if (isPrivate) {
+    const existing = getUserConversationList(userId).find(item => String(item.groupId) === groupId);
     syncConversationGroups(userId, [{
       groupId,
-      name: groupName,
+      name: existing?.name ?? groupName,
       type: 'user',
       avatar: senderAvatar,
     }]);
