@@ -30,12 +30,16 @@ class _PrivateChatPageState extends State<PrivateChatPage> {
         input.clear();
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (scroll.hasClients) scroll.animateTo(scroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 220), curve: Curves.easeOut);
+        if (scroll.hasClients) {
+          scroll.animateTo(scroll.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 220), curve: Curves.easeOut);
+        }
       });
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không gửi được: $error')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không gửi được: $error')));
+      }
     } finally {
       if (mounted) setState(() => sending = false);
     }
