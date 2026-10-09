@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../controllers/settings_controller.dart';
 
@@ -44,6 +45,8 @@ class _MainScreenState extends State<MainScreen> {
   int currentIndex = 0;
 
   int filterInitialTab = 0;
+
+  bool _exitDialogOpen = false;
 
   late final AppRealtimeService realtimeService;
 
@@ -198,82 +201,122 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  Future<void> _confirmExit() async {
+    if (!mounted || _exitDialogOpen) {
+      return;
+    }
+    _exitDialogOpen = true;
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Thoát ứng dụng'),
+          content: const Text('Bạn có chắc chắn muốn thoát ứng dụng không?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Hủy'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Thoát'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed == true && mounted) {
+        await SystemNavigator.pop();
+      }
+    } finally {
+      _exitDialogOpen = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      // ========================================
-      // GIU TAT CA TAB TON TAI
-      // HOME PAGE KHONG BI DISPOSE KHI DOI TAB
-      // ========================================
+    return PopScope<void>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (!didPop) {
+          await _confirmExit();
+        }
+      },
+      child: Scaffold(
+        // ========================================
+        // GIU TAT CA TAB TON TAI
+        // HOME PAGE KHONG BI DISPOSE KHI DOI TAB
+        // ========================================
 
-      body: IndexedStack(index: currentIndex, children: pages),
+        body: IndexedStack(index: currentIndex, children: pages),
 
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: currentIndex,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: currentIndex,
 
-        onDestinationSelected: (index) {
-          setState(() {
-            currentIndex = index;
-          });
-        },
+          onDestinationSelected: (index) {
+            setState(() {
+              currentIndex = index;
+            });
+          },
 
-        destinations: const [
-          // ========================================
-          // 0. CANH ME
-          // ========================================
+          destinations: const [
+            // ========================================
+            // 0. CANH ME
+            // ========================================
 
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
 
-            selectedIcon: Icon(Icons.home),
+              selectedIcon: Icon(Icons.home),
 
-            label: 'Cuốc',
-          ),
+              label: 'Cuốc',
+            ),
 
-          // ========================================
-          // 1. TIN NHAN
-          // ========================================
-          NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
+            // ========================================
+            // 1. TIN NHAN
+            // ========================================
+            NavigationDestination(
+              icon: Icon(Icons.chat_bubble_outline),
 
-            selectedIcon: Icon(Icons.chat_bubble),
+              selectedIcon: Icon(Icons.chat_bubble),
 
-            label: 'Tin nhắn',
-          ),
+              label: 'Tin nhắn',
+            ),
 
-          // ========================================
-          // 2. CAI DAT
-          // ========================================
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
+            // ========================================
+            // 2. CAI DAT
+            // ========================================
+            NavigationDestination(
+              icon: Icon(Icons.settings_outlined),
 
-            selectedIcon: Icon(Icons.settings),
+              selectedIcon: Icon(Icons.settings),
 
-            label: 'Cài đặt',
-          ),
+              label: 'Cài đặt',
+            ),
 
-          // ========================================
-          // 3. BO LOC
-          // ========================================
-          NavigationDestination(
-            icon: Icon(Icons.tune),
+            // ========================================
+            // 3. BO LOC
+            // ========================================
+            NavigationDestination(
+              icon: Icon(Icons.tune),
 
-            selectedIcon: Icon(Icons.tune),
+              selectedIcon: Icon(Icons.tune),
 
-            label: 'Bộ lọc',
-          ),
+              label: 'Bộ lọc',
+            ),
 
-          // ========================================
-          // 4. TAI KHOAN
-          // ========================================
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
+            // ========================================
+            // 4. TAI KHOAN
+            // ========================================
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
 
-            selectedIcon: Icon(Icons.person),
+              selectedIcon: Icon(Icons.person),
 
-            label: 'Tài khoản',
-          ),
-        ],
+              label: 'Tài khoản',
+            ),
+          ],
+        ),
       ),
     );
   }
