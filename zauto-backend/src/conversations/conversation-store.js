@@ -752,6 +752,8 @@ export function syncConversationGroups(
       {
         groupId,
 
+        type: group.type ?? old?.type ?? 'group',
+
         name:
           group.name ??
           old?.name ??
