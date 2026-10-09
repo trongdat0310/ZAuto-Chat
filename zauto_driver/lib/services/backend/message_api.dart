@@ -145,6 +145,13 @@ class MessageApi extends BackendApiBase {
     return Map<String, dynamic>.from(decoded);
   }
 
+  Future<void> sendPrivateMessage({required String userId, required String text}) async {
+    await postJson(
+      Uri.parse('$baseUrl/api/me/messages/private/send'),
+      body: {'userId': userId, 'text': text},
+    );
+  }
+
   Future<void> sendConversationMessage({
     required String groupId,
     required String text,
