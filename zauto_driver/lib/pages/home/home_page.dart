@@ -11,6 +11,7 @@ import '../../services/speech_service.dart';
 import '../../services/audio_service.dart';
 import '../../services/app_realtime_service.dart';
 
+import '../chat/chat_page.dart';
 import 'trip_card.dart';
 import 'home_notification.dart';
 import 'home_realtime.dart';
@@ -788,7 +789,7 @@ class _HomePageState extends State<HomePage>
     _stopTripCountdownTimerIfIdle();
 
     try {
-      await backend.acceptMessage(
+      final response = await backend.acceptMessage(
         tripId,
 
         replyText: widget.settingsController.settings.acceptReplyText,
@@ -814,6 +815,7 @@ class _HomePageState extends State<HomePage>
       }
 
       removeTrip(tripId);
+      await _openAcceptedMessage(trip, response);
     } catch (error) {
       if (!mounted) {
         return;
@@ -857,43 +859,62 @@ class _HomePageState extends State<HomePage>
     _ensureTripCountdownTimer();
   }
 
-  Future<bool> sendTripReply(Map<String, dynamic> trip, String text) async {
-    final groupId = (trip['groupId'] ?? trip['sourceThreadId'] ?? '').toString();
-    final msgId = (trip['sourceMsgId'] ?? trip['zaloMessageId'] ?? trip['msgId'] ?? '').toString().trim();
-    final cliMsgId = (trip['sourceCliMsgId'] ?? trip['clientMessageId'] ?? trip['cliMsgId'] ?? '').toString().trim();
-    if (groupId.isEmpty || (msgId.isEmpty && cliMsgId.isEmpty)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không tìm thấy tin nhắn gốc để trả lời')),
-        );
-      }
-      return false;
-    }
-    try {
-      await backend.sendConversationMessage(
-        groupId: groupId,
-        text: text,
-        clientRequestId: 'trip-reply-${DateTime.now().microsecondsSinceEpoch}',
-        replyToMsgId: msgId.isEmpty ? null : msgId,
-        replyToCliMsgId: cliMsgId.isEmpty ? null : cliMsgId,
+  Future<void> _openAcceptedMessage(
+    Map<String, dynamic> trip,
+    Map<String, dynamic> response,
+  ) async {
+    if (!mounted) return;
+    final accepted = response['message'] is Map
+        ? Map<String, dynamic>.from(response['message'] as Map)
+        : response;
+    final targetMsgId = (accepted['replyZaloMessageId'] ?? '').toString().trim();
+    final targetCliMsgId =
+        (accepted['replyZaloCliMessageId'] ?? '').toString().trim();
+    final groupId = (accepted['sourceThreadId'] ??
+            accepted['groupId'] ??
+            trip['groupId'] ??
+            '').toString().trim();
+    if (groupId.isEmpty || (targetMsgId.isEmpty && targetCliMsgId.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đã nhận cuốc nhưng chưa xác định được tin nhắn trả lời')),
       );
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatPage(
+          realtimeService: widget.realtimeService,
+          groupId: groupId,
+          groupName: (trip['groupName'] ?? 'Nhóm Zalo').toString(),
+          groupAvatar: null,
+          targetMsgId: targetMsgId.isEmpty ? null : targetMsgId,
+          targetCliMsgId: targetCliMsgId.isEmpty ? null : targetCliMsgId,
+        ),
+      ),
+    );
+  }
+
+  Future<bool> sendTripReply(Map<String, dynamic> trip, String text) async {
+    final tripId = trip['id']?.toString().trim() ?? '';
+    if (tripId.isEmpty) return false;
+    try {
+      // Use the accept endpoint so the reply is recorded in accepted history.
+      final response = await backend.acceptMessage(tripId, replyText: text);
       if (!mounted) return true;
-      final tripId = trip['id']?.toString();
       setState(() {
         trip['_replying'] = false;
         trip['_uiStatus'] = 'replied';
       });
       _stopTripCountdownTimerIfIdle();
-      Future<void>.delayed(const Duration(milliseconds: 1500), () {
-        if (mounted && tripId != null && tripId.isNotEmpty) {
-          removeTrip(tripId);
-        }
-      });
+      await Future.delayed(const Duration(milliseconds: 1500));
+      if (!mounted) return true;
+      removeTrip(tripId);
+      await _openAcceptedMessage(trip, response);
       return true;
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Không thể trả lời: $error')),
+          SnackBar(content: Text('Không thể nhận cuốc: $error')),
         );
       }
       return false;
