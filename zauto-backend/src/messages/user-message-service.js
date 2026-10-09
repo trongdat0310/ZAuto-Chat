@@ -277,16 +277,24 @@ async function acceptUserMessageInternal(
   // "Nhận"
   // ========================================
 
+  // Mention the original sender with a real Zalo @ tag.
+  // The mention offset and length refer to the exact prefix in msg.
+  const senderId = String(message.senderId ?? "").trim();
+  const senderName = String(message.senderName ?? "").trim().replace(/^@+/, "");
+  const mentionPrefix = senderId && senderName ? `@${senderName}` : "";
+  const outgoingText = mentionPrefix ? `${mentionPrefix} ${text}` : text;
+  const mentions = mentionPrefix
+    ? [{ uid: senderId, pos: 0, len: mentionPrefix.length }]
+    : [];
+
   const sendPayload =
-    quote
+    quote || mentions.length
       ? {
-          msg:
-            text,
-
-          quote,
+          msg: outgoingText,
+          ...(quote ? { quote } : {}),
+          ...(mentions.length ? { mentions } : {}),
         }
-      : text;
-
+      : outgoingText;
 
   // ========================================
   // GET USER ZALO API
