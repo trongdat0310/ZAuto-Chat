@@ -43,6 +43,7 @@ import 'video_viewer_page.dart';
 import 'photo_viewer_page.dart';
 import 'photo_media_row.dart';
 import 'text_message_row.dart';
+import 'private_chat_page.dart';
 
 class ChatPage extends StatefulWidget {
   final String groupId;
@@ -641,40 +642,21 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _sendPrivateMessage(Map<String, dynamic> message) async {
-    final userId = (message['uidFrom'] ?? message['rawData']?['uidFrom'] ?? '').toString().trim();
-    if (userId.isEmpty || message['isSelf'] == true) {
+    final raw = message['rawData'];
+    final uid = (message['uidFrom'] ??
+        (raw is Map ? raw['uidFrom'] : null) ?? '').toString().trim();
+    if (uid.isEmpty || message['isSelf'] == true) {
       _showTopNotice('Không tìm thấy tài khoản Zalo của người gửi');
       return;
     }
-    final name = (message['senderName'] ?? 'Người gửi').toString();
-    final controller = TextEditingController();
-    try {
-      final send = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text('Nhắn tin riêng cho $name'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            minLines: 1,
-            maxLines: 4,
-            decoration: const InputDecoration(hintText: 'Nhập tin nhắn riêng...'),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Hủy')),
-            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Gửi')),
-          ],
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PrivateChatPage(
+          userId: uid,
+          userName: (message['senderName'] ?? 'Người gửi').toString(),
         ),
-      );
-      final text = controller.text.trim();
-      if (send != true || text.isEmpty) return;
-      await backend.sendPrivateMessage(userId: userId, text: text);
-      if (mounted) _showTopNotice('Đã gửi tin nhắn riêng cho $name');
-    } catch (error) {
-      if (mounted) _showTopNotice('Không gửi được tin nhắn riêng: $error');
-    } finally {
-      controller.dispose();
-    }
+      ),
+    );
   }
 
   List<Map<String, dynamic>> _messageMentions(Map<String, dynamic> message) {
