@@ -48,8 +48,8 @@ import {
 } from "../conversations/conversation-store.js";
 
 import {
-  getUserAvatars,
-} from "../users/user-avatar-service.js";
+  getConversationEventAvatars,
+} from "../conversations/private-conversation-avatar-service.js";
 
 import {
   getUserMessageSettings,
@@ -831,49 +831,12 @@ async function storeConversationEvent(
     // LAY AVATAR NGUOI GUI
     // ========================================
 
-    const senderId =
-      data?.uidFrom != null
-        ? String(
-            data.uidFrom
-          ).trim()
-        : "";
-
-
-    let senderAvatar =
-      null;
-
-
-    if (
-      senderId
-    ) {
-
-      try {
-
-        const avatars =
-          await getUserAvatars(
-            userId,
-            [
-              senderId,
-            ]
-          );
-
-
-        senderAvatar =
-          avatars[
-            senderId
-          ] ??
-          null;
-
-      } catch (error) {
-
-        console.warn(
-          "[USER AVATAR] MESSAGE ENRICH ERROR:",
-          userId,
-          senderId,
-          error?.message ??
-          error
-        );
-      }
+    let senderAvatar = null;
+    let peerAvatar = null;
+    try {
+      ({ senderAvatar, peerAvatar } = await getConversationEventAvatars(userId, message));
+    } catch (error) {
+      console.warn("[USER AVATAR] MESSAGE ENRICH ERROR:", userId, error?.message ?? error);
     }
 
 
@@ -887,7 +850,7 @@ async function storeConversationEvent(
       groupId,
       name: existing?.name ?? groupName,
       type: 'user',
-      avatar: senderAvatar,
+      avatar: peerAvatar,
     }]);
   }
 

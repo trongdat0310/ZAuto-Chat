@@ -157,6 +157,8 @@ import {
   deleteUserConversation,
 } from "./conversations/conversation-store.js";
 
+import { refreshPrivateConversationAvatars } from "./conversations/private-conversation-avatar-service.js";
+
 import {
   getUserMessageSettings,
   updateUserMessageSettings,
@@ -2656,12 +2658,12 @@ app.get(
 
   requireAuth,
 
-  (req, res) => {
+  async (req, res) => {
 
     try {
 
       const conversations =
-        getUserConversationList(
+        await refreshPrivateConversationAvatars(
           req.user.id
         );
 
