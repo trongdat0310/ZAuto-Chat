@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -674,6 +675,20 @@ class _ChatPageState extends State<ChatPage> {
     } finally {
       controller.dispose();
     }
+  }
+
+  List<Map<String, dynamic>> _messageMentions(Map<String, dynamic> message) {
+    final raw = message['rawData'];
+    if (raw is! Map) return const [];
+    dynamic value = raw['mentions'] ?? raw['mention'];
+    if (value == null && raw['propertyExt'] is String) {
+      try {
+        final decoded = jsonDecode(raw['propertyExt'] as String);
+        if (decoded is Map) value = decoded['mentions'] ?? decoded['mention'];
+      } catch (_) {}
+    }
+    if (value is! List) return const [];
+    return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
   }
 
   void _showMessageActions(Map<String, dynamic> message) {
@@ -3123,6 +3138,8 @@ class _ChatPageState extends State<ChatPage> {
       senderName: senderName,
 
       content: content,
+
+      mentions: _messageMentions(message),
 
       timeText: formatTime(message['timestamp']),
 
