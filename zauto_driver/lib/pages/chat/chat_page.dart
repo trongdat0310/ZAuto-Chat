@@ -352,6 +352,7 @@ class _ChatPageState extends State<ChatPage> {
       return;
     }
 
+    messageController.mentionPrefix = null;
     // Pre-fill @sender when replying to someone else's message.
     // Keep the composer untouched when replying to our own message.
     if (message['isSelf'] != true) {
@@ -971,6 +972,7 @@ class _ChatPageState extends State<ChatPage> {
       }
 
       messageController.clear();
+      messageController.mentionPrefix = null;
 
       setState(() {
         replyController.clearReply();
