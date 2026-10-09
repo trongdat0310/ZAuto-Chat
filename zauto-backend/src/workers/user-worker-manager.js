@@ -1156,12 +1156,13 @@ function requestMissedGroupMessages(
                 ThreadType.Group
               );
 
+          }
+
           // Also catch up one-to-one conversations; never feed them to trip filters.
           try {
             api.listener.requestOldMessages(ThreadType.User);
           } catch (error) {
             console.warn("[PRIVATE HISTORY] REQUEST ERROR:", key, error?.message ?? error);
-          }
           }
 
 
