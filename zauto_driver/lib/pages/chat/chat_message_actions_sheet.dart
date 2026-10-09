@@ -4,6 +4,8 @@ class ChatMessageActionsSheet extends StatelessWidget {
   final bool canReply;
 
   final bool canCopy;
+  final bool canPrivateMessage;
+  final VoidCallback onPrivateMessage;
 
   final bool canUndo;
 
@@ -23,6 +25,8 @@ class ChatMessageActionsSheet extends StatelessWidget {
     super.key,
     required this.canReply,
     required this.canCopy,
+    required this.canPrivateMessage,
+    required this.onPrivateMessage,
     required this.canUndo,
     required this.onReply,
     required this.onCopy,
@@ -48,6 +52,16 @@ class ChatMessageActionsSheet extends StatelessWidget {
                 Navigator.of(context).pop();
 
                 onReply();
+              },
+            ),
+
+          if (canPrivateMessage)
+            ListTile(
+              leading: const Icon(Icons.chat_bubble_outline_rounded),
+              title: const Text('Nhắn tin riêng'),
+              onTap: () {
+                Navigator.of(context).pop();
+                onPrivateMessage();
               },
             ),
 
