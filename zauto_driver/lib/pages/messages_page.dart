@@ -731,8 +731,10 @@ class _MessagesPageState extends State<MessagesPage>
     final groupId = conversation['groupId']?.toString() ?? '';
     final enabled = enabledGroupIds.contains(groupId);
     final pinned = conversation['pinned'] == true;
-    if (notificationFilter == 'enabled' && !enabled) return false;
-    if (notificationFilter == 'disabled' && enabled) return false;
+    final isPrivate = conversation['type'] == 'user';
+    if (!isPrivate && notificationFilter == 'enabled' && !enabled) return false;
+    if (!isPrivate && notificationFilter == 'disabled' && enabled) return false;
+    if (isPrivate && notificationFilter != 'all') return false;
     if (pinFilter == 'pinned' && !pinned) return false;
     if (pinFilter == 'unpinned' && pinned) return false;
     return true;
@@ -1203,7 +1205,8 @@ class _MessagesPageState extends State<MessagesPage>
       return;
     }
 
-    final groupName = conversation['name']?.toString() ?? 'Nhóm Zalo';
+    final groupName = conversation['name']?.toString() ??
+        (conversation['type'] == 'user' ? 'Tin nhắn riêng' : 'Nhóm Zalo');
 
     final groupAvatar = conversation['avatar']?.toString();
 
