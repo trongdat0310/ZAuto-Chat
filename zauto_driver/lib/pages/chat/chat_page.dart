@@ -43,7 +43,6 @@ import 'video_viewer_page.dart';
 import 'photo_viewer_page.dart';
 import 'photo_media_row.dart';
 import 'text_message_row.dart';
-import 'private_chat_page.dart';
 
 class ChatPage extends StatefulWidget {
   final String groupId;
@@ -649,11 +648,18 @@ class _ChatPageState extends State<ChatPage> {
       _showTopNotice('Không tìm thấy tài khoản Zalo của người gửi');
       return;
     }
+    await backend.openPrivateConversation(
+      userId: uid,
+      name: (message['senderName'] ?? 'Người gửi').toString(),
+    );
+    if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => PrivateChatPage(
-          userId: uid,
-          userName: (message['senderName'] ?? 'Người gửi').toString(),
+        builder: (_) => ChatPage(
+          realtimeService: widget.realtimeService,
+          groupId: uid,
+          groupName: (message['senderName'] ?? 'Người gửi').toString(),
+          groupAvatar: message['senderAvatar']?.toString(),
         ),
       ),
     );
