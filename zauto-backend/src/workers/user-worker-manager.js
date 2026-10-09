@@ -2657,15 +2657,6 @@ export async function startUserWorker(
         }
 
 
-        // Hien tai chi quan tam group.
-        if (
-          undo?.isGroup !==
-          true
-        ) {
-          return;
-        }
-
-
         try {
 
           const recalled =
