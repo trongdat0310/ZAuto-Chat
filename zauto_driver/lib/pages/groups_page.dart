@@ -230,25 +230,6 @@ class _GroupsPageState extends State<GroupsPage> {
                     ),
                   ),
 
-                  const SizedBox(width: 10),
-
-                  // Nút filter giao diện.
-                  // Logic filter chi tiết sẽ làm sau.
-                  IconButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Bộ lọc danh sách nhóm sẽ được thêm sau',
-                          ),
-                        ),
-                      );
-                    },
-
-                    icon: const Icon(Icons.filter_alt, size: 30),
-
-                    tooltip: 'Lọc nhóm',
-                  ),
                 ],
               ),
 

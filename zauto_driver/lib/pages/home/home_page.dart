@@ -19,6 +19,8 @@ import 'home_realtime.dart';
 class HomePage extends StatefulWidget {
   final SettingsController settingsController;
 
+  final bool isActive;
+
   final Future<void> Function() onOpenGroups;
 
   final VoidCallback onOpenNotificationFilter;
@@ -30,6 +32,7 @@ class HomePage extends StatefulWidget {
 
   const HomePage({
     super.key,
+    this.isActive = true,
 
     required this.realtimeService,
     required this.onOpenGroups,
@@ -62,7 +65,6 @@ class _HomePageState extends State<HomePage>
   int enabledGroupCount = 0;
   int totalGroupCount = 0;
 
-  bool filterActive = false;
   int notificationFilterCount = 0;
 
   String connectionStatus = 'Đang kết nối backend...';
@@ -908,17 +910,23 @@ class _HomePageState extends State<HomePage>
     }
   }
 
+  @override
+  void didUpdateWidget(covariant HomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) {
+      loadHomeSummary();
+    }
+  }
+
   Future<void> loadHomeSummary() async {
     try {
       final groups = await backend.getGroups();
 
-      final filters = await backend.getFilters();
+      final filters = await backend.getNotificationFilters();
 
       if (!mounted) {
         return;
       }
-
-      final includeKeywords = filters['includeKeywords'];
 
       setState(() {
         totalGroupCount = groups.length;
@@ -927,11 +935,9 @@ class _HomePageState extends State<HomePage>
             .where((group) => group['enabled'] == true)
             .length;
 
-        filterActive = filters['enabled'] == true;
-
-        notificationFilterCount = includeKeywords is List
-            ? includeKeywords.length
-            : 0;
+        notificationFilterCount = filters
+            .where((filter) => filter['enabled'] != false)
+            .length;
       });
     } catch (error) {
       debugPrint('HOME SUMMARY ERROR: $error');
@@ -1430,11 +1436,11 @@ class _HomePageState extends State<HomePage>
 
     String notificationFilterText;
 
-    if (!filterActive || notificationFilterCount == 0) {
-      notificationFilterText = 'Chưa bật bộ lọc nào — mọi cuốc đều hiện';
+    if (notificationFilterCount == 0) {
+      notificationFilterText = 'Chưa có bộ lọc nào đang bật';
     } else {
       notificationFilterText =
-          '$notificationFilterCount điều kiện lọc đang hoạt động';
+          '$notificationFilterCount bộ lọc đang bật';
     }
 
     return SafeArea(

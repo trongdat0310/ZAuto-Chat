@@ -119,6 +119,7 @@ class _MainScreenState extends State<MainScreen> {
 
       zaloLinked
           ? HomePage(
+              isActive: currentIndex == 0,
               realtimeService: realtimeService,
 
               onOpenGroups: openGroupsFromHome,
