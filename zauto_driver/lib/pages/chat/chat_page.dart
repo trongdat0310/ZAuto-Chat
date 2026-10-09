@@ -638,6 +638,43 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  Future<void> _sendPrivateMessage(Map<String, dynamic> message) async {
+    final userId = (message['uidFrom'] ?? message['rawData']?['uidFrom'] ?? '').toString().trim();
+    if (userId.isEmpty || message['isSelf'] == true) {
+      _showTopNotice('Không tìm thấy tài khoản Zalo của người gửi');
+      return;
+    }
+    final name = (message['senderName'] ?? 'Người gửi').toString();
+    final controller = TextEditingController();
+    try {
+      final send = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('Nhắn tin riêng cho $name'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            minLines: 1,
+            maxLines: 4,
+            decoration: const InputDecoration(hintText: 'Nhập tin nhắn riêng...'),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Hủy')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Gửi')),
+          ],
+        ),
+      );
+      final text = controller.text.trim();
+      if (send != true || text.isEmpty) return;
+      await backend.sendPrivateMessage(userId: userId, text: text);
+      if (mounted) _showTopNotice('Đã gửi tin nhắn riêng cho $name');
+    } catch (error) {
+      if (mounted) _showTopNotice('Không gửi được tin nhắn riêng: $error');
+    } finally {
+      controller.dispose();
+    }
+  }
+
   void _showMessageActions(Map<String, dynamic> message) {
     final status = message['status']?.toString() ?? 'normal';
 
@@ -675,6 +712,9 @@ class _ChatPageState extends State<ChatPage> {
           canReply: canReply,
 
           canCopy: canCopy,
+          canPrivateMessage: !isSelf && status == 'normal' &&
+              (message['uidFrom'] ?? message['rawData']?['uidFrom']) != null,
+          onPrivateMessage: () => _sendPrivateMessage(message),
 
           canUndo: canUndo,
 
