@@ -1755,7 +1755,9 @@ class _MessagesPageState extends State<MessagesPage>
       // ========================================
       // MESSAGE NGUOI KHAC GUI
       // ========================================
-    } else if (sender != null && sender.isNotEmpty) {
+    } else if (conversation['type'] != 'user' &&
+        sender != null &&
+        sender.isNotEmpty) {
       subtitle = '$sender: $lastContent';
     } else {
       subtitle = lastContent;
