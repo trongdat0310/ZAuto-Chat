@@ -78,7 +78,7 @@ import {
 
 import {
   setUserGroupEnabled,
-  enableUserGroups,
+  setUserGroupsEnabled,
 } from "./zalo/user-group-settings.js";
 
 import {
@@ -978,22 +978,27 @@ app.get(
   }
 );
 
-// Enable every current Zalo group with one request and one settings write.
-app.post("/api/me/groups/enable-all", requireAuth, async (req, res) => {
+// Toggle all current Zalo groups with one request and one settings write.
+// Keep enable-all compatible with the previous client.
+app.post(["/api/me/groups/toggle-all", "/api/me/groups/enable-all"], requireAuth, async (req, res) => {
   try {
+    const enabled = req.body?.enabled ?? true;
+    if (typeof enabled !== "boolean") {
+      return res.status(400).json({ success: false, error: "enabled phải là true hoặc false." });
+    }
     const groups = await getUserGroups(req.user.id);
-    const enabled = enableUserGroups(req.user.id, groups.map(group => group.groupId));
-    for (const group of enabled) {
+    const updates = setUserGroupsEnabled(req.user.id, groups.map(group => group.groupId), enabled);
+    for (const group of updates) {
       broadcastUserEvent(req.user.id, "group_notification_toggled", group);
     }
     return res.json({
       success: true,
-      groups: groups.map(group => ({ ...group, enabled: true })),
+      groups: groups.map(group => ({ ...group, enabled })),
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-      error: error?.message ?? "Không thể bật thông báo cho tất cả nhóm.",
+      error: error?.message ?? "Không thể cập nhật thông báo cho tất cả nhóm.",
     });
   }
 });

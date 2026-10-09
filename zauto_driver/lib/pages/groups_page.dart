@@ -106,24 +106,28 @@ class _GroupsPageState extends State<GroupsPage> {
     }
   }
 
-  Future<void> selectAllGroups() async {
+  Future<void> changeAllGroupsStatus(bool enabled) async {
     if (!mounted || loading || selectingAllGroups || updatingGroups.isNotEmpty) {
       return;
     }
     setState(() => selectingAllGroups = true);
     try {
-      final result = await backend.enableAllGroups();
+      final result = await backend.setAllGroupsEnabled(enabled);
       if (!mounted) {
         return;
       }
       setState(() => groups = result);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Đã bật thông báo cho tất cả ${result.length} nhóm')),
+        SnackBar(
+          content: Text(enabled
+              ? 'Đã bật thông báo cho tất cả ${result.length} nhóm'
+              : 'Đã tắt thông báo cho tất cả ${result.length} nhóm'),
+        ),
       );
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Không thể chọn tất cả nhóm: $error')),
+          SnackBar(content: Text('Không thể cập nhật thông báo nhóm: $error')),
         );
       }
     } finally {
@@ -274,21 +278,21 @@ class _GroupsPageState extends State<GroupsPage> {
                   ),
                   const SizedBox(width: 8),
 
-                  TextButton(
-                    onPressed: loading ||
+                  if (selectingAllGroups)
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+
+                  Switch(
+                    value: groups.isNotEmpty && enabledCount == groups.length,
+                    onChanged: loading ||
                             selectingAllGroups ||
                             updatingGroups.isNotEmpty ||
-                            groups.isEmpty ||
-                            enabledCount == groups.length
+                            groups.isEmpty
                         ? null
-                        : selectAllGroups,
-                    child: selectingAllGroups
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Chọn tất cả'),
+                        : changeAllGroupsStatus,
                   ),
                 ],
               ),

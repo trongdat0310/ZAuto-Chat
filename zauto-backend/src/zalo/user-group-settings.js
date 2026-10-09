@@ -244,16 +244,16 @@ export function isUserGroupEnabled(
     ]?.enabled === true
   );
 }
-// Enable only the groups verified against the account's current Zalo list.
+// Update only the groups verified against the account's current Zalo list.
 // Persist once so selecting many groups does not issue one write per group.
-export function enableUserGroups(userId, groupIds = []) {
+export function setUserGroupsEnabled(userId, groupIds = [], enabled = true) {
   const ids = [...new Set(groupIds.map(id => String(id ?? "").trim()).filter(Boolean))];
   if (ids.length === 0) return [];
   const settings = { ...readUserGroupSettings(userId) };
   const updatedAt = new Date().toISOString();
   for (const id of ids) {
-    settings[id] = { ...(settings[id] ?? {}), enabled: true, updatedAt };
+    settings[id] = { ...(settings[id] ?? {}), enabled: enabled === true, updatedAt };
   }
   writeUserGroupSettings(userId, settings);
-  return ids.map(groupId => ({ groupId, enabled: true }));
+  return ids.map(groupId => ({ groupId, enabled: enabled === true }));
 }
