@@ -78,6 +78,7 @@ import {
 
 import {
   setUserGroupEnabled,
+  enableUserGroups,
 } from "./zalo/user-group-settings.js";
 
 import {
@@ -976,6 +977,26 @@ app.get(
     }
   }
 );
+
+// Enable every current Zalo group with one request and one settings write.
+app.post("/api/me/groups/enable-all", requireAuth, async (req, res) => {
+  try {
+    const groups = await getUserGroups(req.user.id);
+    const enabled = enableUserGroups(req.user.id, groups.map(group => group.groupId));
+    for (const group of enabled) {
+      broadcastUserEvent(req.user.id, "group_notification_toggled", group);
+    }
+    return res.json({
+      success: true,
+      groups: groups.map(group => ({ ...group, enabled: true })),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error?.message ?? "Không thể bật thông báo cho tất cả nhóm.",
+    });
+  }
+});
 
 // ========================================
 // CURRENT USER GROUP TOGGLE

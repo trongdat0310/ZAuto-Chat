@@ -65,6 +65,10 @@ class BackendService {
     return groupApi.getGroups();
   }
 
+  Future<List<Map<String, dynamic>>> enableAllGroups() {
+    return groupApi.enableAllGroups();
+  }
+
   Future<bool> toggleGroup(String groupId, bool enabled) {
     return groupApi.toggleGroup(groupId, enabled);
   }

@@ -20,6 +20,8 @@ class _GroupsPageState extends State<GroupsPage> {
 
   bool loading = true;
 
+  bool selectingAllGroups = false;
+
   String searchText = '';
 
   final Set<String> updatingGroups = {};
@@ -38,6 +40,9 @@ class _GroupsPageState extends State<GroupsPage> {
   }
 
   Future<void> loadGroups() async {
+    if (selectingAllGroups || updatingGroups.isNotEmpty) {
+      return;
+    }
     setState(() {
       loading = true;
     });
@@ -70,7 +75,7 @@ class _GroupsPageState extends State<GroupsPage> {
   ) async {
     final groupId = group['groupId'].toString();
 
-    if (updatingGroups.contains(groupId)) {
+    if (loading || selectingAllGroups || updatingGroups.contains(groupId)) {
       return;
     }
 
@@ -97,6 +102,33 @@ class _GroupsPageState extends State<GroupsPage> {
         setState(() {
           updatingGroups.remove(groupId);
         });
+      }
+    }
+  }
+
+  Future<void> selectAllGroups() async {
+    if (!mounted || loading || selectingAllGroups || updatingGroups.isNotEmpty) {
+      return;
+    }
+    setState(() => selectingAllGroups = true);
+    try {
+      final result = await backend.enableAllGroups();
+      if (!mounted) {
+        return;
+      }
+      setState(() => groups = result);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Đã bật thông báo cho tất cả ${result.length} nhóm')),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không thể chọn tất cả nhóm: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => selectingAllGroups = false);
       }
     }
   }
@@ -239,6 +271,24 @@ class _GroupsPageState extends State<GroupsPage> {
 
                       style: AppTypography.itemTitle,
                     ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  TextButton(
+                    onPressed: loading ||
+                            selectingAllGroups ||
+                            updatingGroups.isNotEmpty ||
+                            groups.isEmpty ||
+                            enabledCount == groups.length
+                        ? null
+                        : selectAllGroups,
+                    child: selectingAllGroups
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Chọn tất cả'),
                   ),
                 ],
               ),
@@ -385,9 +435,11 @@ class _GroupsPageState extends State<GroupsPage> {
                             : Switch(
                                 value: enabled,
 
-                                onChanged: (value) {
-                                  changeGroupStatus(group, value);
-                                },
+                                onChanged: selectingAllGroups || loading
+                                    ? null
+                                    : (value) {
+                                        changeGroupStatus(group, value);
+                                      },
                               ),
                       ),
 
