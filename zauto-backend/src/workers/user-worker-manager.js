@@ -1155,6 +1155,13 @@ function requestMissedGroupMessages(
               .requestOldMessages(
                 ThreadType.Group
               );
+
+          // Also catch up one-to-one conversations; never feed them to trip filters.
+          try {
+            api.listener.requestOldMessages(ThreadType.User);
+          } catch (error) {
+            console.warn("[PRIVATE HISTORY] REQUEST ERROR:", key, error?.message ?? error);
+          }
           }
 
 
@@ -1948,6 +1955,19 @@ export async function startUserWorker(
     // KHONG CHAY TRIP ENGINE.
     // KHONG PUSH LAI CUOC CU.
     // ========================================
+
+    // Private message history is independent of the group-trip catch-up cursor.
+    api.listener.on("old_messages", (oldMessages, type) => {
+      if (workers.get(key) !== worker || type !== ThreadType.User ||
+          !Array.isArray(oldMessages)) {
+        return;
+      }
+      for (const message of oldMessages) {
+        void storeConversationEvent(key, message).catch(error => {
+          console.warn("[PRIVATE HISTORY] STORE ERROR:", key, error?.message ?? error);
+        });
+      }
+    });
 
     api.listener.on(
       "old_messages",
