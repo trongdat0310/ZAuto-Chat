@@ -294,6 +294,10 @@ class BackendService {
     );
   }
 
+  Future<void> openPrivateConversation({required String userId, required String name}) {
+    return messageApi.openPrivateConversation(userId: userId, name: name);
+  }
+
   Future<void> sendPrivateMessage({required String userId, required String text}) {
     return messageApi.sendPrivateMessage(userId: userId, text: text);
   }
