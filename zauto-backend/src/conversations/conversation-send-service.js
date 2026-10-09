@@ -155,6 +155,8 @@ sendUserConversationMessage(
   let quote =
     null;
 
+  let mentionTarget = null;
+
 
   const safeReplyToMsgId =
     replyToMsgId != null
@@ -244,6 +246,10 @@ sendUserConversationMessage(
     quote =
       target.rawData;
 
+    if (target.isSelf !== true) {
+      mentionTarget = target;
+    }
+
 
     if (
       quote.msgId == null &&
@@ -277,20 +283,21 @@ sendUserConversationMessage(
   // PAYLOAD
   // ========================================
 
-  const sendPayload =
-    quote
-      ? {
-          msg:
-            safeText,
+  const senderId = String(
+    mentionTarget?.senderId ?? mentionTarget?.rawData?.uidFrom ?? ""
+  ).trim();
+  const senderName = String(mentionTarget?.senderName ?? "")
+    .trim().replace(/^@+/, "");
+  const mentionText = senderName ? `@${senderName}` : "";
+  const mentions = senderId && mentionText && safeText.startsWith(mentionText)
+    ? [{ uid: senderId, pos: 0, len: mentionText.length }]
+    : [];
 
-          quote,
-        }
-
-      : {
-          msg:
-            safeText,
-        };
-
+  const sendPayload = {
+    msg: safeText,
+    ...(quote ? { quote } : {}),
+    ...(mentions.length ? { mentions } : {}),
+  };
 
   // ========================================
   // GUI VAO GROUP
