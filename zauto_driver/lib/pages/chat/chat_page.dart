@@ -352,6 +352,21 @@ class _ChatPageState extends State<ChatPage> {
       return;
     }
 
+    // Pre-fill @sender when replying to someone else's message.
+    // Keep the composer untouched when replying to our own message.
+    if (message['isSelf'] != true) {
+      final senderName = (message['senderName'] ?? '').toString().trim().replaceFirst(RegExp(r'^@+'), '');
+      if (senderName.isNotEmpty) {
+        final mention = '@$senderName ';
+        if (!messageController.text.startsWith(mention)) {
+          messageController.text = '$mention${messageController.text}';
+        }
+        messageController.selection = TextSelection.collapsed(
+          offset: messageController.text.length,
+        );
+      }
+    }
+
     setState(() {});
 
     messageFocusNode.requestFocus();
