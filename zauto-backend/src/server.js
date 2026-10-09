@@ -151,7 +151,6 @@ import {
   getUserConversationMessages,
   getUserConversationMessagesPage,
   findUserConversationMessage,
-  syncConversationGroups,
   getUserConversationMessageContext,
   markUserConversationRead,
   setUserConversationPinned,
