@@ -1437,10 +1437,10 @@ class _HomePageState extends State<HomePage>
     String notificationFilterText;
 
     if (notificationFilterCount == 0) {
-      notificationFilterText = 'Chưa có bộ lọc nào đang bật';
+      notificationFilterText = 'Chưa có bộ lọc nào đang hoạt động';
     } else {
       notificationFilterText =
-          '$notificationFilterCount bộ lọc đang bật';
+          '$notificationFilterCount bộ lọc đang hoạt động';
     }
 
     return SafeArea(
