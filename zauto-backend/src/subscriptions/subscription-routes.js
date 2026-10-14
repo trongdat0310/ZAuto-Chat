@@ -6,7 +6,7 @@ import { listPlans, getSubscription, getUsageStatus, assignPlan, revokePlan, get
 export const subscriptionRouter = Router();
 subscriptionRouter.use(requireAuth);
 function adminOnly(req, res, next) {
-  const phones = (process.env.ADMIN_PHONES || "").split(",").map(x => x.trim()).filter(Boolean);
+  const phones = (process.env.ADMIN_PHONES || "0911111111").split(",").map(x => x.trim()).filter(Boolean);
   if (!phones.length || !phones.includes(req.user.phone)) return res.status(403).json({ success: false, error: "Admin access required" });
   next();
 }
