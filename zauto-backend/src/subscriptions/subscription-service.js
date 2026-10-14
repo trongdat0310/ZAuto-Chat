@@ -75,7 +75,7 @@ export function consumeUsage(userId, feature, requestId, now = new Date()) {
   const key = status.planId && planById(status.planId).period === "month" ? data.subscriptions[userId].main.id : dateVN(now);
   const entries = data.usage[userId] ||= {};
   const seen = entries._requests ||= {};
-  const dedupe = feature + ":" + requestId;
+  const dedupe = feature + ":" + key + ":" + requestId;
   if (seen[dedupe]) return { ...status, duplicate: true };
   if (!status.allowed) return { ...status, consumed: false };
   const counts = entries[feature] ||= {};
