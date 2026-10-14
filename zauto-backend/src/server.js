@@ -1777,6 +1777,10 @@ app.post(
       // VI ACCEPT DA THAT BAI
       // ========================================
 
+      if (error.code === "SUBSCRIPTION_LIMIT_REACHED") {
+        return res.status(403).json({ success: false, code: "SUBSCRIPTION_LIMIT_REACHED", error: "Da het luot nhan cuoc." });
+      }
+
       if (
         error.code ===
         "MESSAGE_NOT_FOUND"
