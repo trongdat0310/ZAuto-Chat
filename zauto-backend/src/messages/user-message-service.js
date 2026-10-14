@@ -1,3 +1,4 @@
+import { getUsageStatus, consumeUsage } from "../subscriptions/subscription-service.js";
 import {
   ThreadType,
 } from "zca-js";
@@ -98,6 +99,13 @@ async function acceptUserMessageInternal(
     throw error;
   }
 
+
+  const quota = getUsageStatus(userId, "trip_screen_accept");
+  if (!quota.allowed) {
+    const error = new Error("Da het luot nhan cuoc.");
+    error.code = "SUBSCRIPTION_LIMIT_REACHED";
+    throw error;
+  }
 
   // ========================================
   // REPLY TEXT
@@ -408,6 +416,8 @@ async function acceptUserMessageInternal(
       }
     );
 
+
+  consumeUsage(userId, "trip_screen_accept", String(messageId));
 
   console.log(
     "[USER ACCEPT] SUCCESS:",
