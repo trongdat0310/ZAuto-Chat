@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/pages/chat/chat_tap_accept.dart';
-import '../lib/pages/chat/text_message_row.dart';
+import 'package:zauto_driver/pages/chat/chat_tap_accept.dart';
+import 'package:zauto_driver/pages/chat/text_message_row.dart';
 
 void main() {
   Widget screen({

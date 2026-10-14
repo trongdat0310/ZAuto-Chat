@@ -120,8 +120,11 @@ class _SubscriptionAdminUserPageState extends State<SubscriptionAdminUserPage> {
     if (!mounted) return;
     await load(); // Also refresh after cancellation of an ambiguous network response.
     if (!mounted) return;
-    if (succeeded == true) ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Đã cập nhật.')));
+    if (succeeded == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đã cập nhật.')),
+      );
+    }
   }
   @override
   Widget build(BuildContext context) {
