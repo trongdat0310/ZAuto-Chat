@@ -26,15 +26,20 @@ async function acceptInternal(userId, messageId, replyText) {
     uidFrom: raw.uidFrom, msgId: raw.msgId, cliMsgId: raw.cliMsgId, ts: raw.ts, ttl: raw.ttl ?? 0,
   } : null;
   if (!quote && (msgId || cliMsgId)) throw subscriptionError("SOURCE_MESSAGE_UNAVAILABLE", "Tin nhan goc chua san sang de tra loi.", 409);
-  const targetKey = acceptTargetKey(groupId, source?.msgId ?? quote?.msgId ?? msgId,
-    source?.cliMsgId ?? quote?.cliMsgId ?? cliMsgId ?? `trip-${messageId}`);
+  const sourceMsgId = source?.msgId ?? quote?.msgId ?? msgId;
+  const sourceCliMsgId = source?.cliMsgId ?? quote?.cliMsgId ?? cliMsgId;
+  const targetKey = acceptTargetKey(groupId, sourceMsgId, sourceCliMsgId ?? `trip-${messageId}`);
   const result = await runMeteredAcceptance({ userId, feature: "trip_screen_accept", targetKey,
+    context: { groupId, groupName: message.groupName, sourceMsgId, sourceCliMsgId,
+      sourceContent: message.content, sourceTimestamp: message.sourceTimestamp,
+      senderId: message.senderId, senderName: message.senderName,
+      replyText: text, acceptanceSource: "trip_screen_accept" },
     perform: async markSending => {
       const api = await connectUserZalo(userId);
       markSending();
       const sent = await api.sendMessage(quote ? { msg: text, quote } : text, groupId, ThreadType.Group);
       if (sent?.message?.msgId == null && sent?.msgId == null) throw new Error("Zalo did not confirm a message ID");
-      return { groupId, replyText: text, sourceMsgId: msgId, sourceCliMsgId: cliMsgId,
+      return { groupId, replyText: text, sourceMsgId, sourceCliMsgId,
         replyZaloMessageId: sent?.message?.msgId ?? sent?.msgId ?? null,
         replyZaloCliMessageId: sent?.message?.cliMsgId ?? sent?.cliMsgId ?? null,
         acceptedAt: new Date().toISOString() };
@@ -44,6 +49,7 @@ async function acceptInternal(userId, messageId, replyText) {
   // A retry repairs this local update without sending or charging again.
   const updated = updateUserMessage(userId, messageId, {
     status: "accepted", replyText: result.replyText ?? text,
+    acceptanceSource: result.acceptanceSource ?? "trip_screen_accept",
     replyZaloMessageId: result.replyZaloMessageId != null ? String(result.replyZaloMessageId) : null,
     replyZaloCliMessageId: result.replyZaloCliMessageId != null ? String(result.replyZaloCliMessageId) : null,
     acceptedAt: result.acceptedAt,
@@ -51,7 +57,7 @@ async function acceptInternal(userId, messageId, replyText) {
   if (!updated) throw subscriptionError("MESSAGE_NOT_FOUND", "Khong cap nhat duoc cuoc da nhan.", 404);
   return { alreadyAccepted: result.alreadyAccepted, message: updated };
 }
-export async function acceptUserMessage(userId, messageId, replyText = "Nhận") {
+export async function acceptUserMessage(userId, messageId, replyText = "Nh\u1eadn") {
   const key = lockKey(userId, messageId);
   if (acceptInFlight.has(key)) return acceptInFlight.get(key);
   const promise = acceptInternal(userId, messageId, replyText);

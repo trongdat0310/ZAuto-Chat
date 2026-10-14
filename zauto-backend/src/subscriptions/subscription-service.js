@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { adminCommand, renewMain, subscriptionRevision } from "./subscription-admin-commands.js";
 
 export const PLANS = Object.freeze([
   { id: "monthly30", name: "30 lượt/tháng", limit: 30, period: "month", addon: false },
@@ -146,16 +147,18 @@ export function createSubscriptionService({ file, clock = () => new Date() }) {
     getSubscription(userId, now = clock()) {
       validate(userId);
       const data = read(), record = data.subscriptions[userId] || { main: null, addons: [] };
-      return { main: isActive(record.main, now) ? record.main : null,
+      return { revision: subscriptionRevision(record), serverNow: now.toISOString(), timeZone: "Asia/Ho_Chi_Minh",
+        main: isActive(record.main, now) ? record.main : null,
         lastMain: record.main, addons: (record.addons || []).filter(a => isActive(a, now)),
         features: FEATURES.map(feature => status(data, userId, feature, now)) };
     },
-    assignPlan({ userId, planId, months = 1, actorId, now = clock() }) {
+    assignPlan({ userId, planId, months = 1, actorId, requestId, expectedRevision, note = "", now = clock() }) {
       validate(userId); validKey(actorId);
       const plan = planById(planId);
       if (!plan) throw subscriptionError("INVALID_PLAN");
       if (!plan.addon && (!Number.isInteger(months) || months < 1 || months > 24)) throw subscriptionError("INVALID_DURATION");
-      return change(data => {
+      return change(data => adminCommand(data, { actorId, userId, requestId, expectedRevision },
+        { action: "assign", planId, months, note }, () => {
         const record = data.subscriptions[userId] ||= { main: null, addons: [] };
         if (plan.addon && !isActive(record.main, now)) throw subscriptionError("ACTIVE_PLAN_REQUIRED", "Can goi chinh con han de them luot.");
         const item = { id: crypto.randomUUID(), planId, period: plan.period, startsAt: now.toISOString(),
@@ -163,19 +166,36 @@ export function createSubscriptionService({ file, clock = () => new Date() }) {
         const previous = record.main;
         if (plan.addon) record.addons.push(item); else record.main = item;
         // Never discard historical counters or accepted-target deduplication on reassignment.
-        audit(data, { actorId, userId, action: "assign", item, previous });
+        audit(data, { actorId, userId, action: "assign", item, previous, requestId, note });
         return item;
-      });
+      }));
     },
-    revokePlan({ userId, actorId, now = clock() }) {
+    revokePlan({ userId, actorId, requestId, expectedRevision, note = "", now = clock() }) {
       validate(userId); validKey(actorId);
-      return change(data => {
+      return change(data => adminCommand(data, { actorId, userId, requestId, expectedRevision },
+        { action: "revoke", note }, () => {
         const previous = data.subscriptions[userId];
         data.subscriptions[userId] = { main: null, addons: [] };
-        audit(data, { actorId, userId, action: "revoke", previous, at: now.toISOString() });
-      });
+        audit(data, { actorId, userId, action: "revoke", previous, requestId, note, at: now.toISOString() });
+        return { revoked: true };
+      }));
     },
-    reserveUsage(userId, feature, targetKey, now = clock()) {
+    renewPlan({ userId, months = 1, actorId, requestId, expectedRevision, note = "", now = clock() }) {
+      validate(userId); validKey(actorId);
+      return change(data => adminCommand(data, { actorId, userId, requestId, expectedRevision },
+        { action: "renew", months, note }, () => {
+          const record = data.subscriptions[userId];
+          const previous = record?.main;
+          if (previous && (!planById(previous.planId) || planById(previous.planId).addon)) throw subscriptionError("INVALID_PLAN");
+          const item = renewMain(previous, months, now, monthAfterVN);
+          // Expired renewals start a new cycle and cannot revive old add-ons.
+          if (!isActive(previous, now)) record.addons = [];
+          record.main = item;
+          audit(data, { actorId, userId, action: "renew", previous, item, months, requestId, note });
+          return item;
+        }));
+    },
+    reserveUsage(userId, feature, targetKey, now = clock(), context = null) {
       validate(userId, feature); validKey(targetKey);
       return change(data => {
         const operations = data.operations[userId] ||= {};
@@ -189,7 +209,7 @@ export function createSubscriptionService({ file, clock = () => new Date() }) {
         const bucket = quota.buckets.find(b => b.remaining === null || b.remaining > 0);
         if (!bucket) throw subscriptionError("SUBSCRIPTION_LIMIT_REACHED", "Da het luot nhan cuoc hoac goi da het han.", 403);
         const operation = { id: crypto.randomUUID(), targetKey, feature, bucket: bucket.key,
-          status: "reserved", createdAt: now.toISOString() };
+          status: "reserved", context, createdAt: now.toISOString() };
         operations[targetKey] = operation;
         return { duplicate: false, operation };
       });
@@ -210,29 +230,39 @@ export function createSubscriptionService({ file, clock = () => new Date() }) {
         return current;
       });
     },
-    getAuditLogs: () => read().logs.slice(-200).reverse(),
+    getAuditLogs(userId) {
+      if (userId !== undefined) validate(userId);
+      return read().logs.filter(log => userId === undefined || log.userId === userId).slice(-200).reverse();
+    },
+    getAcceptedOperations(userId) {
+      validate(userId);
+      return Object.values(read().operations[userId] || {}).filter(op => op.status === "succeeded")
+        .sort((a, b) => (b.result?.acceptedAt || b.updatedAt || b.createdAt).localeCompare(a.result?.acceptedAt || a.updatedAt || a.createdAt))
+        .slice(0, 500);
+    },
     getPendingOperations(userId) {
       validate(userId);
       return Object.values(read().operations[userId] || {}).filter(pending);
     },
-    resolveUncertain({ userId, targetKey, outcome, actorId, note }) {
+    resolveUncertain({ userId, targetKey, outcome, actorId, note, requestId, expectedRevision }) {
       validate(userId); validKey(actorId); validKey(targetKey);
       if (!["succeeded", "failed"].includes(outcome) || typeof note !== "string" || note.trim().length < 5 || note.length > 500) {
         throw subscriptionError("INVALID_RECONCILIATION");
       }
-      return change(data => {
+      return change(data => adminCommand(data, { actorId, userId, requestId, expectedRevision },
+        { action: "reconcile", targetKey, outcome, note }, () => {
         const op = data.operations[userId]?.[targetKey];
         // Never free an actively sending reservation through this API.
         if (op?.status !== "uncertain") throw subscriptionError("OPERATION_NOT_UNCERTAIN", "Operation is not awaiting reconciliation", 409);
         if (outcome === "succeeded") {
           const counts = ((data.usage[userId] ||= {})[op.feature] ||= {});
           counts[op.bucket] = (counts[op.bucket] || 0) + 1;
-          op.result = { reconciled: true, acceptedAt: clock().toISOString() };
+          op.result = { ...op.context, reconciled: true, acceptedAt: clock().toISOString() };
         }
         op.status = outcome;
-        audit(data, { actorId, userId, action: "reconcile", targetKey, outcome, note: note.trim() });
+        audit(data, { actorId, userId, action: "reconcile", targetKey, outcome, requestId, note: note.trim() });
         return op;
-      });
+      }));
     },
   };
   // Compatibility for internal callers only. External side effects MUST use runMeteredAcceptance.
@@ -247,4 +277,4 @@ export function createSubscriptionService({ file, clock = () => new Date() }) {
 export const subscriptionService = createSubscriptionService({
   file: process.env.SUBSCRIPTIONS_DATA_FILE || fileURLToPath(new URL("../../data/subscriptions.json", import.meta.url)),
 });
-export const { listPlans, getUsageStatus, getSubscription, assignPlan, revokePlan, consumeUsage, getAuditLogs } = subscriptionService;
+export const { listPlans, getUsageStatus, getSubscription, assignPlan, renewPlan, revokePlan, consumeUsage, getAuditLogs } = subscriptionService;

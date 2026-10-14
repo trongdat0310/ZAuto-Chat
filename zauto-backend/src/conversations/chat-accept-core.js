@@ -6,7 +6,7 @@ const identifier = value => typeof value === "string" && /^[A-Za-z0-9_-]{1,128}$
 // Dependencies are injected so validation, payload and metering can be tested without Zalo.
 export function createChatAcceptService({ findMessage, getGroups, connect, groupType, store }) {
   return async function acceptChatMessage(userId, input) {
-    const { groupId, msgId = null, cliMsgId = null, replyText = "Nhận" } = input || {};
+    const { groupId, msgId = null, cliMsgId = null, replyText = "Nh\u1eadn" } = input || {};
     if (!identifier(groupId) || (!msgId && !cliMsgId) ||
         (msgId !== null && !identifier(msgId)) || (cliMsgId !== null && !identifier(cliMsgId))) {
       throw subscriptionError("INVALID_ACCEPT_TARGET", "Tin nhan nhan cuoc khong hop le.");
@@ -25,15 +25,20 @@ export function createChatAcceptService({ findMessage, getGroups, connect, group
     const senderId = String(target.uidFrom ?? target.rawData.uidFrom ?? "");
     if (!/^\d+$/.test(senderId)) throw subscriptionError("INVALID_ACCEPT_SENDER", "Tin nhan thieu nguoi gui hop le.");
     const groups = await getGroups(userId);
-    if (!groups.some(group => String(group.groupId) === groupId)) {
+    const group = groups.find(group => String(group.groupId) === groupId);
+    if (!group) {
       throw subscriptionError("GROUP_NOT_FOUND", "Nhom khong thuoc tai khoan Zalo nay.", 404);
     }
-    const senderName = String(target.senderName || target.rawData.dName || "người gửi")
+    const senderName = String(target.senderName || target.rawData.dName || "ng\u01b0\u1eddi g\u1eedi")
       .replace(/[\r\n\t]/g, " ").trim().slice(0, 100);
     const mention = `@${senderName}`;
     const text = `${mention} ${replyText.trim()}`;
     const key = acceptTargetKey(groupId, target.msgId, target.cliMsgId);
     return runMeteredAcceptance({ userId, feature: "chat_accept", targetKey: key, store,
+      context: { groupId, groupName: group.name || group.groupName || "Nh\u00f3m Zalo",
+        sourceMsgId: target.msgId, sourceCliMsgId: target.cliMsgId,
+        sourceContent: target.rawData.content, sourceTimestamp: target.rawData.ts ?? target.timestamp,
+        senderId, senderName, acceptanceSource: "chat_accept", replyText: replyText.trim() },
       perform: async markSending => {
         const api = await connect(userId);
         markSending();

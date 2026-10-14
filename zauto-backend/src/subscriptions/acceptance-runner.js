@@ -8,15 +8,15 @@ export function acceptTargetKey(groupId, msgId, cliMsgId) {
   if (!groupId || !id) throw subscriptionError("SOURCE_MESSAGE_UNAVAILABLE", "Tin nhan goc thieu ID.", 409);
   return crypto.createHash("sha256").update(JSON.stringify([String(groupId), id])).digest("hex");
 }
-export async function runMeteredAcceptance({ userId, feature, targetKey, perform, store = subscriptionService }) {
-  const reservation = store.reserveUsage(userId, feature, targetKey);
-  if (reservation.duplicate) return { ...reservation.operation.result, alreadyAccepted: true };
+export async function runMeteredAcceptance({ userId, feature, targetKey, perform, context = null, store = subscriptionService }) {
+  const reservation = store.reserveUsage(userId, feature, targetKey, undefined, context);
+  if (reservation.duplicate) return { ...reservation.operation.context, ...reservation.operation.result, alreadyAccepted: true };
   let sending = false;
   try {
-    const result = await perform(() => {
+    const result = { ...context, ...await perform(() => {
       store.transition(userId, reservation.operation, "sending");
       sending = true;
-    });
+    }) };
     store.transition(userId, reservation.operation, "succeeded", result);
     return { ...result, alreadyAccepted: false };
   } catch (error) {
