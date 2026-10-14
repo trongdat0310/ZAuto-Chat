@@ -24,13 +24,14 @@ Map<String, dynamic> snapshot() => {
 };
 class FakeApi implements SubscriptionGateway {
   bool admin = false, offline = false;
+  Map<String, dynamic> subscription = snapshot();
   int failCommands = 0;
   final List<Map<String, dynamic>> commands = [];
   Future<Map<String, dynamic>> Function(String, int)? search;
   @override
   Future<Map<String, dynamic>> overview() async {
     if (offline) throw Exception('offline');
-    return {'isAdmin': admin, 'subscription': snapshot(), 'plans': plans};
+    return {'isAdmin': admin, 'subscription': subscription, 'plans': plans};
   }
   @override
   Future<Map<String, dynamic>> users({String query = '', int offset = 0}) async =>
@@ -48,6 +49,26 @@ class FakeApi implements SubscriptionGateway {
     return {'success': true};
   }
 }
+
+const overviewListKey = ValueKey('subscription-overview-list');
+const adminEntryKey = ValueKey('subscription-admin-entry');
+const overviewFooterKey = ValueKey('subscription-overview-footer');
+
+Finder overviewScrollable() => find.descendant(
+  of: find.byKey(overviewListKey),
+  matching: find.byType(Scrollable),
+);
+
+Future<void> revealOverviewItem(WidgetTester tester, Finder target) async {
+  final scrollable = overviewScrollable();
+  expect(scrollable, findsOneWidget);
+  // ListView may not have built the entry below the quota cards yet.
+  // ensureVisible alone also requires an already-built element.
+  await tester.scrollUntilVisible(target, 200, scrollable: scrollable);
+  await tester.pumpAndSettle();
+  expect(target.hitTestable(), findsOneWidget);
+}
+
 Future<void> openCommand(WidgetTester tester, FakeApi api, {String action = 'assign'}) async {
   await tester.pumpWidget(MaterialApp(home: Scaffold(body: Builder(builder: (context) => TextButton(
     onPressed: () => showDialog<bool>(context: context, barrierDismissible: false, builder: (_) => SubscriptionCommandDialog(
@@ -76,6 +97,10 @@ void main() {
   testWidgets('normal user never sees the administration entry', (tester) async {
     await tester.pumpWidget(MaterialApp(home: SubscriptionPage(api: FakeApi())));
     await tester.pumpAndSettle();
+    // Inspect the end of the list too: an unbuilt off-screen entry is not proof
+    // that the current account lacks administrative access.
+    await revealOverviewItem(tester, find.byKey(overviewFooterKey));
+    expect(find.byKey(adminEntryKey, skipOffstage: false), findsNothing);
     expect(find.byIcon(Icons.admin_panel_settings), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -83,12 +108,51 @@ void main() {
     final api = FakeApi()..admin = true;
     await tester.pumpWidget(MaterialApp(home: SubscriptionPage(api: api)));
     await tester.pumpAndSettle();
+    await revealOverviewItem(tester, find.byKey(adminEntryKey));
     expect(find.byIcon(Icons.admin_panel_settings), findsOneWidget);
+    expect(tester.widget<FilledButton>(find.byKey(adminEntryKey)).onPressed, isNotNull);
     api.offline = true;
     await tester.tap(find.byIcon(Icons.refresh));
     await tester.pumpAndSettle();
+    expect(find.byKey(adminEntryKey, skipOffstage: false), findsNothing);
     expect(find.byIcon(Icons.admin_panel_settings), findsNothing);
+    expect(find.byType(SubscriptionSummary), findsNothing);
     expect(find.textContaining('offline'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+  testWidgets('successful refresh revokes a previously granted admin entry', (tester) async {
+    final api = FakeApi()..admin = true;
+    await tester.pumpWidget(MaterialApp(home: SubscriptionPage(api: api)));
+    await tester.pumpAndSettle();
+    await revealOverviewItem(tester, find.byKey(adminEntryKey));
+    api.admin = false;
+    await tester.tap(find.byIcon(Icons.refresh));
+    await tester.pumpAndSettle();
+    await revealOverviewItem(tester, find.byKey(overviewFooterKey));
+    expect(find.byType(SubscriptionSummary), findsOneWidget);
+    expect(find.byKey(adminEntryKey, skipOffstage: false), findsNothing);
+    expect(find.byIcon(Icons.admin_panel_settings), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+  testWidgets('admin entry is reachable after long quota details on a compact screen', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 480));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final api = FakeApi()
+      ..admin = true
+      ..subscription = {
+        ...snapshot(),
+        'addons': List.generate(12, (index) => {
+          'id': 'addon-$index', 'planId': 'extra10', 'endsAt': '2026-10-14T17:00:00Z',
+        }),
+      };
+    await tester.pumpWidget(MaterialApp(home: SubscriptionPage(api: api)));
+    await tester.pumpAndSettle();
+    await revealOverviewItem(tester, find.byKey(adminEntryKey));
+    expect(tester.state<ScrollableState>(overviewScrollable()).position.pixels, greaterThan(0));
+    await tester.tap(find.byKey(adminEntryKey));
+    await tester.pumpAndSettle();
+    expect(find.byType(SubscriptionAdminPage), findsOneWidget);
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
   testWidgets('retry after lost command response preserves request ID and all payload fields', (tester) async {

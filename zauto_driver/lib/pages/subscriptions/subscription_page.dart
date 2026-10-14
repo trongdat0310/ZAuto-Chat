@@ -62,19 +62,22 @@ class _SubscriptionPageState extends State<SubscriptionPage> with WidgetsBinding
     return Scaffold(appBar: AppBar(title: const Text('Gói sử dụng'), actions: [
       IconButton(tooltip: 'Làm mới', onPressed: loading ? null : load, icon: const Icon(Icons.refresh)),
     ]), body: RefreshIndicator(onRefresh: load, child: ListView(
+      key: const ValueKey('subscription-overview-list'),
       physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(16), children: [
         if (loading) const LinearProgressIndicator(),
         if (error != null) Padding(padding: const EdgeInsets.all(16), child: Text(error!)),
         if (data != null) ...[
           SubscriptionSummary(subscription: subscriptionMap(data!['subscription']), plans: plans),
           if (data!['isAdmin'] == true) Padding(padding: const EdgeInsets.symmetric(vertical: 12),
-            child: FilledButton.icon(icon: const Icon(Icons.admin_panel_settings),
+            child: FilledButton.icon(key: const ValueKey('subscription-admin-entry'),
+              icon: const Icon(Icons.admin_panel_settings),
               label: const Text('Quản lý tài khoản và gói'), onPressed: () async {
                 await Navigator.of(context).push(MaterialPageRoute<void>(
                   builder: (_) => SubscriptionAdminPage(api: api, plans: plans)));
                 if (mounted) await load();
               })),
-          const Padding(padding: EdgeInsets.all(12), child: Text(
+          const Padding(key: ValueKey('subscription-overview-footer'),
+            padding: EdgeInsets.all(12), child: Text(
             'Admin cấp và gia hạn gói. Phiên bản này chưa có thanh toán.')),
         ],
       ],
