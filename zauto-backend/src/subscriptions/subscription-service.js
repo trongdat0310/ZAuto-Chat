@@ -16,7 +16,6 @@ const file = process.env.SUBSCRIPTIONS_DATA_FILE || path.resolve(process.cwd(), 
 const planById = id => PLANS.find(plan => plan.id === id);
 const dateVN = date => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 const monthAfter = (date, months) => { const d = new Date(date); const day = d.getUTCDate(); d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + months); const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate(); d.setUTCDate(Math.min(day, last)); return d; };
-const midnightVN = now => new Date(dateVN(now) + "T17:00:00.000Z"); // 00:00 VN at start of following UTC day, adjusted below
 function endOfVietnamDay(now) { const [y,m,d] = dateVN(now).split("-").map(Number); return new Date(Date.UTC(y,m-1,d+1, -7)); }
 function read() {
   try { const value = JSON.parse(fs.readFileSync(file, "utf8")); return { subscriptions: value.subscriptions || {}, usage: value.usage || {}, logs: value.logs || [] }; }
