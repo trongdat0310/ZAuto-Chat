@@ -73,7 +73,7 @@ class _SubscriptionCommandDialogState extends State<SubscriptionCommandDialog> {
             const Text('Chọn gói sử dụng', style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: selectedPlan,
+              initialValue: selectedPlan,
               isExpanded: true,
               decoration: const InputDecoration(border: OutlineInputBorder()),
               items: choices.map((plan) => DropdownMenuItem<String>(
@@ -88,7 +88,7 @@ class _SubscriptionCommandDialogState extends State<SubscriptionCommandDialog> {
             const Text('Số tháng sử dụng', style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             DropdownButtonFormField<int>(
-              value: months,
+              initialValue: months,
               decoration: const InputDecoration(border: OutlineInputBorder()),
               items: [1, 3, 6, 12, 24].map((n) => DropdownMenuItem(value: n, child: Text('$n tháng'))).toList(),
               onChanged: editable ? (value) => setState(() { months = value ?? 1; }) : null,
