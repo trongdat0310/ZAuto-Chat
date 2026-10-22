@@ -39,6 +39,7 @@ class SubscriptionSummary extends StatelessWidget {
               : last.isNotEmpty ? 'Gói đã hết hạn' : 'Chưa được cấp gói',
             style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
+          if (main.isEmpty && addons.isNotEmpty) const Text('Đang sử dụng lượt bổ sung trong ngày.'),
           if (main.isNotEmpty) ...[
             Text('Bắt đầu: ${subscriptionDate(main['startsAt'])}'),
             Text('Hết hạn: ${subscriptionDate(main['endsAt'])}'),

@@ -1393,7 +1393,13 @@ class _HomePageState extends State<HomePage>
     }
 
     return SafeArea(
-      child: Padding(
+      child: LayoutBuilder(builder: (context, constraints) => RefreshIndicator(
+        onRefresh: () async {
+          await Future.wait([loadQuota(), loadHomeSummary(), _reconcileActiveTrips()]);
+        },
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [SizedBox(height: constraints.maxHeight, child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
 
         child: Column(
@@ -1574,7 +1580,9 @@ class _HomePageState extends State<HomePage>
             ],
           ],
         ),
-      ),
+        )],
+        ),
+      )),
     );
   }
 

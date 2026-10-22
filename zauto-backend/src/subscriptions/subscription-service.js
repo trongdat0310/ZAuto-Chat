@@ -101,20 +101,22 @@ export function createSubscriptionService({ file, clock = () => new Date() }) {
   }
   function buckets(data, userId, now) {
     const record = data.subscriptions[userId];
-    if (!isActive(record?.main, now)) return [];
-    const main = record.main, plan = planById(main.planId);
-    if (!plan || plan.addon) throw subscriptionError("SUBSCRIPTION_STORE_INVALID", "Invalid main plan", 503);
-    let period = `${main.id}/day/${dateVN(now)}`;
-    let endsAt = new Date(Math.min(+endOfDay(now), Date.parse(main.endsAt))).toISOString();
-    if (plan.period === "month") {
+    const hasMain = isActive(record?.main, now);
+    const main = hasMain ? record.main : null;
+    if (!hasMain && !(record?.addons || []).some(a => isActive(a, now))) return [];
+    const plan = main ? planById(main.planId) : null;
+    if (main && (!plan || plan.addon)) throw subscriptionError("SUBSCRIPTION_STORE_INVALID", "Invalid main plan", 503);
+    let period = main ? `${main.id}/day/${dateVN(now)}` : '';
+    let endsAt = main ? new Date(Math.min(+endOfDay(now), Date.parse(main.endsAt))).toISOString() : '';
+    if (main && plan.period === "month") {
       const start = new Date(main.startsAt);
       let i = 0;
       while (monthAfterVN(start, i + 1) <= now) i++;
       period = `${main.id}/month/${i}`;
       endsAt = new Date(Math.min(+monthAfterVN(start, i + 1), Date.parse(main.endsAt))).toISOString();
     }
-    const result = [{ key: period, limit: plan.limit, endsAt, planId: plan.id, addon: false }];
-    if (plan.limit !== null) {
+    const result = main ? [{ key: period, limit: plan.limit, endsAt, planId: plan.id, addon: false }] : [];
+    if (!main || plan.limit !== null) {
       for (const addon of record.addons || []) {
         if (!isActive(addon, now)) continue;
         const p = planById(addon.planId);
@@ -160,7 +162,6 @@ export function createSubscriptionService({ file, clock = () => new Date() }) {
       return change(data => adminCommand(data, { actorId, userId, requestId, expectedRevision },
         { action: "assign", planId, months, note }, () => {
         const record = data.subscriptions[userId] ||= { main: null, addons: [] };
-        if (plan.addon && !isActive(record.main, now)) throw subscriptionError("ACTIVE_PLAN_REQUIRED", "Can goi chinh con han de them luot.");
         const item = { id: crypto.randomUUID(), planId, period: plan.period, startsAt: now.toISOString(),
           endsAt: (plan.addon ? endOfDay(now) : monthAfterVN(now, months)).toISOString() };
         const previous = record.main;

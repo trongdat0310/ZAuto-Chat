@@ -24,9 +24,10 @@ class _SubscriptionCommandDialogState extends State<SubscriptionCommandDialog> {
   Map<String, dynamic>? payload;
   String? error;
   bool get addon => widget.action == 'addon';
+  bool get selectedAddon => widget.plans.any((p) => p['id'] == selectedPlan && p['addon'] == true);
   bool get choosingPlan => widget.action == 'assign' || addon;
   bool get editable => !busy && payload == null;
-  List<Map<String, dynamic>> get choices => widget.plans.where((plan) => (plan['addon'] == true) == addon).toList();
+  List<Map<String, dynamic>> get choices => widget.plans.where((plan) => addon ? plan['addon'] == true : widget.action == 'assign').toList();
   @override
   void initState() {
     super.initState();
@@ -44,7 +45,7 @@ class _SubscriptionCommandDialogState extends State<SubscriptionCommandDialog> {
     payload ??= {
       'requestId': requestId, 'expectedRevision': widget.subscription['revision'], 'note': note.text.trim(),
       if (choosingPlan) 'planId': selectedPlan,
-      if (!addon && (choosingPlan || widget.action == 'renew')) 'months': months,
+      if (!selectedAddon && (choosingPlan || widget.action == 'renew')) 'months': months,
       if (widget.action == 'reconcile') ...{'targetKey': widget.operation?['targetKey'], 'outcome': widget.outcome},
     };
     setState(() { busy = true; error = null; });
@@ -68,16 +69,56 @@ class _SubscriptionCommandDialogState extends State<SubscriptionCommandDialog> {
         mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('${widget.user['name']}\n${widget.user['phone']}'),
           const SizedBox(height: 12),
-          if (choosingPlan) DropdownButton<String>(isExpanded: true, value: selectedPlan,
-            items: choices.map((plan) => DropdownMenuItem(value: plan['id'].toString(),
-              child: Text(plan['name'].toString()))).toList(),
-            onChanged: editable ? (value) => setState(() { selectedPlan = value; }) : null),
-          if (!addon && (choosingPlan || widget.action == 'renew')) DropdownButton<int>(isExpanded: true,
-            value: months, items: [1, 3, 6, 12, 24].map((n) => DropdownMenuItem(value: n, child: Text('$n tháng'))).toList(),
-            onChanged: editable ? (value) => setState(() { months = value ?? 1; }) : null),
-          if (widget.action == 'assign') const Text(
+          if (choosingPlan) ...[
+            const Text('Chọn gói sử dụng', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: selectedPlan,
+              isExpanded: true,
+              decoration: const InputDecoration(border: OutlineInputBorder()),
+              items: choices.map((plan) => DropdownMenuItem<String>(
+                value: plan['id'].toString(),
+                child: Text(plan['name'].toString()),
+              )).toList(),
+              onChanged: editable ? (value) => setState(() { selectedPlan = value; }) : null,
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (!selectedAddon && (choosingPlan || widget.action == 'renew')) ...[
+            const Text('Số tháng sử dụng', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<int>(
+              value: months,
+              decoration: const InputDecoration(border: OutlineInputBorder()),
+              items: [1, 3, 6, 12, 24].map((n) => DropdownMenuItem(value: n, child: Text('$n tháng'))).toList(),
+              onChanged: editable ? (value) => setState(() { months = value ?? 1; }) : null,
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (choosingPlan && selectedPlan != null) ...[
+            Card(
+              color: Theme.of(context).colorScheme.surfaceContainerHigh,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Thông tin gói được chọn', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 10),
+                  Text('Gói: ${subscriptionPlanName(selectedPlan, widget.plans)}'),
+                  const SizedBox(height: 6),
+                  Text(selectedAddon ? 'Thời hạn: Đến 24:00 hôm nay' : 'Thời hạn: $months tháng'),
+                  const SizedBox(height: 6),
+                  Text(selectedAddon
+                    ? 'Giới hạn: Cộng thêm ${widget.plans.firstWhere((p) => p['id'] == selectedPlan)['limit']} lượt/tính năng'
+                    : selectedPlan == 'unlimited' ? 'Giới hạn: Không giới hạn'
+                    : 'Giới hạn: ${widget.plans.firstWhere((p) => p['id'] == selectedPlan)['limit']} lượt/tính năng'),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (widget.action == 'assign' && !selectedAddon) const Text(
             'Gói mới bắt đầu ngay, thay gói chính và có hạn mức mới. Lịch sử nhận cuốc được giữ lại.'),
-          if (addon) const Text('Cộng lượt cho từng kiểu nhận, hết hạn lúc 00:00 ngày kế tiếp theo giờ Việt Nam.'),
+          if (selectedAddon) const Text('Lượt bổ sung có thể cấp cả khi chưa có gói chính; hết hạn lúc 00:00 ngày kế tiếp theo giờ Việt Nam.'),
           if (widget.action == 'renew') Text(widget.subscription['main'] != null
             ? 'Gia hạn từ ${subscriptionDate(subscriptionMap(widget.subscription['main'])['endsAt'])}. Không reset lượt của chu kỳ hiện tại.'
             : 'Gói đã hết hạn: bắt đầu chu kỳ mới ngay khi xác nhận, không khôi phục gói bổ sung cũ.'),
