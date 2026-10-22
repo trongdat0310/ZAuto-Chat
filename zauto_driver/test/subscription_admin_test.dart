@@ -155,6 +155,46 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+  testWidgets('admin detail has no separate add-on action', (tester) async {
+    final api = FakeApi();
+    await tester.pumpWidget(MaterialApp(home: SubscriptionAdminUserPage(
+      api: api,
+      user: const {'id': 'target', 'name': 'Test', 'phone': '0900000000'},
+      plans: plans,
+    )));
+    await tester.pumpAndSettle();
+    expect(find.text('Cấp / đổi gói'), findsOneWidget);
+    expect(find.text('Thêm lượt hôm nay'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+  testWidgets('assign add-on without main plan uses assign API and no months', (tester) async {
+    final api = FakeApi();
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: Builder(builder: (context) => TextButton(
+      onPressed: () => showDialog<bool>(context: context, builder: (_) => SubscriptionCommandDialog(
+        api: api,
+        user: const {'id': 'target', 'name': 'Test', 'phone': '0900000000'},
+        subscription: {'revision': snapshot()['revision'], 'main': null, 'addons': []},
+        plans: plans,
+        action: 'assign',
+      )),
+      child: const Text('open'),
+    )))));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Them 10').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Số tháng sử dụng'), findsNothing);
+    await tester.tap(find.text('Xác nhận'));
+    await tester.pumpAndSettle();
+    expect(api.commands, hasLength(1));
+    expect(api.commands.single['action'], 'assign');
+    final body = api.commands.single['body'] as Map<String, dynamic>;
+    expect(body['planId'], 'extra10');
+    expect(body.containsKey('months'), isFalse);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
   testWidgets('retry after lost command response preserves request ID and all payload fields', (tester) async {
     final api = FakeApi()..failCommands = 1;
     await openCommand(tester, api);

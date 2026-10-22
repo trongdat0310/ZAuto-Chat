@@ -142,7 +142,6 @@ class _SubscriptionAdminUserPageState extends State<SubscriptionAdminUserPage> {
           Wrap(spacing: 8, runSpacing: 8, children: [
             FilledButton(onPressed: loading ? null : () => act('assign'), child: const Text('Cấp / đổi gói')),
             OutlinedButton(onPressed: loading || sub['lastMain'] == null ? null : () => act('renew'), child: const Text('Gia hạn')),
-            OutlinedButton(onPressed: loading ? null : () => act('addon'), child: const Text('Thêm lượt hôm nay')),
             OutlinedButton(onPressed: loading || sub['lastMain'] == null ? null : () => act('revoke'), child: const Text('Thu hồi gói')),
           ]),
           if (pending.isNotEmpty) ...[
