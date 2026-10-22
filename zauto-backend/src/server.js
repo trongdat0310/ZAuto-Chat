@@ -1,3 +1,4 @@
+import { subscriptionRouter } from "./subscriptions/subscription-routes.js";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -222,6 +223,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.use("/api/subscriptions", subscriptionRouter);
 
 
 // ========================================
@@ -1774,6 +1776,10 @@ app.post(
       // KHONG PHAT trip_accepted O DAY
       // VI ACCEPT DA THAT BAI
       // ========================================
+
+      if (error.code === "SUBSCRIPTION_LIMIT_REACHED") {
+        return res.status(403).json({ success: false, code: "SUBSCRIPTION_LIMIT_REACHED", error: "Da het luot nhan cuoc." });
+      }
 
       if (
         error.code ===
