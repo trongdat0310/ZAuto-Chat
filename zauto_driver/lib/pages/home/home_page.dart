@@ -830,6 +830,7 @@ class _HomePageState extends State<HomePage>
       setState(() {
         trip['_uiStatus'] = 'accepted';
       });
+      unawaited(loadQuota());
 
       // ========================================
       // CHO NGUOI DUNG THAY "DA NHAN"
