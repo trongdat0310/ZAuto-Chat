@@ -11,6 +11,7 @@ import '../../services/speech_service.dart';
 import '../../services/audio_service.dart';
 import '../../services/app_realtime_service.dart';
 
+import '../../services/backend/subscription_api.dart';
 import 'trip_card.dart';
 import 'home_notification.dart';
 import 'home_realtime.dart';
@@ -56,6 +57,37 @@ class _HomePageState extends State<HomePage>
   final List<Map<String, dynamic>> activeTrips = [];
 
   Timer? tripCountdownTimer;
+  Timer? quotaRefreshTimer;
+  final SubscriptionGateway subscriptionApi = createSubscriptionApi();
+  Map<String, dynamic>? quotaOverview;
+  bool quotaLoading = false;
+
+  Future<void> loadQuota() async {
+    if (quotaLoading || !mounted) return;
+    quotaLoading = true;
+    try {
+      final result = await subscriptionApi.overview();
+      if (mounted) setState(() => quotaOverview = result);
+    } catch (error) {
+      debugPrint('HOME QUOTA ERROR: $error');
+      if (mounted) setState(() => quotaOverview = null);
+    } finally {
+      quotaLoading = false;
+    }
+  }
+
+  String quotaLabel(String feature) {
+    final subscription = subscriptionMap(quotaOverview?['subscription']);
+    final rows = subscriptionRows(subscription['features']);
+    for (final row in rows) {
+      if (row['feature'] != feature) continue;
+      final used = (row['used'] as num?)?.toInt() ?? 0;
+      final limit = (row['limit'] as num?)?.toInt();
+      return limit == null ? '$used/∞' : '$used/$limit';
+    }
+    return '—';
+  }
+
 
   int enabledGroupCount = 0;
   int totalGroupCount = 0;
@@ -95,6 +127,8 @@ class _HomePageState extends State<HomePage>
     speechService.initialize();
 
     loadHomeSummary();
+    unawaited(loadQuota());
+    quotaRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) => unawaited(loadQuota()));
 
     notificationHandler = HomeNotificationHandler(
       settingsController: widget.settingsController,
@@ -164,6 +198,7 @@ class _HomePageState extends State<HomePage>
       },
 
       onTripAccepted: (messageId) {
+        unawaited(loadQuota());
         _applyRealtimeTripStatus(
           messageId,
           'accepted',
@@ -221,6 +256,7 @@ class _HomePageState extends State<HomePage>
     // Neu stream tung dung vi lifecycle/he thong,
     // start() la idempotent.
     widget.realtimeService.start();
+    unawaited(loadQuota());
 
     unawaited(
       _reconcileActiveTrips(),
@@ -537,6 +573,7 @@ class _HomePageState extends State<HomePage>
       return;
     }
 
+    quotaRefreshTimer?.cancel();
     tripCountdownTimer?.cancel();
 
     tripCountdownTimer = null;
@@ -1370,25 +1407,17 @@ class _HomePageState extends State<HomePage>
 
                 const SizedBox(width: 8),
 
-                const Text('0/0', style: TextStyle(fontSize: 17)),
+                Text(quotaLabel('trip_screen_accept'), key: const ValueKey('home-trip-screen-quota'), style: const TextStyle(fontSize: 17)),
 
-                const SizedBox(width: 28),
+                const SizedBox(width: 18),
 
                 Icon(Icons.chat_bubble_outline, color: colorScheme.primary),
 
                 const SizedBox(width: 8),
 
-                const Text('0/0', style: TextStyle(fontSize: 17)),
+                Text(quotaLabel('chat_accept'), key: const ValueKey('home-chat-quota'), style: const TextStyle(fontSize: 17)),
 
                 const Spacer(),
-
-                TextButton(
-                  onPressed: () {
-                    // Upgrade se lam sau.
-                  },
-
-                  child: const Text('Nâng cấp'),
-                ),
               ],
             ),
 

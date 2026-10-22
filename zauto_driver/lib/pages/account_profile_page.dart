@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../config/app_config.dart';
 import '../services/backend_service.dart';
 import '../theme/app_typography.dart';
+import '../services/backend/subscription_api.dart';
+import 'subscriptions/subscription_page.dart';
 
 class AccountPage extends StatefulWidget {
   final Future<void> Function() onLogout;
@@ -38,6 +40,22 @@ class _AccountPageState extends State<AccountPage> {
   String? error;
 
   Timer? refreshTimer;
+  final SubscriptionGateway subscriptionApi = createSubscriptionApi();
+  bool isSubscriptionAdmin = false;
+  bool adminCheckRunning = false;
+
+  Future<void> checkSubscriptionAdmin() async {
+    if (adminCheckRunning || !mounted) return;
+    adminCheckRunning = true;
+    try {
+      final result = await subscriptionApi.overview();
+      if (mounted) setState(() => isSubscriptionAdmin = result['isAdmin'] == true);
+    } catch (_) {
+      if (mounted) setState(() => isSubscriptionAdmin = false);
+    } finally {
+      adminCheckRunning = false;
+    }
+  }
 
   List<Map<String, dynamic>> notificationGroups = [];
 
@@ -46,9 +64,11 @@ class _AccountPageState extends State<AccountPage> {
     super.initState();
 
     loadProfile();
+    unawaited(checkSubscriptionAdmin());
 
     refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       loadProfile(silent: true);
+      unawaited(checkSubscriptionAdmin());
     });
   }
 
@@ -1743,6 +1763,15 @@ class _AccountPageState extends State<AccountPage> {
 
                 onTap: editName,
               ),
+              if (isSubscriptionAdmin) ...[
+                Divider(height: 1, indent: 78, color: colorScheme.outline.withValues(alpha: 0.35)),
+                _accountTile(
+                  icon: Icons.workspace_premium_outlined,
+                  title: 'Gói sử dụng',
+                  subtitle: 'Xem lượt còn lại và quản lý gói',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SubscriptionPage())),
+                ),
+              ],
             ],
           ),
 
