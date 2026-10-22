@@ -81,9 +81,10 @@ class _HomePageState extends State<HomePage>
     final rows = subscriptionRows(subscription['features']);
     for (final row in rows) {
       if (row['feature'] != feature) continue;
-      final used = (row['used'] as num?)?.toInt() ?? 0;
       final limit = (row['limit'] as num?)?.toInt();
-      return limit == null ? '$used/∞' : '$used/$limit';
+      if (limit == null) return '∞';
+      final remaining = (row['remaining'] as num?)?.toInt() ?? 0;
+      return '${remaining.clamp(0, limit)}/$limit';
     }
     return '—';
   }
