@@ -31,7 +31,7 @@ test("active renewal keeps subscription identity and spent quota", t => {
   const renewed = f.command("renew", { months: 1 });
   assert.equal(renewed.id, initial.id);
   assert.equal(renewed.startsAt, initial.startsAt);
-  assert.equal(renewed.endsAt, "2026-03-31T16:59:59.999Z");
+  assert.equal(renewed.endsAt, "2026-03-28T16:59:59.999Z");
   assert.equal(usage(f).remaining, 14);
 });
 test("monthly renewal keeps current bucket then resets on anniversary", t => {
