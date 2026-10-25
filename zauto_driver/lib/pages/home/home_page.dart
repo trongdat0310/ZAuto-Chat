@@ -86,8 +86,9 @@ class _HomePageState extends State<HomePage>
     for (final row in subscriptionRows(sub['features'])) {
       if (row['feature'] != feature) continue;
       if (row['limit'] == null && row['allowed'] == true) return '∞';
+      final limit = (row['limit'] as num?)?.toInt() ?? 0;
       final remaining = (row['remaining'] as num?)?.toInt() ?? 0;
-      return '$remaining';
+      return '${remaining.clamp(0, limit)}/$limit';
     }
     return '0';
   }
