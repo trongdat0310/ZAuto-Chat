@@ -14,7 +14,7 @@ function fixture(t) {
   store.assignPlan({ userId: "user", actorId: "admin", planId: "daily15" });
   const target = { groupId: "111", msgId: "222", cliMsgId: "333", uidFrom: "444",
     senderName: "Tài xế 🚕", status: "normal", isSelf: false,
-    rawData: { content: "Cuoc moi", uidFrom: "444" } };
+    rawData: { content: "Cuoc moi", uidFrom: "444", msgId: "222", cliMsgId: "333" } };
   const calls = [];
   const deps = { store, groupType: 1,
     findMessage: (user, group) => user === "user" && group === "111" ? target : null,
@@ -32,6 +32,7 @@ test("tap sends once with server-derived mention and charges chat only", async t
   const [payload, groupId, type] = f.calls[0];
   assert.equal(groupId, "111"); assert.equal(type, 1);
   assert.equal(payload.msg, `@${f.target.senderName} Nhan`);
+  assert.equal(payload.quote, f.target.rawData, "Zalo reply must quote the tapped message");
   assert.deepEqual(payload.mentions, [{ pos: 0, uid: "444", len: (`@${f.target.senderName}`).length }]);
   assert.equal(response.alreadyAccepted, false);
   assert.equal(f.store.getUsageStatus("user", "chat_accept").used, 1);
@@ -59,6 +60,13 @@ test("recalled, self and non-text messages cannot be accepted", async t => {
   await assert.rejects(f.accept("user", f.input), { code: "ACCEPT_TARGET_UNAVAILABLE" });
   f.target.isSelf = false; f.target.rawData.content = {};
   await assert.rejects(f.accept("user", f.input), { code: "ACCEPT_TARGET_UNAVAILABLE" });
+  assert.equal(f.calls.length, 0);
+});
+test("message without original quote identifiers is rejected before sending", async t => {
+  const f = fixture(t);
+  delete f.target.rawData.msgId;
+  delete f.target.rawData.cliMsgId;
+  await assert.rejects(f.accept("user", f.input), { code: "REPLY_TARGET_UNAVAILABLE" });
   assert.equal(f.calls.length, 0);
 });
 test("invalid pointers, empty reply and conflicting IDs never send", async t => {

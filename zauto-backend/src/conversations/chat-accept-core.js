@@ -22,6 +22,12 @@ export function createChatAcceptService({ findMessage, getGroups, connect, group
     if (target.status !== "normal" || target.isSelf || typeof target.rawData?.content !== "string") {
       throw subscriptionError("ACCEPT_TARGET_UNAVAILABLE", "Chi nhan tu tin van ban cua nguoi khac con hieu luc.", 409);
     }
+    // zca-js requires the original message.data as "quote" for a real
+    // Zalo reply. Mentioning the sender alone does not reply to the message.
+    const quote = target.rawData;
+    if (quote.msgId == null && quote.cliMsgId == null) {
+      throw subscriptionError("REPLY_TARGET_UNAVAILABLE", "Tin nhan goc thieu Zalo message ID.", 409);
+    }
     const senderId = String(target.uidFrom ?? target.rawData.uidFrom ?? "");
     if (!/^\d+$/.test(senderId)) throw subscriptionError("INVALID_ACCEPT_SENDER", "Tin nhan thieu nguoi gui hop le.");
     const groups = await getGroups(userId);
@@ -42,7 +48,7 @@ export function createChatAcceptService({ findMessage, getGroups, connect, group
       perform: async markSending => {
         const api = await connect(userId);
         markSending();
-        const sent = await api.sendMessage({ msg: text,
+        const sent = await api.sendMessage({ msg: text, quote,
           mentions: [{ pos: 0, uid: senderId, len: mention.length }] }, groupId, groupType);
         if (sent?.message?.msgId == null && sent?.msgId == null) throw new Error("Zalo did not confirm a message ID");
         return { groupId, sourceMsgId: target.msgId, sourceCliMsgId: target.cliMsgId,
