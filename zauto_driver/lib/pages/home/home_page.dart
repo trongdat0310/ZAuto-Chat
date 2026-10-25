@@ -10,6 +10,8 @@ import '../../services/backend_service.dart';
 import '../../services/speech_service.dart';
 import '../../services/audio_service.dart';
 import '../../services/app_realtime_service.dart';
+import '../../services/backend/subscription_api.dart';
+import '../../widgets/quota_exhausted_dialog.dart';
 
 import '../chat/chat_page.dart';
 import 'trip_card.dart';
@@ -61,6 +63,35 @@ class _HomePageState extends State<HomePage>
   final List<Map<String, dynamic>> activeTrips = [];
 
   Timer? tripCountdownTimer;
+  Timer? quotaRefreshTimer;
+  final SubscriptionGateway subscriptionApi = createSubscriptionApi();
+  Map<String, dynamic>? quotaOverview;
+  bool quotaLoading = false;
+
+  Future<void> loadQuota() async {
+    if (quotaLoading || !mounted) return;
+    quotaLoading = true;
+    try {
+      final result = await subscriptionApi.overview();
+      if (mounted) setState(() => quotaOverview = result);
+    } catch (error) {
+      debugPrint('HOME QUOTA ERROR: $error');
+    } finally {
+      quotaLoading = false;
+    }
+  }
+
+  String quotaLabel(String feature) {
+    final sub = subscriptionMap(quotaOverview?['subscription']);
+    for (final row in subscriptionRows(sub['features'])) {
+      if (row['feature'] != feature) continue;
+      if (row['unlimited'] == true) return '∞';
+      final remaining = (row['remaining'] as num?)?.toInt() ?? 0;
+      return '$remaining';
+    }
+    return '0';
+  }
+
 
   int enabledGroupCount = 0;
   int totalGroupCount = 0;
@@ -99,6 +130,8 @@ class _HomePageState extends State<HomePage>
     speechService.initialize();
 
     loadHomeSummary();
+    unawaited(loadQuota());
+    quotaRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) => unawaited(loadQuota()));
 
     notificationHandler = HomeNotificationHandler(
       settingsController: widget.settingsController,
@@ -548,6 +581,7 @@ class _HomePageState extends State<HomePage>
       return;
     }
 
+    quotaRefreshTimer?.cancel();
     tripCountdownTimer?.cancel();
 
     tripCountdownTimer = null;
@@ -805,6 +839,7 @@ class _HomePageState extends State<HomePage>
         trip['_uiStatus'] = 'accepted';
       });
 
+      unawaited(loadQuota());
       removeTrip(tripId);
       await _openAcceptedMessage(trip, response);
     } catch (error) {
@@ -822,8 +857,13 @@ class _HomePageState extends State<HomePage>
 
       _ensureTripCountdownTimer();
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Không thể nhận cuốc: $error')));
+      if (isQuotaExhausted(error)) {
+        unawaited(loadQuota());
+        await showQuotaExhaustedDialog(context);
+      } else {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Không thể nhận cuốc: $error')));
+      }
     }
   }
 
@@ -902,9 +942,14 @@ class _HomePageState extends State<HomePage>
       return true;
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Không thể nhận cuốc: $error')),
-        );
+        if (isQuotaExhausted(error)) {
+          unawaited(loadQuota());
+          await showQuotaExhaustedDialog(context);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Không thể nhận cuốc: $error')),
+          );
+        }
       }
       return false;
     }
@@ -1460,7 +1505,7 @@ class _HomePageState extends State<HomePage>
 
                 const SizedBox(width: 8),
 
-                const Text('0/0', style: TextStyle(fontSize: 17)),
+                Text(quotaLabel('trip_screen_accept'), key: const ValueKey('home-trip-screen-quota'), style: const TextStyle(fontSize: 17)),
 
                 const SizedBox(width: 28),
 
@@ -1468,7 +1513,7 @@ class _HomePageState extends State<HomePage>
 
                 const SizedBox(width: 8),
 
-                const Text('0/0', style: TextStyle(fontSize: 17)),
+                Text(quotaLabel('chat_accept'), key: const ValueKey('home-chat-quota'), style: const TextStyle(fontSize: 17)),
 
                 const Spacer(),
 
