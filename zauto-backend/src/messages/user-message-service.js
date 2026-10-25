@@ -1,6 +1,8 @@
 import {
   ThreadType,
 } from "zca-js";
+import { acceptTargetKey, runMeteredAcceptance } from "../subscriptions/acceptance-runner.js";
+import { subscriptionError } from "../subscriptions/subscription-service.js";
 
 import {
   connectUserZalo,
@@ -34,7 +36,8 @@ function acceptLockKey(
 async function acceptUserMessageInternal(
   userId,
   messageId,
-  replyText = "Nhận"
+  replyText = "Nhận",
+  markSending = () => {}
 ) {
   // ========================================
   // GET TRIP MESSAGE
@@ -353,6 +356,8 @@ async function acceptUserMessageInternal(
   // SEND ZALO
   // ========================================
 
+  markSending();
+
   const result =
     await api.sendMessage(
       sendPayload,
@@ -454,12 +459,22 @@ export async function acceptUserMessage(
   }
 
 
-  const promise =
-    acceptUserMessageInternal(
-      userId,
-      messageId,
-      replyText
-    );
+  const message = getUserMessageById(userId, messageId);
+  if (!message) throw subscriptionError("MESSAGE_NOT_FOUND", "Khong tim thay cuoc.", 404);
+  if (message.status === "accepted") return { alreadyAccepted: true, message };
+  const sourceThreadId = message.sourceThreadId ?? message.groupId;
+  const sourceMsgId = message.sourceMsgId ?? message.zaloMessageId ?? message.sourceQuote?.msgId;
+  const sourceCliMsgId = message.sourceCliMsgId ?? message.clientMessageId ?? message.sourceQuote?.cliMsgId;
+  const targetKey = acceptTargetKey(sourceThreadId, sourceMsgId, sourceCliMsgId);
+  const promise = runMeteredAcceptance({
+    userId,
+    feature: "trip_screen_accept",
+    targetKey,
+    context: { groupId: sourceThreadId, sourceMsgId, sourceCliMsgId,
+      replyText, acceptanceSource: "trip_screen_accept" },
+    perform: async markSending =>
+      acceptUserMessageInternal(userId, messageId, replyText, markSending),
+  });
 
 
   acceptInFlight.set(
