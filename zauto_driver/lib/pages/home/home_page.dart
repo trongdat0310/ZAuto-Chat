@@ -1477,6 +1477,14 @@ class _HomePageState extends State<HomePage>
     );
   }
 
+  Future<void> _refreshHome() async {
+    await Future.wait<void>([
+      loadHomeSummary(),
+      loadQuota(),
+      _reconcileActiveTrips(),
+    ]);
+  }
+
   Widget buildIdleHome() {
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -1489,8 +1497,10 @@ class _HomePageState extends State<HomePage>
           '$notificationFilterCount bộ lọc đang hoạt động';
     }
 
-    return SafeArea(
-      child: Padding(
+    return RefreshIndicator(
+      onRefresh: _refreshHome,
+      child: SafeArea(
+        child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
 
         child: Column(
@@ -1538,112 +1548,70 @@ class _HomePageState extends State<HomePage>
             // KHONG CO CUOC
             // ========================================
             if (activeTrips.isEmpty) ...[
-              // ----------------------------------------
-              // DANG LANG NGHE
-              // ----------------------------------------
-
-              Row(
-                children: [
-                  Container(
-                    width: 9,
-                    height: 9,
-
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-
-                      color: connectionStatus == 'Đã kết nối realtime'
-                          ? Colors.green
-                          : connectionStatus == 'Đang kết nối lại...'
-                          ? Colors.amber
-                          : connectionStatus == 'Xác thực realtime thất bại'
-                          ? colorScheme.error
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  Text(
-                    connectionStatus == 'Đã kết nối realtime'
-                        ? 'Đang lắng nghe'
-                        : connectionStatus,
-
-                    style: TextStyle(
-                      color: colorScheme.onSurfaceVariant,
-
-                      fontSize: 15,
-                    ),
-                  ),
-                ],
-              ),
-
-              // ----------------------------------------
-              // KHOANG TRONG
-              // ----------------------------------------
-              const Spacer(),
-
-              // ========================================
-              // SETTINGS
-              // CHI HIEN KHI KHONG CO CUOC
-              // ========================================
-              Card(
-                clipBehavior: Clip.antiAlias,
-
-                child: Column(
+              Expanded(
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   children: [
-                    // ==================================
-                    // NHOM NHAN THONG BAO
-                    // ==================================
-
-                    homeSettingItem(
-                      icon: Icons.notifications_none,
-
-                      title: 'Nhóm nhận thông báo',
-
-                      subtitle: 'Chỉ cuốc từ nhóm đã bật mới hiện ở đây',
-
-                      trailingText: '$enabledGroupCount/$totalGroupCount',
-
-                      onTap: openGroups,
+                    Row(
+                      children: [
+                        Container(
+                          width: 9,
+                          height: 9,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: connectionStatus == 'Đã kết nối realtime'
+                                ? Colors.green
+                                : connectionStatus == 'Đang kết nối lại...'
+                                    ? Colors.amber
+                                    : connectionStatus == 'Xác thực realtime thất bại'
+                                        ? colorScheme.error
+                                        : colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          connectionStatus == 'Đã kết nối realtime'
+                              ? 'Đang lắng nghe'
+                              : connectionStatus,
+                          style: TextStyle(
+                            color: colorScheme.onSurfaceVariant,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
                     ),
-
-                    const Divider(height: 1),
-
-                    // ==================================
-                    // BO LOC THONG BAO
-                    // ==================================
-                    homeSettingItem(
-                      icon: Icons.tune,
-
-                      title: 'Bộ lọc thông báo',
-
-                      subtitle: notificationFilterText,
-
-                      onTap: widget.onOpenNotificationFilter,
+                    const SizedBox(height: 24),
+                    Card(
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        children: [
+                          homeSettingItem(
+                            icon: Icons.notifications_none,
+                            title: 'Nhóm nhận thông báo',
+                            subtitle: 'Chỉ cuốc từ nhóm đã bật mới hiện ở đây',
+                            trailingText: '$enabledGroupCount/$totalGroupCount',
+                            onTap: openGroups,
+                          ),
+                          const Divider(height: 1),
+                          homeSettingItem(
+                            icon: Icons.tune,
+                            title: 'Bộ lọc thông báo',
+                            subtitle: notificationFilterText,
+                            onTap: widget.onOpenNotificationFilter,
+                          ),
+                          const Divider(height: 1),
+                          homeSettingItem(
+                            icon: Icons.bolt,
+                            title: 'Bộ lọc tự động nhận',
+                            subtitle: 'Chưa bật bộ lọc nào — không cuốc nào được tự nhận',
+                            onTap: widget.onOpenAutoAcceptFilter,
+                          ),
+                        ],
+                      ),
                     ),
-
-                    const Divider(height: 1),
-
-                    // ==================================
-                    // TU DONG NHAN
-                    // ==================================
-                    homeSettingItem(
-                      icon: Icons.bolt,
-
-                      title: 'Bộ lọc tự động nhận',
-
-                      subtitle:
-                          'Chưa bật bộ lọc nào — không cuốc nào được tự nhận',
-
-                      onTap: widget.onOpenAutoAcceptFilter,
-                    ),
-
-
                   ],
                 ),
               ),
-
-              const Spacer(flex: 2),
             ] else ...[
               // ========================================
               // CO CUOC
@@ -1687,6 +1655,7 @@ class _HomePageState extends State<HomePage>
               ),
             ],
           ],
+        ),
         ),
       ),
     );
