@@ -4,6 +4,7 @@ import '../../config/app_config.dart';
 import '../../services/auth_service.dart';
 import '../../services/backend/acceptance_api.dart';
 import '../../services/settings_service.dart';
+import '../../widgets/quota_exhausted_dialog.dart';
 
 typedef SubmitChatAccept = Future<Map<String, dynamic>> Function(
   Map<String, dynamic> message,
@@ -97,9 +98,13 @@ class _ChatTapAcceptState extends State<ChatTapAccept> {
       ));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
-        content: Text(error.toString().replaceFirst(RegExp(r'^Exception: '), '')),
-      ));
+      if (isQuotaExhausted(error)) {
+        await showQuotaExhaustedDialog(context);
+      } else {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+          content: Text(error.toString().replaceFirst(RegExp(r'^Exception: '), '')),
+        ));
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }

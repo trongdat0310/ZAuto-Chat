@@ -12,6 +12,7 @@ import '../../services/audio_service.dart';
 import '../../services/app_realtime_service.dart';
 
 import '../../services/backend/subscription_api.dart';
+import '../../widgets/quota_exhausted_dialog.dart';
 import 'trip_card.dart';
 import 'home_notification.dart';
 import 'home_realtime.dart';
@@ -860,8 +861,13 @@ class _HomePageState extends State<HomePage>
 
       _ensureTripCountdownTimer();
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Không thể nhận cuốc: $error')));
+      if (isQuotaExhausted(error)) {
+        unawaited(loadQuota());
+        await showQuotaExhaustedDialog(context);
+      } else {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Không thể nhận cuốc: $error')));
+      }
     }
   }
 
