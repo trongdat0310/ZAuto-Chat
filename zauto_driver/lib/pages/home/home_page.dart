@@ -85,7 +85,7 @@ class _HomePageState extends State<HomePage>
     final sub = subscriptionMap(quotaOverview?['subscription']);
     for (final row in subscriptionRows(sub['features'])) {
       if (row['feature'] != feature) continue;
-      if (row['unlimited'] == true) return '∞';
+      if (row['limit'] == null && row['allowed'] == true) return '∞';
       final remaining = (row['remaining'] as num?)?.toInt() ?? 0;
       return '$remaining';
     }
