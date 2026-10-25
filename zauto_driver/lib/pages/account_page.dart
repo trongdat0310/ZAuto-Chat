@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../config/app_config.dart';
 import '../services/backend_service.dart';
 import '../theme/app_typography.dart';
+import 'subscriptions/subscription_page.dart';
+import '../services/backend/subscription_api.dart';
 
 class AccountPage extends StatefulWidget {
   final Future<void> Function() onLogout;
@@ -38,6 +40,7 @@ class _AccountPageState extends State<AccountPage> {
   String? error;
 
   Timer? refreshTimer;
+  bool isSubscriptionAdmin = false;
 
   List<Map<String, dynamic>> notificationGroups = [];
 
@@ -77,6 +80,11 @@ class _AccountPageState extends State<AccountPage> {
       // ========================================
 
       final result = await backend.getProfile();
+      bool adminAccess = isSubscriptionAdmin;
+      try {
+        final overview = await createSubscriptionApi().overview();
+        adminAccess = overview['isAdmin'] == true;
+      } catch (_) { /* Keep profile usable if subscriptions are unavailable. */ }
 
       final user = Map<String, dynamic>.from(result['user'] ?? {});
 
@@ -112,6 +120,7 @@ class _AccountPageState extends State<AccountPage> {
 
       setState(() {
         profile = result;
+        isSubscriptionAdmin = adminAccess;
 
         notificationGroups = zaloLinked ? groups : [];
 
@@ -1757,6 +1766,17 @@ class _AccountPageState extends State<AccountPage> {
 
                 onTap: editName,
               ),
+              if (isSubscriptionAdmin) ...[
+                Divider(height: 1, indent: 78,
+                  color: colorScheme.outline.withValues(alpha: 0.35)),
+                _accountTile(
+                  icon: Icons.workspace_premium_outlined,
+                  title: 'Gói sử dụng',
+                  subtitle: 'Quản lý gói và lượt nhận cuốc',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const SubscriptionPage())),
+                ),
+              ],
             ],
           ),
 
