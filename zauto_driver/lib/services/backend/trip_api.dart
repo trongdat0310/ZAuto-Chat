@@ -10,7 +10,7 @@ class TripApi extends BackendApiBase {
   }) async {
     final decoded = await postJson(
       Uri.parse(
-        '$baseUrl/api/me/messages/'
+        '$baseUrl/api/subscriptions/trips/'
         '$messageId/accept',
       ),
 

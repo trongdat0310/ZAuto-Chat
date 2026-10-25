@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import '../../services/backend/acceptance_api.dart';
+import '../../services/auth_service.dart';
+import '../../widgets/quota_exhausted_dialog.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -196,37 +199,31 @@ class _ChatPageState extends State<ChatPage> {
     final msgId = (message['msgId'] ?? '').toString().trim();
     final cliMsgId = (message['cliMsgId'] ?? '').toString().trim();
     if (msgId.isEmpty && cliMsgId.isEmpty) return;
-
     _quickAcceptBusy = true;
     try {
-      final pending = await backend.getMessages(
-        limit: 500,
-        groupId: widget.groupId,
-        status: 'new',
-      );
-      Map<String, dynamic>? matched;
-      for (final trip in pending) {
-        final sourceMsgId = (trip['sourceMsgId'] ?? trip['zaloMessageId'] ?? '').toString();
-        final sourceCliMsgId = (trip['sourceCliMsgId'] ?? trip['clientMessageId'] ?? '').toString();
-        if ((msgId.isNotEmpty && msgId == sourceMsgId) ||
-            (cliMsgId.isNotEmpty && cliMsgId == sourceCliMsgId)) {
-          matched = trip;
-          break;
-        }
-      }
-      if (matched == null) return;
-      final id = matched['id']?.toString();
-      if (id == null || id.isEmpty) return;
       final settings = await SettingsService().load();
-      await backend.acceptMessage(id, replyText: settings.acceptReplyText);
-      if (mounted) _showTopNotice('Đã nhận cuốc');
+      final result = await AcceptanceApi(
+        baseUrl: AppConfig.backendUrl,
+        auth: AuthService(),
+      ).acceptChatMessage(
+        groupId: widget.groupId,
+        msgId: msgId.isEmpty ? null : msgId,
+        cliMsgId: cliMsgId.isEmpty ? null : cliMsgId,
+        replyText: settings.acceptReplyText,
+      );
+      if (mounted) _showTopNotice(result['alreadyAccepted'] == true
+          ? 'Cuốc đã được nhận trước đó' : 'Đã nhận cuốc');
     } catch (error) {
-      if (mounted) _showTopNotice('Không thể nhận cuốc: $error');
+      if (!mounted) return;
+      if (isQuotaExhausted(error)) {
+        await showQuotaExhaustedDialog(context);
+      } else {
+        _showTopNotice('Không thể nhận cuốc: $error');
+      }
     } finally {
       _quickAcceptBusy = false;
     }
   }
-
 
 
   @override
