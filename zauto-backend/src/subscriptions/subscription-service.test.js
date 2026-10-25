@@ -30,7 +30,9 @@ test("no subscription and expired subscription deny usage", t => {
   const f = fixture(t);
   assert.equal(usage(f).allowed, false);
   f.assign();
-  f.setTime("2026-11-14T04:00:00Z");
+  f.setTime("2026-11-14T16:59:59.999Z");
+  assert.equal(usage(f).allowed, true);
+  f.setTime("2026-11-14T17:00:00Z");
   assert.equal(usage(f).allowed, false);
 });
 test("daily quota is independently metered for each feature", t => {
@@ -202,4 +204,14 @@ test("process-level lock rejects a competing mutation without overwriting", asyn
   assert.equal(exit, 0);
   fs.unlinkSync(`${f.file}.lock`);
   assert.equal(usage(f).limit, 15);
+});
+
+test("subscription expires at the end of the anniversary day in Vietnam", t => {
+  const f = fixture(t, "2026-10-25T15:18:00Z");
+  f.assign("daily15");
+  assert.equal(f.store.getSubscription("user").main.endsAt, "2026-11-25T16:59:59.999Z");
+  f.setTime("2026-11-25T16:59:59Z");
+  assert.equal(usage(f).allowed, true);
+  f.setTime("2026-11-25T17:00:00Z");
+  assert.equal(usage(f).allowed, false);
 });

@@ -29,7 +29,7 @@ export function adminCommand(data, { actorId, userId, requestId, expectedRevisio
   return result;
 }
 
-export function renewMain(main, months, now, monthAfterVN) {
+export function renewMain(main, months, now, monthAfterVN, endOfDayVN) {
   if (!main) throw fail("PLAN_REQUIRED", "Tai khoan khong co goi de gia han.", 409);
   if (!Number.isInteger(months) || months < 1 || months > 24) throw fail("INVALID_DURATION");
   const start = new Date(main.startsAt), end = new Date(main.endsAt);
@@ -37,12 +37,9 @@ export function renewMain(main, months, now, monthAfterVN) {
     throw fail("SUBSCRIPTION_STORE_INVALID", "Thoi han goi khong hop le.", 503);
   }
   if (end <= now) {
-    return { ...main, id: crypto.randomUUID(), startsAt: now.toISOString(), endsAt: monthAfterVN(now, months).toISOString() };
+    return { ...main, id: crypto.randomUUID(), startsAt: now.toISOString(), endsAt: endOfDayVN(monthAfterVN(now, months)).toISOString() };
   }
-  // Preserve the original anniversary: Jan 31 -> Feb 28 -> Mar 31, not Mar 28.
-  let n = 1;
-  while (monthAfterVN(start, n) < end && n < 1200) n++;
-  if (n === 1200) throw fail("SUBSCRIPTION_STORE_INVALID", "Thoi han goi vuot gioi han.", 503);
-  const next = +monthAfterVN(start, n) === +end ? monthAfterVN(start, n + months) : monthAfterVN(end, months);
-  return { ...main, endsAt: next.toISOString() };
+  // Extend by calendar months from the current expiry day in Vietnam.
+  // The stored timestamp is the last millisecond of that local day.
+  return { ...main, endsAt: endOfDayVN(monthAfterVN(end, months)).toISOString() };
 }

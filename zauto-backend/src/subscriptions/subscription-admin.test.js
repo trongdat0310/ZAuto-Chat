@@ -31,7 +31,7 @@ test("active renewal keeps subscription identity and spent quota", t => {
   const renewed = f.command("renew", { months: 1 });
   assert.equal(renewed.id, initial.id);
   assert.equal(renewed.startsAt, initial.startsAt);
-  assert.equal(renewed.endsAt, "2026-03-30T18:00:00.000Z");
+  assert.equal(renewed.endsAt, "2026-03-31T16:59:59.999Z");
   assert.equal(usage(f).remaining, 14);
 });
 test("monthly renewal keeps current bucket then resets on anniversary", t => {
@@ -172,4 +172,11 @@ test("missing target never creates orphan subscriptions", t => {
 test("mutations for different users stay isolated", t => {
   const f = fixture(t); f.assign(); f.command("assign", { planId: "daily55" }, "other");
   assert.equal(usage(f).limit, 15); assert.equal(f.store.getUsageStatus("other", "chat_accept").limit, 55);
+});
+
+test("active renewal ends at 23:59:59 Vietnam time", t => {
+  const f = fixture(t, "2026-10-25T15:18:00Z");
+  f.assign();
+  const renewed = f.command("renew", { months: 1 });
+  assert.equal(renewed.endsAt, "2026-12-25T16:59:59.999Z");
 });

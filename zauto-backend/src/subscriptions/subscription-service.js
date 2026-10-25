@@ -25,8 +25,9 @@ export function monthAfterVN(date, months) {
   d.setUTCDate(Math.min(day, last));
   return new Date(+d - OFFSET);
 }
-const endOfDay = now => new Date(Date.parse(`${dateVN(now)}T00:00:00+07:00`) + 86400000);
-const isActive = (item, now) => item && Date.parse(item.startsAt) <= +now && +now < Date.parse(item.endsAt);
+export const endOfDayVN = date => new Date(Date.parse(`${dateVN(date)}T00:00:00+07:00`) + 86400000 - 1);
+const endOfDay = now => new Date(+endOfDayVN(now) + 1);
+const isActive = (item, now) => item && Date.parse(item.startsAt) <= +now && +now <= Date.parse(item.endsAt);
 const pending = op => ["reserved", "sending", "uncertain"].includes(op.status);
 export function subscriptionError(code, message = code, status = 400) {
   return Object.assign(new Error(message), { code, status });
@@ -163,7 +164,7 @@ export function createSubscriptionService({ file, clock = () => new Date() }) {
         { action: "assign", planId, months, note }, () => {
         const record = data.subscriptions[userId] ||= { main: null, addons: [] };
         const item = { id: crypto.randomUUID(), planId, period: plan.period, startsAt: now.toISOString(),
-          endsAt: (plan.addon ? endOfDay(now) : monthAfterVN(now, months)).toISOString() };
+          endsAt: endOfDayVN(plan.addon ? now : monthAfterVN(now, months)).toISOString() };
         const previous = record.main;
         if (plan.addon) record.addons.push(item); else record.main = item;
         // Never discard historical counters or accepted-target deduplication on reassignment.
@@ -188,7 +189,7 @@ export function createSubscriptionService({ file, clock = () => new Date() }) {
           const record = data.subscriptions[userId];
           const previous = record?.main;
           if (previous && (!planById(previous.planId) || planById(previous.planId).addon)) throw subscriptionError("INVALID_PLAN");
-          const item = renewMain(previous, months, now, monthAfterVN);
+          const item = renewMain(previous, months, now, monthAfterVN, endOfDayVN);
           // Expired renewals start a new cycle and cannot revive old add-ons.
           if (!isActive(previous, now)) record.addons = [];
           record.main = item;
