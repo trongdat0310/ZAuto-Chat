@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../controllers/settings_controller.dart';
 
@@ -197,9 +198,45 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  bool exitDialogOpen = false;
+
+  Future<void> confirmExit() async {
+    if (exitDialogOpen || !mounted) return;
+    exitDialogOpen = true;
+    try {
+      final shouldExit = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Thoát ứng dụng?'),
+          content: const Text('Bạn có chắc chắn muốn đóng ZAutoChat không?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Hủy'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Thoát'),
+            ),
+          ],
+        ),
+      );
+      if (shouldExit == true && mounted) {
+        await SystemNavigator.pop();
+      }
+    } finally {
+      exitDialogOpen = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) confirmExit();
+      },
+      child: Scaffold(
       // ========================================
       // GIU TAT CA TAB TON TAI
       // HOME PAGE KHONG BI DISPOSE KHI DOI TAB
@@ -273,6 +310,7 @@ class _MainScreenState extends State<MainScreen> {
             label: 'Tài khoản',
           ),
         ],
+      ),
       ),
     );
   }
