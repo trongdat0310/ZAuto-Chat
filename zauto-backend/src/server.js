@@ -53,6 +53,7 @@ import {
   loginUser,
   toPublicUser,
 } from "./auth/auth-service.js";
+import { requestPasswordRecovery, changeAccountEmail } from "./auth/email-account-service.js";
 
 import {
   requireAuth,
@@ -679,6 +680,7 @@ app.post(
       const {
         name,
         phone,
+        email,
         password,
       } = req.body;
 
@@ -687,6 +689,7 @@ app.post(
         await registerUser({
           name,
           phone,
+          email,
           password,
         });
 
@@ -701,8 +704,7 @@ app.post(
     } catch (error) {
 
       const status =
-        error.code ===
-        "PHONE_EXISTS"
+        ["PHONE_EXISTS", "EMAIL_EXISTS"].includes(error.code)
           ? 409
           : 400;
 
@@ -767,6 +769,26 @@ app.post(
   }
 );
 
+
+
+// Password recovery returns a uniform response to prevent account enumeration.
+app.post("/api/auth/forgot-password", async (req, res) => {
+  try {
+    await requestPasswordRecovery(req.body?.email);
+  } catch (error) {
+    console.error("[PASSWORD RECOVERY]", error?.code || error?.message);
+  }
+  res.json({ success: true, message: "Neu email da dang ky, mat khau moi se duoc gui den hop thu." });
+});
+
+app.patch("/api/me/email", requireAuth, async (req, res) => {
+  try {
+    const user = await changeAccountEmail(req.user.id, req.body?.email, req.body?.password);
+    res.json({ success: true, user: toPublicUser(user) });
+  } catch (error) {
+    res.status(error.status || 400).json({ success: false, error: error.message });
+  }
+});
 
 // ========================================
 // CURRENT USER
@@ -2377,6 +2399,8 @@ app.get(
 
         phone:
           user.phone,
+
+        email: user.email ?? null,
 
         membership:
           user.membership,
