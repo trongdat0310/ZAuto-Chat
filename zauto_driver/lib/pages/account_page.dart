@@ -88,6 +88,19 @@ class _AccountPageState extends State<AccountPage> {
       } catch (_) { /* Keep profile usable if subscriptions are unavailable. */ }
 
       final user = Map<String, dynamic>.from(result['user'] ?? {});
+      // Read the canonical authenticated user when the profile endpoint is
+      // served by an older backend version or an intermediate cache.
+      if ((user['email']?.toString().trim().isNotEmpty ?? false) == false) {
+        try {
+          final currentUser = await AuthService().getCurrentUser();
+          if (currentUser != null && currentUser['email'] != null) {
+            user['email'] = currentUser['email'];
+            result['user'] = user;
+          }
+        } catch (error) {
+          debugPrint('ACCOUNT EMAIL REFRESH ERROR: $error');
+        }
+      }
 
       final zaloLinked = user['zaloLinked'] == true;
 

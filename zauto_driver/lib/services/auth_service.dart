@@ -49,7 +49,13 @@ class AuthService {
       }),
     );
 
-    return _handleAuthResponse(response);
+    final user = await _handleAuthResponse(response);
+    final returnedEmail = user['email']?.toString().trim().toLowerCase();
+    if (returnedEmail != email.trim().toLowerCase()) {
+      await clearLocalSession();
+      throw Exception('Máy chủ chưa lưu email đăng ký. Vui lòng cập nhật backend rồi đăng ký lại.');
+    }
+    return user;
   }
 
 
