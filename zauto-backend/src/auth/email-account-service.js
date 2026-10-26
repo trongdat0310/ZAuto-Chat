@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import nodemailer from "nodemailer";
 import { findUserByEmail, findUserById, updateUser } from "../users/user-store.js";
 
-const emailValid = value => typeof value === "string" && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(value) && value.length <= 254;
+const emailValid = value => typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
 const normalize = value => String(value ?? "").trim().toLowerCase();
 const error = (code, message, status = 400) => Object.assign(new Error(message), { code, status });
 const attempts = new Map();
@@ -36,7 +36,7 @@ export async function requestPasswordRecovery(value) {
   await mailer().sendMail({
     from: process.env.SMTP_FROM, to: email,
     subject: "ZAutoChat - Mat khau moi",
-    text: "Mat khau moi cua ban: " + newPassword + "\\nHay dang nhap va doi mat khau ngay.",
+    text: "Mat khau moi cua ban: " + newPassword + "\nHay dang nhap va doi mat khau ngay.",
   });
   updateUser(user.id, { passwordHash });
 }
