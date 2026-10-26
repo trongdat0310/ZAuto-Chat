@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
 import '../services/backend_service.dart';
+import '../services/auth_service.dart';
 import '../theme/app_typography.dart';
 import 'subscriptions/subscription_page.dart';
 import '../services/backend/subscription_api.dart';
@@ -241,6 +242,43 @@ class _AccountPageState extends State<AccountPage> {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Lỗi: $error')));
     }
+  }
+
+  Future<void> editEmail() async {
+    final emailController = TextEditingController(
+      text: profile?['user']?['email']?.toString() ?? '',
+    );
+    final passwordController = TextEditingController();
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Đổi email'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: emailController, keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'Email mới')),
+            TextField(controller: passwordController, obscureText: true,
+              decoration: const InputDecoration(labelText: 'Mật khẩu hiện tại')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Hủy')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Lưu')),
+        ],
+      ),
+    );
+    if (submitted == true) {
+      try {
+        await AuthService().updateEmail(emailController.text, passwordController.text);
+        await loadProfile(silent: true);
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã cập nhật email')));
+      } catch (error) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+      }
+    }
+    emailController.dispose();
+    passwordController.dispose();
   }
 
   Future<void> changePassword() async {
@@ -1765,6 +1803,12 @@ class _AccountPageState extends State<AccountPage> {
                 subtitle: membership == 'FREE' ? 'Miễn phí' : membership,
 
                 onTap: editName,
+              ),
+              _accountTile(
+                icon: Icons.email_outlined,
+                title: 'Email',
+                subtitle: profile?['user']?['email']?.toString() ?? 'Chưa cập nhật',
+                onTap: editEmail,
               ),
               if (isSubscriptionAdmin) ...[
                 Divider(height: 1, indent: 78,

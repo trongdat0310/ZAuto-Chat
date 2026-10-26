@@ -31,6 +31,7 @@ class AuthService {
   Future<Map<String, dynamic>> register({
     required String name,
     required String phone,
+    required String email,
     required String password,
   }) async {
     final response = await http.post(
@@ -43,6 +44,7 @@ class AuthService {
       body: jsonEncode({
         'name': name,
         'phone': phone,
+        'email': email,
         'password': password,
       }),
     );
@@ -75,6 +77,29 @@ class AuthService {
     return _handleAuthResponse(response);
   }
 
+
+  Future<void> forgotPassword(String email) async {
+    final response = await http.post(
+      Uri.parse('${AppConfig.backendUrl}/api/auth/forgot-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email.trim()}),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Không thể gửi yêu cầu. Vui lòng thử lại.');
+    }
+  }
+
+  Future<void> updateEmail(String email, String password) async {
+    final response = await http.patch(
+      Uri.parse('${AppConfig.backendUrl}/api/me/email'),
+      headers: await authHeaders(),
+      body: jsonEncode({'email': email.trim(), 'password': password}),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final body = jsonDecode(response.body);
+      throw Exception(body['error'] ?? 'Không thể đổi email');
+    }
+  }
 
   // ========================================
   // HANDLE LOGIN / REGISTER RESPONSE

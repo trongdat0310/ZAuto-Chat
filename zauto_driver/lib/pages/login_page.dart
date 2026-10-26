@@ -31,7 +31,7 @@ class _LoginPageState extends State<LoginPage> {
     final password = passwordController.text;
 
     if (phone.isEmpty || password.isEmpty) {
-      showError('Vui lòng nhập số điện thoại và mật khẩu.');
+      showError('Vui lòng nhập email hoặc số điện thoại và mật khẩu.');
 
       return;
     }
@@ -56,6 +56,33 @@ class _LoginPageState extends State<LoginPage> {
           loading = false;
         });
       }
+    }
+  }
+
+  Future<void> forgotPassword() async {
+    final controller = TextEditingController();
+    final email = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Quên mật khẩu'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(labelText: 'Email đã đăng ký'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Hủy')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Gửi')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (email == null || email.isEmpty || !mounted) return;
+    try {
+      await auth.forgotPassword(email);
+      if (mounted) showError('Nếu email đã đăng ký, mật khẩu mới sẽ được gửi đến hộp thư.');
+    } catch (error) {
+      if (mounted) showError(error.toString());
     }
   }
 
@@ -124,14 +151,14 @@ class _LoginPageState extends State<LoginPage> {
             TextField(
               controller: phoneController,
 
-              keyboardType: TextInputType.phone,
+              keyboardType: TextInputType.emailAddress,
 
               textInputAction: TextInputAction.next,
 
               decoration: const InputDecoration(
-                labelText: 'Số điện thoại',
+                labelText: 'Email hoặc số điện thoại',
 
-                prefixIcon: Icon(Icons.phone_outlined),
+                prefixIcon: Icon(Icons.person_outline),
 
                 border: OutlineInputBorder(),
               ),
@@ -169,7 +196,9 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
 
-            const SizedBox(height: 28),
+            Align(alignment: Alignment.centerRight, child: TextButton(onPressed: forgotPassword, child: const Text("Quên mật khẩu?"))),
+
+            const SizedBox(height: 12),
 
             SizedBox(
               height: 56,
