@@ -60,29 +60,35 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> forgotPassword() async {
-    final controller = TextEditingController();
-    final email = await showDialog<String>(
+    String email = '';
+    final submitted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Quên mật khẩu'),
-        content: TextField(
-          controller: controller,
+        content: TextFormField(
           keyboardType: TextInputType.emailAddress,
+          autofocus: true,
+          onChanged: (value) => email = value.trim(),
           decoration: const InputDecoration(labelText: 'Email đã đăng ký'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Hủy')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Gửi')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Hủy')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Gửi')),
         ],
       ),
     );
-    controller.dispose();
-    if (email == null || email.isEmpty || !mounted) return;
+    if (submitted != true || !mounted) return;
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+      showError('Vui lòng nhập email hợp lệ.');
+      return;
+    }
     try {
       await auth.forgotPassword(email);
-      if (mounted) showError('Nếu email đã đăng ký, mật khẩu mới sẽ được gửi đến hộp thư.');
+      if (mounted) {
+        showError('Nếu email đã đăng ký, mật khẩu mới sẽ được gửi đến hộp thư.');
+      }
     } catch (error) {
-      if (mounted) showError(error.toString());
+      if (mounted) showError(error.toString().replaceFirst('Exception: ', ''));
     }
   }
 

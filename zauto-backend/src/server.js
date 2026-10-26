@@ -775,10 +775,19 @@ app.post(
 app.post("/api/auth/forgot-password", async (req, res) => {
   try {
     await requestPasswordRecovery(req.body?.email);
+    return res.json({
+      success: true,
+      message: "Neu email da dang ky, mat khau moi se duoc gui den hop thu.",
+    });
   } catch (error) {
     console.error("[PASSWORD RECOVERY]", error?.code || error?.message);
+    return res.status(503).json({
+      success: false,
+      error: error?.code === "MAIL_NOT_CONFIGURED"
+        ? "May chu chua cau hinh gui email (SMTP)."
+        : "Khong the gui email luc nay. Vui long thu lai sau.",
+    });
   }
-  res.json({ success: true, message: "Neu email da dang ky, mat khau moi se duoc gui den hop thu." });
 });
 
 app.patch("/api/me/email", requireAuth, async (req, res) => {

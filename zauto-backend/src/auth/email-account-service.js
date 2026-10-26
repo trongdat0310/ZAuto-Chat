@@ -24,7 +24,6 @@ export async function requestPasswordRecovery(value) {
   const now = Date.now();
   const previous = attempts.get(email) || 0;
   if (now - previous < 5 * 60_000) return;
-  attempts.set(email, now);
   if (attempts.size > 10000) {
     for (const [key, time] of attempts) if (now - time > 60 * 60_000) attempts.delete(key);
   }
@@ -38,7 +37,10 @@ export async function requestPasswordRecovery(value) {
     subject: "ZAutoChat - Mat khau moi",
     text: "Mat khau moi cua ban: " + newPassword + "\nHay dang nhap va doi mat khau ngay.",
   });
-  updateUser(user.id, { passwordHash });
+  if (!updateUser(user.id, { passwordHash })) {
+    throw error("USER_NOT_FOUND", "Tai khoan khong ton tai.", 404);
+  }
+  attempts.set(email, Date.now());
 }
 
 export async function changeAccountEmail(userId, value, password) {
@@ -51,5 +53,7 @@ export async function changeAccountEmail(userId, value, password) {
   }
   const existing = findUserByEmail(email);
   if (existing && existing.id !== userId) throw error("EMAIL_EXISTS", "Email da duoc su dung.", 409);
-  return updateUser(userId, { email });
+  const updated = updateUser(userId, { email });
+  if (!updated) throw error("USER_NOT_FOUND", "Tai khoan khong ton tai.", 404);
+  return updated;
 }

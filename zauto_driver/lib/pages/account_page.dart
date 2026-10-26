@@ -245,22 +245,30 @@ class _AccountPageState extends State<AccountPage> {
   }
 
   Future<void> editEmail() async {
-    final emailController = TextEditingController(
-      text: profile?['user']?['email']?.toString() ?? '',
-    );
-    final passwordController = TextEditingController();
+    String email = profile?['user']?['email']?.toString() ?? '';
+    String password = '';
     final submitted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Đổi email'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: emailController, keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(labelText: 'Email mới')),
-            TextField(controller: passwordController, obscureText: true,
-              decoration: const InputDecoration(labelText: 'Mật khẩu hiện tại')),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                initialValue: email,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                onChanged: (value) => email = value.trim(),
+                decoration: const InputDecoration(labelText: 'Email mới'),
+              ),
+              TextFormField(
+                obscureText: true,
+                onChanged: (value) => password = value,
+                decoration: const InputDecoration(labelText: 'Mật khẩu hiện tại'),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Hủy')),
@@ -268,17 +276,34 @@ class _AccountPageState extends State<AccountPage> {
         ],
       ),
     );
-    if (submitted == true) {
-      try {
-        await AuthService().updateEmail(emailController.text, passwordController.text);
-        await loadProfile(silent: true);
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã cập nhật email')));
-      } catch (error) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+    if (submitted != true || !mounted) return;
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập email hợp lệ')),
+      );
+      return;
+    }
+    if (password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập mật khẩu hiện tại')),
+      );
+      return;
+    }
+    try {
+      await AuthService().updateEmail(email, password);
+      await loadProfile(silent: true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã cập nhật email')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+        );
       }
     }
-    emailController.dispose();
-    passwordController.dispose();
   }
 
   Future<void> changePassword() async {

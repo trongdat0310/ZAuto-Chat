@@ -85,7 +85,7 @@ class AuthService {
       body: jsonEncode({'email': email.trim()}),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('Không thể gửi yêu cầu. Vui lòng thử lại.');
+      throw Exception(_apiError(response, 'Không thể gửi email. Vui lòng thử lại.'));
     }
   }
 
@@ -96,9 +96,23 @@ class AuthService {
       body: jsonEncode({'email': email.trim(), 'password': password}),
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final body = jsonDecode(response.body);
-      throw Exception(body['error'] ?? 'Không thể đổi email');
+      throw Exception(_apiError(response, 'Không thể đổi email'));
     }
+  }
+
+  String _apiError(http.Response response, String fallback) {
+    try {
+      final data = jsonDecode(response.body);
+      if (data is Map && data['error'] is String) {
+        return data['error'] as String;
+      }
+    } catch (_) {
+      // Backend may return a non-JSON error response.
+    }
+    if (response.statusCode == 404) {
+      return 'Backend chưa hỗ trợ chức năng này. Hãy cập nhật và khởi động lại backend.';
+    }
+    return '$fallback (HTTP ${response.statusCode})';
   }
 
   // ========================================
