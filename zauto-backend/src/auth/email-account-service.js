@@ -80,7 +80,25 @@ export async function requestPasswordRecovery(value) {
 <li>Không sử dụng lại mật khẩu đã từng dùng cho các tài khoản khác.</li></ul>
 <p><strong>Bạn không yêu cầu đặt lại mật khẩu?</strong></p>
 <p>Nếu bạn không thực hiện yêu cầu này, vui lòng liên hệ với bộ phận hỗ trợ ZAutoChat để được kiểm tra và hỗ trợ bảo vệ tài khoản.</p>
-<hr><p>Trân trọng,<br><strong>Đội ngũ ZAutoChat</strong></p></div></body></html>`;
+<hr style="border:0;border-top:1px solid #e3e8ef;margin:28px 0 18px">
+<p>Trân trọng,</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="font-family:Arial,sans-serif;border-collapse:collapse;width:100%;max-width:600px;color:#31435e"><tr>
+<td style="width:180px;text-align:center;vertical-align:middle;padding:8px 18px 8px 0">
+<div style="margin:auto;width:106px;height:106px;line-height:106px;text-align:center;border-radius:20px;background:#0975ee;color:white;font-size:56px">💬</div>
+<div style="font-size:22px;font-weight:bold;color:#0865d7;margin-top:10px">ZAutoChat</div>
+<div style="font-size:12px;letter-spacing:1px;color:#00a4d8">HỖ TRỢ KHÁCH HÀNG</div>
+</td><td style="border-left:4px solid #14c5ed;padding:8px 0 8px 26px;vertical-align:middle">
+<div style="font-size:26px;font-weight:bold;color:#153c82">ZAutoChat Support</div>
+<div style="font-size:14px;font-weight:bold;letter-spacing:2px;color:#00a5d5">BỘ PHẬN HỖ TRỢ KHÁCH HÀNG</div>
+<div style="width:80px;border-top:2px solid #1876e9;margin:15px 0"></div>
+<div><strong style="color:#0766cf">Email</strong>&nbsp;&nbsp;&nbsp;&nbsp; hotro.zchatauto@gmail.com</div>
+<div><strong style="color:#0766cf">Dịch vụ</strong>&nbsp; Hỗ trợ tài khoản ZAutoChat</div>
+<div><strong style="color:#0766cf">Hotline</strong>&nbsp;&nbsp; 0945.785.631</div>
+<div style="font-size:13px;color:#70819a;margin-top:14px">Kết nối nhanh chóng · Hỗ trợ tận tâm</div>
+</td></tr></table>
+<p style="font-size:12px;color:#7a8ba6;margin:24px 0 0">Đây là email được gửi tự động từ hệ thống ZAutoChat. Vui lòng không trả lời trực tiếp email này.</p>
+<p style="font-size:12px;color:#7a8ba6;margin:4px 0 0">© 2026 ZAutoChat. All rights reserved.</p>
+</div></body></html>`;
   await mailer().sendMail({
     from: process.env.SMTP_FROM,
     to: email,
