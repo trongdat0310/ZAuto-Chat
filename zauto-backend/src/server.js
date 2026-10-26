@@ -1,5 +1,6 @@
 import express from "express";
 import { subscriptionRouter } from "./subscriptions/subscription-routes.js";
+import { bootstrapAdmin } from "./auth/admin-bootstrap.js";
 import cors from "cors";
 import dotenv from "dotenv";
 import multer from "multer";
@@ -4834,6 +4835,15 @@ async function startServer() {
   // Phai chi khoi dong watchdog/Zalo workers
   // sau khi bind port thanh cong.
   // ========================================
+
+  // Fail closed before exposing HTTP if the admin bootstrap is unsafe.
+  try {
+    await bootstrapAdmin();
+  } catch (error) {
+    console.error("[ADMIN BOOTSTRAP]", error.message);
+    process.exitCode = 1;
+    return;
+  }
 
   const httpServer =
     http.createServer(app);
