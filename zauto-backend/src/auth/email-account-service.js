@@ -1,6 +1,5 @@
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
-import path from "node:path";
 import { fileURLToPath } from "node:url";
 import nodemailer from "nodemailer";
 import { findUserByEmail, findUserById, updateUser } from "../users/user-store.js";
