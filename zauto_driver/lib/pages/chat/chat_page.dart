@@ -211,10 +211,14 @@ class _ChatPageState extends State<ChatPage> {
         cliMsgId: cliMsgId.isEmpty ? null : cliMsgId,
         replyText: settings.acceptReplyText,
       );
-      if (mounted) _showTopNotice(result['alreadyAccepted'] == true
-          ? 'Cuốc đã được nhận trước đó' : 'Đã nhận cuốc');
+      if (mounted) {
+        _showTopNotice(result['alreadyAccepted'] == true
+            ? 'Cuốc đã được nhận trước đó' : 'Đã nhận cuốc');
+      }
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       if (isQuotaExhausted(error)) {
         await showQuotaExhaustedDialog(context);
       } else {
