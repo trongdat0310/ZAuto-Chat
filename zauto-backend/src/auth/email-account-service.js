@@ -84,7 +84,7 @@ export async function requestPasswordRecovery(value) {
 <p>Trân trọng,</p>
 <table role="presentation" cellpadding="0" cellspacing="0" style="font-family:Arial,sans-serif;border-collapse:collapse;width:100%;max-width:600px;color:#31435e"><tr>
 <td style="width:180px;text-align:center;vertical-align:middle;padding:8px 18px 8px 0">
-<div style="margin:auto;width:106px;height:106px;line-height:106px;text-align:center;border-radius:20px;background:#0975ee;color:white;font-size:56px">💬</div>
+<img src="https://raw.githubusercontent.com/trongdat0310/ZAuto-Chat/refactor/architecture/zauto_driver/assets/images/ic_launcher.png" width="106" height="106" alt="ZAutoChat" style="display:block;margin:auto;width:106px;height:106px;border:0;border-radius:20px;object-fit:contain">
 <div style="font-size:22px;font-weight:bold;color:#0865d7;margin-top:10px">ZAutoChat</div>
 <div style="font-size:12px;letter-spacing:1px;color:#00a4d8">HỖ TRỢ KHÁCH HÀNG</div>
 </td><td style="border-left:4px solid #14c5ed;padding:8px 0 8px 26px;vertical-align:middle">
