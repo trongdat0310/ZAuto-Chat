@@ -64,75 +64,412 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<bool> _forcePasswordChange(String temporaryPassword) async {
     String newPassword = '';
-    String confirmation = '';
-    String? errorMessage;
-    bool saving = false;
-    final result = await showDialog<bool>(
+    String confirmPassword = '';
+
+    String? newPasswordError;
+    String? confirmPasswordError;
+    String? generalError;
+
+    bool submitting = false;
+
+    bool hideNewPassword = true;
+    bool hideConfirmPassword = true;
+
+    final success = await showDialog<bool>(
       context: context,
+
       barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => PopScope(
-          canPop: false,
-          child: AlertDialog(
-            title: const Text('Bắt buộc đổi mật khẩu'),
-            content: SingleChildScrollView(
-              child: Column(
+
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final colorScheme = Theme.of(context).colorScheme;
+
+            // ========================================
+            // PASSWORD RULE STATES
+            // ========================================
+
+            final hasLength = newPassword.length >= 8;
+
+            final hasUppercase = RegExp(r'[A-Z]').hasMatch(newPassword);
+
+            final hasLowercase = RegExp(r'[a-z]').hasMatch(newPassword);
+
+            final hasNumber = RegExp(r'[0-9]').hasMatch(newPassword);
+
+            final hasSpecial = RegExp(r'[^A-Za-z0-9\s]').hasMatch(newPassword);
+
+            // ========================================
+            // PASSWORD RULE WIDGET
+            // ========================================
+
+            Widget passwordRule(String text, bool passed) {
+              return Row(
                 mainAxisSize: MainAxisSize.min,
+
                 children: [
-                  const Text('Bạn đang đăng nhập bằng mật khẩu tạm thời gồm 6 chữ số. Hãy tạo mật khẩu mới để tiếp tục.'),
-                  TextField(
-                    obscureText: true,
-                    onChanged: (value) => newPassword = value,
-                    decoration: const InputDecoration(labelText: 'Mật khẩu mới'),
+                  Icon(
+                    passed ? Icons.check_circle : Icons.radio_button_unchecked,
+
+                    size: 17,
+
+                    color: passed
+                        ? colorScheme.primary
+                        : colorScheme.onSurfaceVariant,
                   ),
-                  TextField(
-                    obscureText: true,
-                    onChanged: (value) => confirmation = value,
-                    decoration: const InputDecoration(labelText: 'Xác nhận mật khẩu mới'),
+
+                  const SizedBox(width: 5),
+
+                  Text(
+                    text,
+
+                    style: TextStyle(
+                      fontSize: 12,
+
+                      color: passed
+                          ? colorScheme.primary
+                          : colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                  if (errorMessage != null)
-                    Text(errorMessage!, style: const TextStyle(color: Colors.red)),
                 ],
+              );
+            }
+
+            // ========================================
+            // SUBMIT
+            // ========================================
+
+            Future<void> submit() async {
+              if (submitting) {
+                return;
+              }
+
+              setDialogState(() {
+                currentPasswordError = null;
+
+                newPasswordError = null;
+
+                confirmPasswordError = null;
+
+                generalError = null;
+              });
+
+              bool valid = true;
+
+              // ========================================
+              // NEW PASSWORD POLICY
+              // ========================================
+
+              if (newPassword.isEmpty) {
+                newPasswordError = 'Vui lòng nhập mật khẩu mới';
+
+                valid = false;
+              } else if (!hasLength) {
+                newPasswordError = 'Mật khẩu phải có ít nhất 8 ký tự';
+
+                valid = false;
+              } else if (!hasUppercase) {
+                newPasswordError = 'Cần ít nhất 1 chữ hoa A-Z';
+
+                valid = false;
+              } else if (!hasLowercase) {
+                newPasswordError = 'Cần ít nhất 1 chữ thường a-z';
+
+                valid = false;
+              } else if (!hasNumber) {
+                newPasswordError = 'Cần ít nhất 1 chữ số 0-9';
+
+                valid = false;
+              } else if (!hasSpecial) {
+                newPasswordError = 'Cần ít nhất 1 ký tự đặc biệt';
+
+                valid = false;
+              }
+
+              // ========================================
+              // CONFIRM
+              // ========================================
+
+              if (confirmPassword.isEmpty) {
+                confirmPasswordError = 'Vui lòng nhập lại mật khẩu mới';
+
+                valid = false;
+              } else if (confirmPassword != newPassword) {
+                confirmPasswordError = 'Mật khẩu nhập lại không khớp';
+
+                valid = false;
+              }
+
+              if (!valid) {
+                setDialogState(() {});
+
+                return;
+              }
+
+              // ========================================
+              // CALL BACKEND
+              // ========================================
+
+              setDialogState(() {
+                submitting = true;
+              });
+
+              try {
+                await auth.changeRecoveredPassword(
+                  currentPassword: temporaryPassword,
+
+                  newPassword: newPassword,
+                );
+
+                if (!dialogContext.mounted) {
+                  return;
+                }
+
+                Navigator.of(dialogContext).pop(true);
+              } catch (error) {
+                if (!dialogContext.mounted) {
+                  return;
+                }
+
+                var message = error.toString();
+
+                message = message.replaceFirst('Exception: ', '');
+
+                setDialogState(() {
+                  submitting = false;
+
+                  generalError = message;
+                });
+              }
+            }
+
+            // ========================================
+            // DIALOG
+            // ========================================
+
+            return PopScope(
+              canPop: false,
+              child: AlertDialog(
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 24,
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: saving ? null : () async {
-                  await auth.logout();
-                  if (dialogContext.mounted) Navigator.pop(dialogContext, false);
-                },
-                child: const Text('Đăng xuất'),
+
+              title: const Text('Bắt buộc đổi mật khẩu'),
+
+              content: SingleChildScrollView(
+                child: SizedBox(
+                  width: double.maxFinite,
+
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+
+                    children: [
+                      // ========================================
+                      // NEW PASSWORD
+                      // ========================================
+                      TextFormField(
+                        obscureText: hideNewPassword,
+
+                        enabled: !submitting,
+
+                        textInputAction: TextInputAction.next,
+
+                        onChanged: (value) {
+                          // Quan trong:
+                          // rebuild checklist moi lan go.
+                          setDialogState(() {
+                            newPassword = value;
+
+                            newPasswordError = null;
+
+                            generalError = null;
+                          });
+                        },
+
+                        decoration: InputDecoration(
+                          labelText: 'Mật khẩu mới',
+
+                          border: const OutlineInputBorder(),
+
+                          errorText: newPasswordError,
+
+                          suffixIcon: IconButton(
+                            onPressed: submitting
+                                ? null
+                                : () {
+                                    setDialogState(() {
+                                      hideNewPassword = !hideNewPassword;
+                                    });
+                                  },
+
+                            icon: Icon(
+                              hideNewPassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      // ========================================
+                      // REALTIME PASSWORD CHECKLIST
+                      // ========================================
+                      Wrap(
+                        spacing: 14,
+                        runSpacing: 8,
+
+                        children: [
+                          passwordRule('8+ ký tự', hasLength),
+
+                          passwordRule('Chữ hoa A-Z', hasUppercase),
+
+                          passwordRule('Chữ thường a-z', hasLowercase),
+
+                          passwordRule('Số 0-9', hasNumber),
+
+                          passwordRule('Ký tự đặc biệt', hasSpecial),
+                        ],
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      // ========================================
+                      // CONFIRM PASSWORD
+                      // ========================================
+                      TextFormField(
+                        obscureText: hideConfirmPassword,
+
+                        enabled: !submitting,
+
+                        textInputAction: TextInputAction.done,
+
+                        onChanged: (value) {
+                          setDialogState(() {
+                            confirmPassword = value;
+
+                            confirmPasswordError = null;
+                          });
+                        },
+
+                        onFieldSubmitted: (_) {
+                          if (!submitting) {
+                            submit();
+                          }
+                        },
+
+                        decoration: InputDecoration(
+                          labelText: 'Nhập lại mật khẩu mới',
+
+                          border: const OutlineInputBorder(),
+
+                          errorText: confirmPasswordError,
+
+                          suffixIcon: IconButton(
+                            onPressed: submitting
+                                ? null
+                                : () {
+                                    setDialogState(() {
+                                      hideConfirmPassword =
+                                          !hideConfirmPassword;
+                                    });
+                                  },
+
+                            icon: Icon(
+                              hideConfirmPassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // ========================================
+                      // GENERAL ERROR
+                      // ========================================
+                      if (generalError != null) ...[
+                        const SizedBox(height: 16),
+
+                        Container(
+                          padding: const EdgeInsets.all(12),
+
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.errorContainer,
+
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onErrorContainer,
+                              ),
+
+                              const SizedBox(width: 10),
+
+                              Expanded(
+                                child: Text(
+                                  generalError!,
+
+                                  style: TextStyle(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onErrorContainer,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
+                      if (submitting) ...[
+                        const SizedBox(height: 18),
+
+                        const Center(child: CircularProgressIndicator()),
+                      ],
+                    ],
+                  ),
+                ),
               ),
-              FilledButton(
-                onPressed: saving ? null : () async {
-                  if (newPassword != confirmation) {
-                    setDialogState(() => errorMessage = 'Xác nhận mật khẩu không khớp');
-                    return;
-                  }
-                  setDialogState(() { saving = true; errorMessage = null; });
-                  try {
-                    await auth.changeRecoveredPassword(
-                      currentPassword: temporaryPassword,
-                      newPassword: newPassword,
-                    );
-                    if (dialogContext.mounted) Navigator.pop(dialogContext, true);
-                  } catch (error) {
-                    if (dialogContext.mounted) {
-                      setDialogState(() {
-                        saving = false;
-                        errorMessage = error.toString().replaceFirst('Exception: ', '');
-                      });
-                    }
-                  }
-                },
-                child: const Text('Đổi mật khẩu'),
+
+              actions: [
+                TextButton(
+                  onPressed: submitting
+                      ? null
+                      : () {
+                          auth.logout().then((_) {
+                            if (dialogContext.mounted) Navigator.of(dialogContext).pop(false);
+                          });
+                        },
+
+                  child: const Text('ĐĂNG XUẤT'),
+                ),
+
+                FilledButton(
+                  onPressed: submitting ? null : submit,
+
+                  child: Text(submitting ? 'ĐANG ĐỔI...' : 'ĐỔI MẬT KHẨU'),
+                ),
+              ],
               ),
-            ],
-          ),
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
-    return result == true;
+
+    return success == true;
   }
 
   Future<void> forgotPassword() async {
