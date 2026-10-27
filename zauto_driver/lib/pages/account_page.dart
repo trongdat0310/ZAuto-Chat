@@ -260,60 +260,122 @@ class _AccountPageState extends State<AccountPage> {
   Future<void> editEmail() async {
     String email = profile?['user']?['email']?.toString() ?? '';
     String password = '';
-    final submitted = await showDialog<bool>(
+    String? emailError;
+    String? passwordError;
+    String? requestError;
+    bool saving = false;
+    bool hidePassword = true;
+
+    final updated = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Đổi email'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                initialValue: email,
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
-                onChanged: (value) => email = value.trim(),
-                decoration: const InputDecoration(labelText: 'Email mới'),
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => PopScope(
+          canPop: !saving,
+          child: AlertDialog(
+            insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            title: const Text('Đổi email'),
+            content: SingleChildScrollView(
+              child: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      initialValue: email,
+                      autofocus: true,
+                      enabled: !saving,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      onChanged: (value) => setDialogState(() {
+                        email = value.trim();
+                        emailError = null;
+                        requestError = null;
+                      }),
+                      decoration: InputDecoration(
+                        labelText: 'Email mới',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.email_outlined),
+                        errorText: emailError,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      enabled: !saving,
+                      obscureText: hidePassword,
+                      textInputAction: TextInputAction.done,
+                      onChanged: (value) => setDialogState(() {
+                        password = value;
+                        passwordError = null;
+                        requestError = null;
+                      }),
+                      decoration: InputDecoration(
+                        labelText: 'Mật khẩu hiện tại',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        errorText: passwordError,
+                        suffixIcon: IconButton(
+                          onPressed: saving ? null : () => setDialogState(() => hidePassword = !hidePassword),
+                          icon: Icon(hidePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                        ),
+                      ),
+                    ),
+                    if (requestError != null) ...[
+                      const SizedBox(height: 16),
+                      Text(requestError!, style: TextStyle(color: Theme.of(dialogContext).colorScheme.error)),
+                    ],
+                    if (saving) ...[
+                      const SizedBox(height: 18),
+                      const Center(child: CircularProgressIndicator()),
+                    ],
+                  ],
+                ),
               ),
-              TextFormField(
-                obscureText: true,
-                onChanged: (value) => password = value,
-                decoration: const InputDecoration(labelText: 'Mật khẩu hiện tại'),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+                child: const Text('HỦY'),
+              ),
+              FilledButton(
+                onPressed: saving ? null : () async {
+                  setDialogState(() { emailError = null; passwordError = null; requestError = null; });
+                  bool valid = true;
+                  if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+                    emailError = 'Vui lòng nhập email hợp lệ';
+                    valid = false;
+                  }
+                  if (password.isEmpty) {
+                    passwordError = 'Vui lòng nhập mật khẩu hiện tại';
+                    valid = false;
+                  }
+                  if (!valid) { setDialogState(() {}); return; }
+                  setDialogState(() => saving = true);
+                  try {
+                    await AuthService().updateEmail(email, password);
+                    if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                  } catch (error) {
+                    if (dialogContext.mounted) {
+                      setDialogState(() {
+                        saving = false;
+                        requestError = error.toString().replaceFirst('Exception: ', '');
+                      });
+                    }
+                  }
+                },
+                child: Text(saving ? 'ĐANG LƯU...' : 'LƯU EMAIL'),
               ),
             ],
           ),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Hủy')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Lưu')),
-        ],
       ),
     );
-    if (submitted != true || !mounted) return;
-    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập email hợp lệ')),
-      );
-      return;
-    }
-    if (password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập mật khẩu hiện tại')),
-      );
-      return;
-    }
-    try {
-      await AuthService().updateEmail(email, password);
+    if (updated == true && mounted) {
       await loadProfile(silent: true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã cập nhật email')),
-        );
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+          const SnackBar(content: Text('Đã cập nhật email thành công')),
         );
       }
     }

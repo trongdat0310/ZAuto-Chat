@@ -460,35 +460,103 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> forgotPassword() async {
     String email = '';
-    final submitted = await showDialog<bool>(
+    String? emailError;
+    String? requestError;
+    bool sending = false;
+    bool sent = false;
+    await showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Quên mật khẩu'),
-        content: TextFormField(
-          keyboardType: TextInputType.emailAddress,
-          autofocus: true,
-          onChanged: (value) => email = value.trim(),
-          decoration: const InputDecoration(labelText: 'Email đã đăng ký'),
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => PopScope(
+          canPop: !sending,
+          child: AlertDialog(
+            insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            title: Text(sent ? 'Đã xử lý yêu cầu' : 'Quên mật khẩu'),
+            content: SingleChildScrollView(
+              child: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (sent)
+                      const Text('Nếu email đã đăng ký, mật khẩu tạm thời sẽ được gửi đến hộp thư. Vui lòng kiểm tra cả thư mục Spam.')
+                    else ...[
+                      const Text('Nhập email đã đăng ký để nhận mật khẩu tạm thời gồm 6 chữ số.'),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        autofocus: true,
+                        enabled: !sending,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.done,
+                        onChanged: (value) => setDialogState(() {
+                          email = value.trim();
+                          emailError = null;
+                          requestError = null;
+                        }),
+                        decoration: InputDecoration(
+                          labelText: 'Email đã đăng ký',
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.email_outlined),
+                          errorText: emailError,
+                        ),
+                      ),
+                      if (requestError != null) ...[
+                        const SizedBox(height: 14),
+                        Text(requestError!, style: TextStyle(color: Theme.of(dialogContext).colorScheme.error)),
+                      ],
+                      if (sending) ...[
+                        const SizedBox(height: 18),
+                        const Center(child: CircularProgressIndicator()),
+                        const SizedBox(height: 8),
+                        const Center(child: Text('Đang gửi yêu cầu...')),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              if (sent)
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('ĐÓNG'),
+                )
+              else ...[
+                TextButton(
+                  onPressed: sending ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('HỦY'),
+                ),
+                FilledButton(
+                  onPressed: sending ? null : () async {
+                    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+                      setDialogState(() => emailError = 'Vui lòng nhập email hợp lệ');
+                      return;
+                    }
+                    setDialogState(() { sending = true; requestError = null; });
+                    try {
+                      await auth.forgotPassword(email);
+                      if (dialogContext.mounted) {
+                        setDialogState(() { sending = false; sent = true; });
+                      }
+                    } catch (error) {
+                      if (dialogContext.mounted) {
+                        setDialogState(() {
+                          sending = false;
+                          requestError = error.toString().replaceFirst('Exception: ', '');
+                        });
+                      }
+                    }
+                  },
+                  child: const Text('GỬI EMAIL'),
+                ),
+              ],
+            ],
+          ),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Hủy')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Gửi')),
-        ],
       ),
     );
-    if (submitted != true || !mounted) return;
-    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
-      showError('Vui lòng nhập email hợp lệ.');
-      return;
-    }
-    try {
-      await auth.forgotPassword(email);
-      if (mounted) {
-        showError('Nếu email đã đăng ký, mật khẩu mới sẽ được gửi đến hộp thư.');
-      }
-    } catch (error) {
-      if (mounted) showError(error.toString().replaceFirst('Exception: ', ''));
-    }
   }
 
   Future<void> openRegister() async {
