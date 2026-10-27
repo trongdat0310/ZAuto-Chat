@@ -444,18 +444,6 @@ class _LoginPageState extends State<LoginPage> {
               ),
 
               actions: [
-                TextButton(
-                  onPressed: submitting
-                      ? null
-                      : () {
-                          auth.logout().then((_) {
-                            if (dialogContext.mounted) Navigator.of(dialogContext).pop(false);
-                          });
-                        },
-
-                  child: const Text('ĐĂNG XUẤT'),
-                ),
-
                 FilledButton(
                   onPressed: submitting ? null : submit,
 
