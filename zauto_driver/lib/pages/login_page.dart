@@ -145,8 +145,6 @@ class _LoginPageState extends State<LoginPage> {
               }
 
               setDialogState(() {
-                currentPasswordError = null;
-
                 newPasswordError = null;
 
                 confirmPasswordError = null;
