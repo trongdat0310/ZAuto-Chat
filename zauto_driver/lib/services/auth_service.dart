@@ -84,6 +84,23 @@ class AuthService {
   }
 
 
+  Future<void> changeRecoveredPassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final response = await http.post(
+      Uri.parse('${AppConfig.backendUrl}/api/me/change-password'),
+      headers: await authHeaders(),
+      body: jsonEncode({
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      }),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_apiError(response, 'Không thể đổi mật khẩu'));
+    }
+  }
+
   Future<void> forgotPassword(String email) async {
     final response = await http.post(
       Uri.parse('${AppConfig.backendUrl}/api/auth/forgot-password'),

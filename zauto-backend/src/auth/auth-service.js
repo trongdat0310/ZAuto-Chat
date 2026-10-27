@@ -62,6 +62,7 @@ export function toPublicUser(
       user.phone,
 
     email: user.email ?? null,
+    mustChangePassword: user.mustChangePassword === true,
 
     membership:
       user.membership ??

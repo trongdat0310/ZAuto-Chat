@@ -41,10 +41,13 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      await auth.login(phone: phone, password: password);
+      final user = await auth.login(phone: phone, password: password);
 
       if (!mounted) return;
-
+      if (user['mustChangePassword'] == true) {
+        final changed = await _forcePasswordChange(password);
+        if (!changed || !mounted) return;
+      }
       await widget.onAuthenticated();
     } catch (error) {
       if (!mounted) return;
@@ -57,6 +60,79 @@ class _LoginPageState extends State<LoginPage> {
         });
       }
     }
+  }
+
+  Future<bool> _forcePasswordChange(String temporaryPassword) async {
+    String newPassword = '';
+    String confirmation = '';
+    String? errorMessage;
+    bool saving = false;
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => PopScope(
+          canPop: false,
+          child: AlertDialog(
+            title: const Text('Bắt buộc đổi mật khẩu'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Bạn đang đăng nhập bằng mật khẩu tạm thời gồm 6 chữ số. Hãy tạo mật khẩu mới để tiếp tục.'),
+                  TextField(
+                    obscureText: true,
+                    onChanged: (value) => newPassword = value,
+                    decoration: const InputDecoration(labelText: 'Mật khẩu mới'),
+                  ),
+                  TextField(
+                    obscureText: true,
+                    onChanged: (value) => confirmation = value,
+                    decoration: const InputDecoration(labelText: 'Xác nhận mật khẩu mới'),
+                  ),
+                  if (errorMessage != null)
+                    Text(errorMessage!, style: const TextStyle(color: Colors.red)),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () async {
+                  await auth.logout();
+                  if (dialogContext.mounted) Navigator.pop(dialogContext, false);
+                },
+                child: const Text('Đăng xuất'),
+              ),
+              FilledButton(
+                onPressed: saving ? null : () async {
+                  if (newPassword != confirmation) {
+                    setDialogState(() => errorMessage = 'Xác nhận mật khẩu không khớp');
+                    return;
+                  }
+                  setDialogState(() { saving = true; errorMessage = null; });
+                  try {
+                    await auth.changeRecoveredPassword(
+                      currentPassword: temporaryPassword,
+                      newPassword: newPassword,
+                    );
+                    if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                  } catch (error) {
+                    if (dialogContext.mounted) {
+                      setDialogState(() {
+                        saving = false;
+                        errorMessage = error.toString().replaceFirst('Exception: ', '');
+                      });
+                    }
+                  }
+                },
+                child: const Text('Đổi mật khẩu'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    return result == true;
   }
 
   Future<void> forgotPassword() async {

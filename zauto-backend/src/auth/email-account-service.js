@@ -31,7 +31,7 @@ export async function requestPasswordRecovery(value) {
   const user = findUserByEmail(email);
   if (!user) return;
   // Generate a high-entropy temporary password, never log it.
-  const newPassword = crypto.randomBytes(18).toString("base64url") + "aA1!";
+  const newPassword = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
   const passwordHash = await bcrypt.hash(newPassword, 12);
   const userName = String(user.name ?? "").trim() || "bạn";
   const subject = "[ZAutoChat] Thông báo cấp lại mật khẩu tài khoản";
@@ -47,7 +47,7 @@ export async function requestPasswordRecovery(value) {
     "THÔNG TIN TÀI KHOẢN",
     `Mật khẩu mới: ${newPassword}`,
     "",
-    "Bạn có thể sử dụng thông tin trên để đăng nhập vào ứng dụng ZAutoChat.",
+    "Bạn có thể sử dụng thông tin trên để đăng nhập vào ứng dụng ZAutoChat. Hệ thống sẽ yêu cầu bạn đổi mật khẩu ngay sau khi đăng nhập.",
     "",
     "LƯU Ý BẢO MẬT",
     "Để đảm bảo an toàn cho tài khoản, chúng tôi khuyến nghị bạn:",
@@ -73,7 +73,7 @@ export async function requestPasswordRecovery(value) {
 <p>Hệ thống đã xử lý yêu cầu và cấp mật khẩu mới cho tài khoản của bạn.</p>
 <h3>THÔNG TIN TÀI KHOẢN</h3>
 <p><strong>Mật khẩu mới: ${escapeHtml(newPassword)}</strong></p>
-<p>Bạn có thể sử dụng thông tin trên để đăng nhập vào ứng dụng ZAutoChat.</p>
+<p>Bạn có thể sử dụng thông tin trên để đăng nhập vào ứng dụng ZAutoChat. <strong>Bạn bắt buộc phải đổi mật khẩu ngay sau khi đăng nhập.</strong></p>
 <h3>LƯU Ý BẢO MẬT</h3>
 <p>Để đảm bảo an toàn cho tài khoản, chúng tôi khuyến nghị bạn:</p>
 <ul><li>Đăng nhập và thay đổi mật khẩu ngay sau khi nhận được email này.</li>
@@ -113,7 +113,7 @@ export async function requestPasswordRecovery(value) {
       contentDisposition: "inline",
     }],
   });
-  if (!updateUser(user.id, { passwordHash })) {
+  if (!updateUser(user.id, { passwordHash, mustChangePassword: true })) {
     throw error("USER_NOT_FOUND", "Tai khoan khong ton tai.", 404);
   }
   attempts.set(email, Date.now());

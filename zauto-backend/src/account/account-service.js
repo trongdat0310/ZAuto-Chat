@@ -229,6 +229,7 @@ export async function changeAccountPassword(
     userId,
     {
       passwordHash,
+      mustChangePassword: false,
     }
   );
 
