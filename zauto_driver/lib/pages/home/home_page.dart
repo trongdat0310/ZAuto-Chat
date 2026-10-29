@@ -1550,11 +1550,12 @@ class _HomePageState extends State<HomePage>
             if (activeTrips.isEmpty) ...[
               Expanded(
                 child: LayoutBuilder(
-                  builder: (context, constraints) => ListView(
+                  builder: (context, constraints) => SingleChildScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      SizedBox(
-                        height: constraints.maxHeight,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      child: SizedBox(
+                        height: constraints.maxHeight < 480 ? 480 : constraints.maxHeight,
                         child: Stack(
                           children: [
                             Positioned(
@@ -1588,7 +1589,7 @@ class _HomePageState extends State<HomePage>
                           ),
                         ),
                       ],
-                    ),
+                    ),,
                             ),
                             Align(
                               alignment: const Alignment(0, -0.2),
@@ -1624,7 +1625,7 @@ class _HomePageState extends State<HomePage>
                           ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
