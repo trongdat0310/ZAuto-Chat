@@ -1549,10 +1549,19 @@ class _HomePageState extends State<HomePage>
             // ========================================
             if (activeTrips.isEmpty) ...[
               Expanded(
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    Row(
+                child: LayoutBuilder(
+                  builder: (context, constraints) => ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      SizedBox(
+                        height: constraints.maxHeight,
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              child: Row(
                       children: [
                         Container(
                           width: 9,
@@ -1580,8 +1589,9 @@ class _HomePageState extends State<HomePage>
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
-                    Card(
+                            ),
+                            Center(
+                              child: Card(
                       clipBehavior: Clip.antiAlias,
                       child: Column(
                         children: [
@@ -1609,7 +1619,12 @@ class _HomePageState extends State<HomePage>
                         ],
                       ),
                     ),
-                  ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ] else ...[
