@@ -21,8 +21,45 @@ function openModal(m){closeAll();m.classList.add('show');m.setAttribute('aria-hi
 function updateSummary(){let p=PLANS[planId],months=1;document.getElementById('orderSummary').innerHTML='<p>Gói: <b>'+p.name+'</b></p><p>Giá gói: <b>'+fmt(p.price)+(p.extra?'/ngày':'/tháng')+'</b></p><p>Thời hạn: <b>'+(p.extra?'Đến 24h cùng ngày':months+' tháng')+'</b></p><hr><p class="total">Tổng cộng: '+fmt(p.price*(p.extra?1:months))+'</p>'}
 document.querySelectorAll('.purchase-btn').forEach(btn=>btn.addEventListener('click',()=>{planId=btn.dataset.plan;phone.value='';document.getElementById('phoneError').textContent='';updateSummary();openModal(purchase);phone.focus()}));
 
-document.getElementById('purchaseForm').addEventListener('submit',e=>{e.preventDefault();let number=phone.value.replace(/[\s.()-]/g,'');if(number.startsWith('+84'))number='0'+number.slice(3);if(!/^0[0-9]{9}$/.test(number)){document.getElementById('phoneError').textContent='Vui lòng nhập số điện thoại Việt Nam gồm 10 chữ số.';phone.focus();return}document.getElementById('phoneError').textContent='';const p=PLANS[planId],months=1,amount=p.price*(p.extra?1:months),memo='ZCA '+planId+' '+number+' '+months;const params=new URLSearchParams({amount:String(amount),addInfo:memo,accountName:'PHI TRONG DAT'});const url='https://img.vietqr.io/image/VCB-2336864520-qr_only.png?'+params.toString();document.getElementById('qrImage').src=url;document.getElementById('downloadQR').dataset.url=url;document.getElementById('qrDetails').innerHTML='<p><strong>Người nhận:</strong> PHÍ TRỌNG ĐẠT</p><p><strong>Tài khoản ngân hàng:</strong> 2336864520</p><p><strong>Ngân hàng:</strong> Vietcombank - Ngân hàng TMCP Ngoại thương Việt Nam</p><p><strong>Số tiền:</strong> '+new Intl.NumberFormat('vi-VN').format(amount)+' VNĐ</p><p><strong>Mô tả:</strong> '+memo+'</p>';openModal(qr)});
-document.getElementById('downloadQR').addEventListener('click',async()=>{const btn=document.getElementById('downloadQR'),url=btn.dataset.url;if(!url)return;const original=btn.textContent;btn.disabled=true;btn.textContent='Đang tải QR...';try{const response=await fetch(url);if(!response.ok)throw new Error('Không tải được mã QR');const blob=await response.blob();const blobUrl=URL.createObjectURL(blob);const link=document.createElement('a');link.href=blobUrl;link.download='ZAutoChat-Vietcombank-QR.png';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(blobUrl),1000)}catch(err){window.open(url,'_blank','noopener,noreferrer');alert('Nếu mã QR mở trong tab mới, hãy nhấn giữ hoặc nhấp chuột phải vào ảnh để lưu.')}finally{btn.disabled=false;btn.textContent=original}});
+// Set window.ZAUTO_API_BASE to the public HTTPS backend origin if hosted separately.
+const ZAUTO_API_BASE=(window.ZAUTO_API_BASE||location.origin).replace(/\/$/,'');
+let paymentPoll=null;
+document.getElementById('purchaseForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  let number=phone.value.replace(/[\s.()-]/g,'');
+  if(number.startsWith('+84'))number='0'+number.slice(3);
+  if(!/^0[0-9]{9}$/.test(number)){document.getElementById('phoneError').textContent='Vui lòng nhập số điện thoại Việt Nam gồm 10 chữ số.';phone.focus();return}
+  const submit=e.submitter || document.querySelector('#purchaseForm button[type="submit"]');
+  if(submit)submit.disabled=true;
+  document.getElementById('phoneError').textContent='';
+  try {
+    const response=await fetch(ZAUTO_API_BASE+'/api/payments/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:number,planId})});
+    const data=await response.json();
+    if(!response.ok||!data.success)throw new Error(data.error||'Không thể tạo đơn hàng.');
+    const order=data.order, memo=data.transferContent;
+    const params=new URLSearchParams({amount:String(order.amount),addInfo:memo,accountName:data.accountName});
+    const url='https://img.vietqr.io/image/VPB-'+encodeURIComponent(data.accountNumber)+'-qr_only.png?'+params.toString();
+    document.getElementById('qrImage').src=url;
+    document.getElementById('downloadQR').dataset.url=url;
+    document.getElementById('qrDetails').innerHTML='<p><strong>Người nhận:</strong> PHÍ TRỌNG ĐẠT</p><p><strong>Ngân hàng:</strong> VPBank</p><p><strong>Số tiền:</strong> '+new Intl.NumberFormat('vi-VN').format(order.amount)+' VNĐ</p><p><strong>Nội dung:</strong> '+memo+'</p><p id="paymentStatus">Đang chờ thanh toán...</p>';
+    openModal(qr);
+    if(paymentPoll)clearInterval(paymentPoll);
+    const check=async()=>{
+      try {
+        const result=await fetch(ZAUTO_API_BASE+'/api/payments/orders/'+encodeURIComponent(order.id),{cache:'no-store'});
+        if(!result.ok)return;
+        const state=await result.json();
+        const label=document.getElementById('paymentStatus');
+        if(!label)return;
+        if(state.order.status==='paid'){label.textContent='Thanh toán thành công! Gói đã được kích hoạt.';clearInterval(paymentPoll);paymentPoll=null;}
+        else if(Date.now()>Date.parse(order.expiresAt)){label.textContent='Đơn hàng đã hết hạn. Nếu đã chuyển tiền, vui lòng liên hệ hỗ trợ.';clearInterval(paymentPoll);paymentPoll=null;}
+      }catch{}
+    };
+    paymentPoll=setInterval(check,5000);
+  }catch(error){document.getElementById('phoneError').textContent=error.message||'Không thể kết nối máy chủ thanh toán.';}
+  finally{if(submit)submit.disabled=false;}
+});
+document.getElementById('downloadQR').addEventListener('click',async()=>{const btn=document.getElementById('downloadQR'),url=btn.dataset.url;if(!url)return;const original=btn.textContent;btn.disabled=true;btn.textContent='Đang tải QR...';try{const response=await fetch(url);if(!response.ok)throw new Error('Không tải được mã QR');const blob=await response.blob();const blobUrl=URL.createObjectURL(blob);const link=document.createElement('a');link.href=blobUrl;link.download='ZAutoChat-VPBank-QR.png';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(blobUrl),1000)}catch(err){window.open(url,'_blank','noopener,noreferrer');alert('Nếu mã QR mở trong tab mới, hãy nhấn giữ hoặc nhấp chuột phải vào ảnh để lưu.')}finally{btn.disabled=false;btn.textContent=original}});
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',closeAll));[purchase,qr].forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeAll()}));document.addEventListener('keydown',e=>{if(e.key==='Escape')closeAll()});
 document.getElementById('year').textContent=new Date().getFullYear();const menu=document.getElementById('menu'),links=document.getElementById('links');menu.addEventListener('click',()=>{let open=links.classList.toggle('open');menu.setAttribute('aria-expanded',String(open))});links.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>links.classList.remove('open')));
 </script></body></html>
