@@ -197,6 +197,47 @@ export function createSubscriptionService({ file, clock = () => new Date() }) {
           return item;
         }));
     },
+    createPaymentOrder({ userId, planId, amount, now = clock() }) {
+      validate(userId);
+      const plan = planById(planId);
+      if (!plan || !Number.isSafeInteger(amount) || amount <= 0) throw subscriptionError("INVALID_PAYMENT_PLAN");
+      return change(data => {
+        const id = "ZCA" + crypto.randomBytes(9).toString("hex").toUpperCase();
+        const order = { id, userId, planId, amount, status: "pending", createdAt: now.toISOString(),
+          expiresAt: new Date(+now + 30 * 60000).toISOString() };
+        (data.paymentOrders ||= {})[id] = order;
+        return order;
+      });
+    },
+    getPaymentOrder(id) {
+      if (typeof id !== "string" || !/^ZCA[A-F0-9]{18}$/.test(id)) throw subscriptionError("INVALID_PAYMENT_ORDER");
+      return read().paymentOrders?.[id] || null;
+    },
+    confirmPayment({ transaction, accountNumber, now = clock() }) {
+      return change(data => {
+        const txid = String(transaction.id);
+        const key = "sepay:" + txid;
+        if ((data.paymentTransactions ||= {})[key]) return { duplicate: true, status: data.paymentTransactions[key].status };
+        const content = String(transaction.content || "").toUpperCase();
+        const codes = [...new Set(content.match(/ZCA[A-F0-9]{18}/g) || [])];
+        const order = codes.length === 1 ? data.paymentOrders?.[codes[0]] : null;
+        let status = "unmatched";
+        if (order && order.status === "pending" && +now <= Date.parse(order.expiresAt) &&
+            transaction.transferType === "in" && String(transaction.accountNumber) === accountNumber &&
+            Number.isSafeInteger(transaction.transferAmount) && transaction.transferAmount === order.amount) {
+          const plan = planById(order.planId);
+          const record = data.subscriptions[order.userId] ||= { main: null, addons: [] };
+          const item = { id: crypto.randomUUID(), planId: plan.id, period: plan.period,
+            startsAt: now.toISOString(), endsAt: endOfDayVN(plan.addon ? now : monthAfterVN(now, 1)).toISOString() };
+          if (plan.addon) record.addons.push(item); else record.main = item;
+          order.status = "paid"; order.paidAt = now.toISOString(); order.transactionId = txid;
+          audit(data, { actorId: "sepay", userId: order.userId, action: "payment_assign", item, orderId: order.id, transactionId: txid });
+          status = "paid";
+        }
+        data.paymentTransactions[key] = { status, orderId: order?.id || null, at: now.toISOString() };
+        return { duplicate: false, status, userId: status === "paid" ? order.userId : null };
+      });
+    },
     reserveUsage(userId, feature, targetKey, now = clock(), context = null) {
       validate(userId, feature); validKey(targetKey);
       return change(data => {
