@@ -1590,7 +1590,8 @@ class _HomePageState extends State<HomePage>
                       ],
                     ),
                             ),
-                            Center(
+                            Align(
+                              alignment: const Alignment(0, -0.2),
                               child: Card(
                       clipBehavior: Clip.antiAlias,
                       child: Column(
