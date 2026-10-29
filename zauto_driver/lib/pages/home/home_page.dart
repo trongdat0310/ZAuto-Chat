@@ -1596,6 +1596,7 @@ class _HomePageState extends State<HomePage>
                               child: Card(
                       clipBehavior: Clip.antiAlias,
                       child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           homeSettingItem(
                             icon: Icons.notifications_none,
