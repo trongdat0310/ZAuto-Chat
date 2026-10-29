@@ -1589,7 +1589,7 @@ class _HomePageState extends State<HomePage>
                           ),
                         ),
                       ],
-                    ),,
+                    ),
                             ),
                             Align(
                               alignment: const Alignment(0, -0.2),
