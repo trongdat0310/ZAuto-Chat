@@ -16,6 +16,7 @@ try {
     apply: { type: "boolean", default: false }, "dry-run": { type: "boolean", default: false },
     "bank-verified": { type: "boolean", default: false },
     "not-previously-credited": { type: "boolean", default: false },
+    "vpbank-minute-time": { type: "boolean", default: false },
     help: { type: "boolean", default: false },
   } });
   if (args.help) {
@@ -24,6 +25,12 @@ try {
 
 Apply ONE verified receipt only (after backup and manual bank verification):
   node scripts/reconcile-payment.js --transaction SEPAY_ID --order ZCA_FULL_CODE --approve PREVIEW_HASH --bank-reference BANK_REFERENCE --bank-verified --not-previously-credited --note "Verified in VPBank; not previously credited/refunded" --apply
+
+Optional LOCAL time review (never enabled for public webhook requests):
+  Add --vpbank-minute-time to BOTH preview and apply only after checking the bank
+  record for a :00 timestamp in the SAME MINUTE as order creation. It cannot
+  allow earlier minutes, late transfers, changed evidence or a wrong amount.
+  A matching minute alone does NOT prove the bank truncated the timestamp.
 
 Only old MISSING_OR_AMBIGUOUS_CODE receipts with a truncated provider code are supported.
 A preview never grants a plan, never changes order status and never sends money.
@@ -35,7 +42,8 @@ Run a new preview after each application or any concurrent data change.`);
     const config = paymentConfig();
     const options = { transactionId: args.transaction, expectedOrderId: args.order,
       accountNumber: config.accountNumber, gateway: config.gateway, subAccount: config.subAccount,
-      userExists: id => Boolean(findUserById(id)) };
+      userExists: id => Boolean(findUserById(id)),
+      allowVpbankMinuteTime: args["vpbank-minute-time"] };
     const preview = store.previewPaymentReview(options);
     const user = preview.userId ? findUserById(preview.userId) : null;
     console.log(args.apply ? "APPLY REQUESTED (checks are repeated under the store lock)" : "DRY RUN - NO DATA CHANGED");
@@ -45,6 +53,9 @@ Run a new preview after each application or any concurrent data change.`);
       expectedAmount: preview.expectedAmount, action: preview.action || "" }]);
     // Only operational fields; never display secrets, auth hashes or raw webhook.
     console.log(JSON.stringify(preview, null, 2));
+    if (args["vpbank-minute-time"]) {
+      console.log("TIME REVIEW: same-minute interpretation selected; not proof of bank rounding. Verify this specific transfer before --apply.");
+    }
     if (!args.apply) {
       console.log("Verify the actual VPBank receipt, recipient, amount and beneficiary account. Do not pay again.");
       if (!preview.eligible) process.exitCode = 2;

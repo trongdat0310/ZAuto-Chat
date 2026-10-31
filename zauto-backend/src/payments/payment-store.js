@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { createPaymentReconciliation } from "./payment-reconciliation.js";
+import { assessPaymentTime } from "./payment-time.js";
 import { paymentError, sha256, isOrderId, sameBank, validateTransaction,
   extractOrderCode, transactionTime, transactionFingerprint } from "./payment-security.js";
 
@@ -66,7 +67,7 @@ export function createPaymentOperations({ read, change, planById, validate, isAc
       return read().paymentOrders?.[id] || null;
     },
     confirmPayment({ transaction: tx, accountNumber, gateway = "VPBank", subAccount = "", rawBody,
-      userExists = () => true, now = clock() }) {
+      userExists = () => true, now = clock(), reviewTime }) {
       assertNow(now); validateTransaction(tx);
       if (typeof accountNumber !== "string" || !/^\d{6,30}$/.test(accountNumber) || gateway !== "VPBank") throw paymentError("INVALID_PAYMENT_CONFIG", "Sai cau hinh nhan tien.", 503);
       const bankTime = transactionTime(tx.transactionDate);
@@ -112,8 +113,9 @@ export function createPaymentOperations({ read, change, planById, validate, isAc
         if (order.version !== 2 || order.accountNumber !== accountNumber ||
             order.gateway !== gateway || order.subAccount !== subAccount) return reject("ORDER_CONFIG_CHANGED");
         if (tx.transferAmount !== order.amount) return reject("AMOUNT_MISMATCH");
-        if (bankTime < Math.floor(Date.parse(order.createdAt) / 1000) * 1000 ||
-            bankTime > Date.parse(order.expiresAt) || bankTime > +now + 300000) return reject("TRANSFER_OUTSIDE_WINDOW");
+        // reviewTime is supplied only by the local reconciliation simulation.
+        // HTTP handlers never copy this option from request data.
+        if (!assessPaymentTime(tx, order, now, reviewTime).allowed) return reject("TRANSFER_OUTSIDE_WINDOW");
         if (!userExists(order.userId)) return reject("ACCOUNT_NOT_FOUND");
         const plan = planById(order.planId);
         if (!plan) return reject("PLAN_UNAVAILABLE");

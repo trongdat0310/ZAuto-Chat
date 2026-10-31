@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { assessPaymentTime } from "./payment-time.js";
 import { paymentError, sha256, extractOrderCode, validateTransaction,
   transactionFingerprint, sameBank } from "./payment-security.js";
 
@@ -7,10 +8,11 @@ import { paymentError, sha256, extractOrderCode, validateTransaction,
 // All business checks run through the same confirmation code as a fresh webhook.
 export function createPaymentReconciliation({ read, change, simulate, validate, clock }) {
   function prepare(data, { transactionId, expectedOrderId, accountNumber,
-    gateway = "VPBank", subAccount = "", userExists, now = clock() }) {
+    gateway = "VPBank", subAccount = "", userExists, now = clock(), allowVpbankMinuteTime = false }) {
     if (typeof transactionId !== "string" || !/^[1-9]\d{0,15}$/.test(transactionId) ||
         !Number.isSafeInteger(Number(transactionId)) || !(now instanceof Date) ||
-        !Number.isFinite(+now) || typeof userExists !== "function") {
+        !Number.isFinite(+now) || typeof userExists !== "function" ||
+        typeof allowVpbankMinuteTime !== "boolean") {
       throw paymentError("INVALID_RECONCILIATION_INPUT");
     }
     const key = "sepay:" + transactionId;
@@ -50,6 +52,8 @@ export function createPaymentReconciliation({ read, change, simulate, validate, 
       transactionDate: tx.transactionDate, orderCreatedAt: order?.createdAt,
       orderExpiresAt: order?.expiresAt, originalReason: receipt.reason });
     if (!order) return blocked("ORDER_NOT_FOUND");
+    const reviewTime = { allowVpbankMinuteTime, receivedAt: receipt.receivedAt };
+    summary.timeCheck = assessPaymentTime(tx, order, now, reviewTime);
     if (expectedOrderId !== undefined && expectedOrderId !== code) return blocked("EXPECTED_ORDER_MISMATCH");
     if (receipt.orderId && receipt.orderId !== code) return blocked("RECEIPT_ORDER_CONFLICT");
     if (order.status !== "pending" || order.transactionId || order.entitlementId) return blocked("ORDER_ALREADY_PROCESSED");
@@ -73,14 +77,14 @@ export function createPaymentReconciliation({ read, change, simulate, validate, 
     delete candidate.paymentTransactions[key];
     delete candidate.paymentReferences[refKey];
     const result = simulate(candidate, { transaction: tx, accountNumber, gateway, subAccount,
-      rawBody: receipt.rawBody, userExists, now });
+      rawBody: receipt.rawBody, userExists, now, reviewTime });
     if (result.status !== "paid") return blocked(result.reason || "PAYMENT_CHECK_FAILED");
     const changedOrder = candidate.paymentOrders[code];
     const dayVN = new Date(+now + 7 * 3600000).toISOString().slice(0, 10);
     // Bind approval to the entire read snapshot and receiver configuration.
     // Any concurrent store change requires a fresh preview, not an unsafe override.
-    const approval = sha256(JSON.stringify(["payment-review-v1", transactionId,
-      accountNumber, gateway, subAccount, dayVN, data]));
+    const approval = sha256(JSON.stringify(["payment-review-v2", transactionId,
+      accountNumber, gateway, subAccount, dayVN, allowVpbankMinuteTime, data]));
     return { candidate, key, receipt, summary: { ...summary, eligible: true, reason: null,
       action: result.action, entitlementEndsAt: changedOrder.entitlementEndsAt, approval } };
   }
@@ -108,7 +112,7 @@ export function createPaymentReconciliation({ read, change, simulate, validate, 
         if (approval !== summary.approval) throw paymentError("REVIEW_CHANGED", "Data changed. Run a fresh preview.", 409);
         if (bankReference.trim() !== summary.bankReference) throw paymentError("BANK_REFERENCE_MISMATCH", "Bank reference does not match the stored receipt.", 409);
         const at = (options.now || clock()).toISOString();
-        const audit = { actorId, at, note: note.trim(), approval,
+        const audit = { actorId, at, note: note.trim(), approval, timeCheck: summary.timeCheck,
           previousStatus: receipt.status, previousReason: receipt.reason,
           previousOrderId: receipt.orderId || null, bankVerified: true, notPreviouslyCredited: true };
         const paid = candidate.paymentTransactions[key];
@@ -117,7 +121,7 @@ export function createPaymentReconciliation({ read, change, simulate, validate, 
           payload: structuredClone(receipt.payload), reconciliation: audit };
         candidate.logs.push({ id: crypto.randomUUID(), action: "payment_review_reconciled", actorId,
           userId: summary.userId, orderId: summary.orderId, transactionId: summary.transactionId,
-          at, note: audit.note, previousReason: receipt.reason, approval });
+          at, note: audit.note, previousReason: receipt.reason, approval, timeCheck: summary.timeCheck });
         Object.assign(data, candidate);
         return { status: "paid", duplicate: false, orderId: summary.orderId, userId: summary.userId,
           action: summary.action, entitlementEndsAt: summary.entitlementEndsAt };
