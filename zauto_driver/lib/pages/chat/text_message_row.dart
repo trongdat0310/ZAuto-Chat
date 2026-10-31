@@ -16,6 +16,7 @@ class TextMessageRow extends StatelessWidget {
   final Widget bubble;
 
   final VoidCallback onReply;
+  final VoidCallback? onTap;
 
   final VoidCallback onLongPress;
 
@@ -28,6 +29,7 @@ class TextMessageRow extends StatelessWidget {
     required this.senderAvatar,
     required this.bubble,
     required this.onReply,
+    this.onTap,
     required this.onLongPress,
   });
 
@@ -74,7 +76,11 @@ class TextMessageRow extends StatelessWidget {
 
       onLongPress: onLongPress,
 
-      child: messageRow,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: onTap,
+        child: messageRow,
+      ),
     );
   }
 }

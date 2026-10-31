@@ -52,7 +52,7 @@ class PhotoMessageBubble extends StatelessWidget {
       return _buildSinglePhoto(album.first);
     }
 
-    return _buildAlbum();
+    return _buildAlbum(context);
   }
 
   // ========================================
@@ -128,6 +128,10 @@ class PhotoMessageBubble extends StatelessWidget {
               fallback: const Center(
                 child: Icon(Icons.broken_image_outlined, size: 32),
               ),
+
+              cacheWidth: (displayWidth * 2.5).round(),
+
+              cacheHeight: (displayHeight * 2.5).round(),
             ),
           ),
         ),
@@ -140,6 +144,7 @@ class PhotoMessageBubble extends StatelessWidget {
   // ========================================
 
   Widget _buildAlbumPhotoTile(
+    BuildContext context,
     Map<String, dynamic> message, {
     required double width,
     required double height,
@@ -183,13 +188,26 @@ class PhotoMessageBubble extends StatelessWidget {
               fit: StackFit.expand,
 
               children: [
-                _RetryNetworkImage(
-                  url: photoUrl,
+                ColoredBox(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
 
-                  fit: BoxFit.cover,
+                  child: _RetryNetworkImage(
+                    url: photoUrl,
 
-                  fallback: const Center(
-                    child: Icon(Icons.broken_image_outlined),
+                    // Giu dung ti le bitmap.
+                    // cover chi crop phan du, KHONG keo meo anh.
+                    fit: BoxFit.cover,
+
+                    fallback: const Center(
+                      child: Icon(Icons.broken_image_outlined),
+                    ),
+
+                    // Chi gioi han mot chieu decode de codec
+                    // tu giu aspect ratio goc cua bitmap.
+                    // Neu truyen ca width + height theo tile,
+                    // mot so codec co the resize bitmap thanh dung
+                    // kich thuoc tile va lam anh bi keo meo.
+                    cacheWidth: (width * 2.5).round(),
                   ),
                 ),
 
@@ -223,7 +241,7 @@ class PhotoMessageBubble extends StatelessWidget {
   // ALBUM
   // ========================================
 
-  Widget _buildAlbum() {
+  Widget _buildAlbum(BuildContext context) {
     const width = 300.0;
 
     const gap = 4.0;
@@ -239,11 +257,11 @@ class PhotoMessageBubble extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
 
         children: [
-          _buildAlbumPhotoTile(album[0], width: itemWidth, height: 190),
+          _buildAlbumPhotoTile(context, album[0], width: itemWidth, height: 190),
 
           const SizedBox(width: gap),
 
-          _buildAlbumPhotoTile(album[1], width: itemWidth, height: 190),
+          _buildAlbumPhotoTile(context, album[1], width: itemWidth, height: 190),
         ],
       );
     }
@@ -264,17 +282,17 @@ class PhotoMessageBubble extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
 
         children: [
-          _buildAlbumPhotoTile(album[0], width: bigWidth, height: 224),
+          _buildAlbumPhotoTile(context, album[0], width: bigWidth, height: 224),
 
           const SizedBox(width: gap),
 
           Column(
             children: [
-              _buildAlbumPhotoTile(album[1], width: smallWidth, height: 110),
+              _buildAlbumPhotoTile(context, album[1], width: smallWidth, height: 110),
 
               const SizedBox(height: gap),
 
-              _buildAlbumPhotoTile(album[2], width: smallWidth, height: 110),
+              _buildAlbumPhotoTile(context, album[2], width: smallWidth, height: 110),
             ],
           ),
         ],
@@ -284,20 +302,112 @@ class PhotoMessageBubble extends StatelessWidget {
     // ========================================
     // 4+ PHOTOS
     //
-    // [          PHOTO 1          ]
+    // HIEN TOI DA 5 ANH.
     //
-    // [ PHOTO2 ][ PHOTO3 ][ PHOTO4 ]
+    // 4 anh:
+    // [ 1 ][ 2 ]
+    // [ 3 ][ 4 ]
+    //
+    // 5+ anh:
+    // [    1    ][    2    ]
+    // [ 3 ][ 4 ][ 5 / +N ]
+    //
+    // Anh luon giu dung ti le bitmap.
+    // BoxFit.cover chi crop phan du.
     // ========================================
 
-    final smallWidth = (width - gap * 2) / 3;
+    if (album.length == 4) {
+      final itemWidth = (width - gap) / 2;
 
-    final extra = album.length > 4 ? album.length - 4 : 0;
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+
+            children: [
+              _buildAlbumPhotoTile(
+                context,
+                album[0],
+                width: itemWidth,
+                height: 170,
+              ),
+
+              const SizedBox(width: gap),
+
+              _buildAlbumPhotoTile(
+                context,
+                album[1],
+                width: itemWidth,
+                height: 170,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: gap),
+
+          Row(
+            mainAxisSize: MainAxisSize.min,
+
+            children: [
+              _buildAlbumPhotoTile(
+                context,
+                album[2],
+                width: itemWidth,
+                height: 170,
+              ),
+
+              const SizedBox(width: gap),
+
+              _buildAlbumPhotoTile(
+                context,
+                album[3],
+                width: itemWidth,
+                height: 170,
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+
+    final topWidth = (width - gap) / 2;
+
+    final bottomWidth = (width - gap * 2) / 3;
+
+    final extra =
+        album.length > 5
+            ? album.length - 5
+            : 0;
+
 
     return Column(
       mainAxisSize: MainAxisSize.min,
 
       children: [
-        _buildAlbumPhotoTile(album[0], width: width, height: 225),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+
+          children: [
+            _buildAlbumPhotoTile(
+              context,
+              album[0],
+              width: topWidth,
+              height: 170,
+            ),
+
+            const SizedBox(width: gap),
+
+            _buildAlbumPhotoTile(
+              context,
+              album[1],
+              width: topWidth,
+              height: 170,
+            ),
+          ],
+        ),
 
         const SizedBox(height: gap),
 
@@ -305,21 +415,29 @@ class PhotoMessageBubble extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
 
           children: [
-            _buildAlbumPhotoTile(album[1], width: smallWidth, height: 105),
-
-            const SizedBox(width: gap),
-
-            _buildAlbumPhotoTile(album[2], width: smallWidth, height: 105),
+            _buildAlbumPhotoTile(
+              context,
+              album[2],
+              width: bottomWidth,
+              height: 110,
+            ),
 
             const SizedBox(width: gap),
 
             _buildAlbumPhotoTile(
+              context,
               album[3],
+              width: bottomWidth,
+              height: 110,
+            ),
 
-              width: smallWidth,
+            const SizedBox(width: gap),
 
-              height: 105,
-
+            _buildAlbumPhotoTile(
+              context,
+              album[4],
+              width: bottomWidth,
+              height: 110,
               extraCount: extra,
             ),
           ],
@@ -347,10 +465,16 @@ class _RetryNetworkImage extends StatefulWidget {
 
   final Widget fallback;
 
+  final int? cacheWidth;
+
+  final int? cacheHeight;
+
   const _RetryNetworkImage({
     required this.url,
     required this.fit,
     required this.fallback,
+    this.cacheWidth,
+    this.cacheHeight,
   });
 
   @override
@@ -422,6 +546,10 @@ class _RetryNetworkImageState extends State<_RetryNetworkImage> {
       key: ValueKey('${widget.url}-$_reloadToken'),
 
       fit: widget.fit,
+
+      cacheWidth: widget.cacheWidth,
+
+      cacheHeight: widget.cacheHeight,
 
       errorBuilder: (context, error, stackTrace) {
         _scheduleRetry();

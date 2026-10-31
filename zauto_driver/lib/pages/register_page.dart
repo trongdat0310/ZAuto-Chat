@@ -15,6 +15,8 @@ class _RegisterPageState extends State<RegisterPage> {
   final nameController = TextEditingController();
 
   final phoneController = TextEditingController();
+  final emailController = TextEditingController();
+  String? emailError;
 
   final passwordController = TextEditingController();
 
@@ -68,6 +70,7 @@ class _RegisterPageState extends State<RegisterPage> {
     final name = nameController.text.trim();
 
     final phone = phoneController.text.trim();
+    final email = emailController.text.trim();
 
     final password = passwordController.text;
 
@@ -76,6 +79,7 @@ class _RegisterPageState extends State<RegisterPage> {
     setState(() {
       nameError = null;
       phoneError = null;
+      emailError = null;
       passwordError = null;
       confirmPasswordError = null;
       generalError = null;
@@ -104,6 +108,11 @@ class _RegisterPageState extends State<RegisterPage> {
     } else if (!RegExp(r'^[0-9]{9,15}$').hasMatch(phone)) {
       phoneError = 'Số điện thoại không hợp lệ';
 
+      valid = false;
+    }
+
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+      emailError = 'Vui lòng nhập email hợp lệ';
       valid = false;
     }
 
@@ -148,7 +157,7 @@ class _RegisterPageState extends State<RegisterPage> {
     });
 
     try {
-      await auth.register(name: name, phone: phone, password: password);
+      await auth.register(name: name, phone: phone, email: email, password: password);
 
       if (!mounted) {
         return;
@@ -176,6 +185,11 @@ class _RegisterPageState extends State<RegisterPage> {
             lower.contains('da ton tai')) {
           phoneError = 'Số điện thoại này đã được đăng ký';
 
+          return;
+        }
+
+        if (lower.contains('email')) {
+          emailError = message;
           return;
         }
 
@@ -227,6 +241,7 @@ class _RegisterPageState extends State<RegisterPage> {
   void dispose() {
     nameController.dispose();
     phoneController.dispose();
+    emailController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
 
@@ -321,6 +336,19 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
             ),
 
+            const SizedBox(height: 16),
+
+            TextFormField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              decoration: InputDecoration(
+                labelText: 'Email (bắt buộc)',
+                prefixIcon: const Icon(Icons.email_outlined),
+                border: const OutlineInputBorder(),
+                errorText: emailError,
+              ),
+            ),
             const SizedBox(height: 16),
 
             TextFormField(

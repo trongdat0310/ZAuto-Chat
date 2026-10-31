@@ -43,6 +43,10 @@ class StickerMessageBubble extends StatelessWidget {
 
         fit: BoxFit.contain,
 
+        cacheWidth: 390,
+
+        cacheHeight: 390,
+
         gaplessPlayback: true,
 
         // ========================================

@@ -44,7 +44,13 @@ class ChatSenderAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: 17,
 
-      backgroundImage: hasAvatar ? NetworkImage(safeAvatar) : null,
+      backgroundImage: hasAvatar
+          ? ResizeImage.resizeIfNeeded(
+              96,
+              96,
+              NetworkImage(safeAvatar),
+            )
+          : null,
 
       child: hasAvatar ? null : Text(_initials()),
     );

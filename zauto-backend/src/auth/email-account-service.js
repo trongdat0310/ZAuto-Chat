@@ -1,0 +1,135 @@
+import bcrypt from "bcryptjs";
+import crypto from "node:crypto";
+import { fileURLToPath } from "node:url";
+import nodemailer from "nodemailer";
+import { findUserByEmail, findUserById, updateUser } from "../users/user-store.js";
+
+const emailValid = value => typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
+const normalize = value => String(value ?? "").trim().toLowerCase();
+const error = (code, message, status = 400) => Object.assign(new Error(message), { code, status });
+const attempts = new Map();
+
+function mailer() {
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM } = process.env;
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASSWORD || !SMTP_FROM) throw error("MAIL_NOT_CONFIGURED", "SMTP chua duoc cau hinh.", 503);
+  return nodemailer.createTransport({
+    host: SMTP_HOST, port: Number(SMTP_PORT || 587),
+    secure: Number(SMTP_PORT || 587) === 465,
+    auth: { user: SMTP_USER, pass: SMTP_PASSWORD },
+  });
+}
+
+export async function requestPasswordRecovery(value) {
+  const email = normalize(value);
+  if (!emailValid(email)) return;
+  const now = Date.now();
+  const previous = attempts.get(email) || 0;
+  if (now - previous < 5 * 60_000) return;
+  if (attempts.size > 10000) {
+    for (const [key, time] of attempts) if (now - time > 60 * 60_000) attempts.delete(key);
+  }
+  const user = findUserByEmail(email);
+  if (!user) return;
+  // Generate a high-entropy temporary password, never log it.
+  const newPassword = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  const userName = String(user.name ?? "").trim() || "bạn";
+  const subject = "[ZAutoChat] Thông báo cấp lại mật khẩu tài khoản";
+  const text = [
+    "ZAUTOCHAT | THÔNG BÁO TÀI KHOẢN",
+    "",
+    `Xin chào ${userName},`,
+    "",
+    "Chúng tôi đã nhận được yêu cầu khôi phục mật khẩu cho tài khoản ZAutoChat được liên kết với địa chỉ email này.",
+    "",
+    "Hệ thống đã xử lý yêu cầu và cấp mật khẩu mới cho tài khoản của bạn.",
+    "",
+    "THÔNG TIN TÀI KHOẢN",
+    `Mật khẩu mới: ${newPassword}`,
+    "",
+    "Bạn có thể sử dụng thông tin trên để đăng nhập vào ứng dụng ZAutoChat. Hệ thống sẽ yêu cầu bạn đổi mật khẩu ngay sau khi đăng nhập.",
+    "",
+    "LƯU Ý BẢO MẬT",
+    "Để đảm bảo an toàn cho tài khoản, chúng tôi khuyến nghị bạn:",
+    "- Đăng nhập và thay đổi mật khẩu ngay sau khi nhận được email này.",
+    "- Không chia sẻ mật khẩu hoặc thông tin đăng nhập với bất kỳ ai.",
+    "- Không sử dụng lại mật khẩu đã từng dùng cho các tài khoản khác.",
+    "",
+    "Bạn không yêu cầu đặt lại mật khẩu?",
+    "Nếu bạn không thực hiện yêu cầu này, vui lòng liên hệ với bộ phận hỗ trợ ZAutoChat để được kiểm tra và hỗ trợ bảo vệ tài khoản.",
+    "",
+    "Trân trọng,",
+    "Đội ngũ ZAutoChat",
+  ].join("\n");
+  const escapeHtml = value => String(value).replace(/[&<>"\u0027]/g, ch => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", "\u0022": "&quot;", "\u0027": "&#39;",
+  })[ch]);
+  const html = `<!doctype html><html lang="vi"><head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f4f6fa;padding:24px;color:#202b3c">
+<div style="max-width:640px;margin:auto;background:white;padding:32px;border-radius:12px;line-height:1.7">
+<h2 style="color:#17345d">ZAUTOCHAT | THÔNG BÁO TÀI KHOẢN</h2>
+<p>Xin chào <strong>${escapeHtml(userName)}</strong>,</p>
+<p>Chúng tôi đã nhận được yêu cầu khôi phục mật khẩu cho tài khoản ZAutoChat được liên kết với địa chỉ email này.</p>
+<p>Hệ thống đã xử lý yêu cầu và cấp mật khẩu mới cho tài khoản của bạn.</p>
+<h3>THÔNG TIN TÀI KHOẢN</h3>
+<p><strong>Mật khẩu mới: ${escapeHtml(newPassword)}</strong></p>
+<p>Bạn có thể sử dụng thông tin trên để đăng nhập vào ứng dụng ZAutoChat. <strong>Bạn bắt buộc phải đổi mật khẩu ngay sau khi đăng nhập.</strong></p>
+<h3>LƯU Ý BẢO MẬT</h3>
+<p>Để đảm bảo an toàn cho tài khoản, chúng tôi khuyến nghị bạn:</p>
+<ul><li>Đăng nhập và thay đổi mật khẩu ngay sau khi nhận được email này.</li>
+<li>Không chia sẻ mật khẩu hoặc thông tin đăng nhập với bất kỳ ai.</li>
+<li>Không sử dụng lại mật khẩu đã từng dùng cho các tài khoản khác.</li></ul>
+<p><strong>Bạn không yêu cầu đặt lại mật khẩu?</strong></p>
+<p>Nếu bạn không thực hiện yêu cầu này, vui lòng liên hệ với bộ phận hỗ trợ ZAutoChat để được kiểm tra và hỗ trợ bảo vệ tài khoản.</p>
+<hr style="border:0;border-top:1px solid #e3e8ef;margin:28px 0 18px">
+<p>Trân trọng,</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="font-family:Arial,sans-serif;border-collapse:collapse;width:100%;max-width:600px;color:#31435e"><tr>
+<td style="width:180px;text-align:center;vertical-align:middle;padding:8px 18px 8px 0">
+<img src="cid:zautochat-support-logo" width="106" height="106" alt="ZAutoChat" style="display:block;margin:auto;width:106px;height:106px;border:0;border-radius:20px;object-fit:contain">
+<div style="font-size:22px;font-weight:bold;color:#0865d7;margin-top:10px">ZAutoChat</div>
+<div style="font-size:12px;letter-spacing:1px;color:#00a4d8">HỖ TRỢ KHÁCH HÀNG</div>
+</td><td style="border-left:4px solid #14c5ed;padding:8px 0 8px 26px;vertical-align:middle">
+<div style="font-size:26px;font-weight:bold;color:#153c82">ZAutoChat Support</div>
+<div style="font-size:14px;font-weight:bold;letter-spacing:2px;color:#00a5d5">BỘ PHẬN HỖ TRỢ KHÁCH HÀNG</div>
+<div style="width:80px;border-top:2px solid #1876e9;margin:15px 0"></div>
+<div><strong style="color:#0766cf">Email</strong>&nbsp;&nbsp;&nbsp;&nbsp; hotro.zchatauto@gmail.com</div>
+<div><strong style="color:#0766cf">Dịch vụ</strong>&nbsp; Hỗ trợ tài khoản ZAutoChat</div>
+<div><strong style="color:#0766cf">Hotline</strong>&nbsp;&nbsp; 0945.785.631</div>
+<div style="font-size:13px;color:#70819a;margin-top:14px">Kết nối nhanh chóng · Hỗ trợ tận tâm</div>
+</td></tr></table>
+<p style="font-size:12px;color:#7a8ba6;margin:24px 0 0">Đây là email được gửi tự động từ hệ thống ZAutoChat. Vui lòng không trả lời trực tiếp email này.</p>
+<p style="font-size:12px;color:#7a8ba6;margin:4px 0 0">© 2026 ZAutoChat. All rights reserved.</p>
+</div></body></html>`;
+  await mailer().sendMail({
+    from: process.env.SMTP_FROM,
+    to: email,
+    subject,
+    text,
+    html,
+    attachments: [{
+      filename: "ic_launcher.png",
+      path: fileURLToPath(new URL("../../assets/images/ic_launcher.png", import.meta.url)),
+      cid: "zautochat-support-logo",
+      contentDisposition: "inline",
+    }],
+  });
+  if (!updateUser(user.id, { passwordHash, mustChangePassword: true })) {
+    throw error("USER_NOT_FOUND", "Tai khoan khong ton tai.", 404);
+  }
+  attempts.set(email, Date.now());
+}
+
+export async function changeAccountEmail(userId, value, password) {
+  const email = normalize(value);
+  if (!emailValid(email)) throw error("INVALID_EMAIL", "Email khong hop le.");
+  const user = findUserById(userId);
+  if (!user) throw error("USER_NOT_FOUND", "Tai khoan khong ton tai.", 404);
+  if (!password || !await bcrypt.compare(String(password), user.passwordHash)) {
+    throw error("WRONG_PASSWORD", "Mat khau khong dung.", 403);
+  }
+  const existing = findUserByEmail(email);
+  if (existing && existing.id !== userId) throw error("EMAIL_EXISTS", "Email da duoc su dung.", 409);
+  const updated = updateUser(userId, { email });
+  if (!updated) throw error("USER_NOT_FOUND", "Tai khoan khong ton tai.", 404);
+  return updated;
+}

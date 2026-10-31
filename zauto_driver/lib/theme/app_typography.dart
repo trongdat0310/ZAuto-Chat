@@ -107,29 +107,29 @@ class AppTypography {
         fontFamily: fontFamily,
       ),
       headlineLarge:
-          pageTitle,
+          base.headlineLarge?.merge(pageTitle),
       headlineMedium:
-          sheetTitle,
+          base.headlineMedium?.merge(sheetTitle),
       headlineSmall:
-          itemTitle,
+          base.headlineSmall?.merge(itemTitle),
       titleLarge:
-          pageTitle,
+          base.titleLarge?.merge(pageTitle),
       titleMedium:
-          itemTitle,
+          base.titleMedium?.merge(itemTitle),
       titleSmall:
-          sectionTitle,
+          base.titleSmall?.merge(sectionTitle),
       bodyLarge:
-          body,
+          base.bodyLarge?.merge(body),
       bodyMedium:
-          body,
+          base.bodyMedium?.merge(body),
       bodySmall:
-          caption,
+          base.bodySmall?.merge(caption),
       labelLarge:
-          button,
+          base.labelLarge?.merge(button),
       labelMedium:
-          tab,
+          base.labelMedium?.merge(tab),
       labelSmall:
-          caption,
+          base.labelSmall?.merge(caption),
     );
   }
 }

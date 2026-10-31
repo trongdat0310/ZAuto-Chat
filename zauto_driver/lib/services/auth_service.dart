@@ -31,6 +31,7 @@ class AuthService {
   Future<Map<String, dynamic>> register({
     required String name,
     required String phone,
+    required String email,
     required String password,
   }) async {
     final response = await http.post(
@@ -43,11 +44,18 @@ class AuthService {
       body: jsonEncode({
         'name': name,
         'phone': phone,
+        'email': email,
         'password': password,
       }),
     );
 
-    return _handleAuthResponse(response);
+    final user = await _handleAuthResponse(response);
+    final returnedEmail = user['email']?.toString().trim().toLowerCase();
+    if (returnedEmail != email.trim().toLowerCase()) {
+      await clearLocalSession();
+      throw Exception('Máy chủ chưa lưu email đăng ký. Vui lòng cập nhật backend rồi đăng ký lại.');
+    }
+    return user;
   }
 
 
@@ -75,6 +83,60 @@ class AuthService {
     return _handleAuthResponse(response);
   }
 
+
+  Future<void> changeRecoveredPassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final response = await http.post(
+      Uri.parse('${AppConfig.backendUrl}/api/me/change-password'),
+      headers: await authHeaders(),
+      body: jsonEncode({
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      }),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_apiError(response, 'Không thể đổi mật khẩu'));
+    }
+  }
+
+  Future<void> forgotPassword(String email) async {
+    final response = await http.post(
+      Uri.parse('${AppConfig.backendUrl}/api/auth/forgot-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email.trim()}),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_apiError(response, 'Không thể gửi email. Vui lòng thử lại.'));
+    }
+  }
+
+  Future<void> updateEmail(String email, String password) async {
+    final response = await http.patch(
+      Uri.parse('${AppConfig.backendUrl}/api/me/email'),
+      headers: await authHeaders(),
+      body: jsonEncode({'email': email.trim(), 'password': password}),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(_apiError(response, 'Không thể đổi email'));
+    }
+  }
+
+  String _apiError(http.Response response, String fallback) {
+    try {
+      final data = jsonDecode(response.body);
+      if (data is Map && data['error'] is String) {
+        return data['error'] as String;
+      }
+    } catch (_) {
+      // Backend may return a non-JSON error response.
+    }
+    if (response.statusCode == 404) {
+      return 'Backend chưa hỗ trợ chức năng này. Hãy cập nhật và khởi động lại backend.';
+    }
+    return '$fallback (HTTP ${response.statusCode})';
+  }
 
   // ========================================
   // HANDLE LOGIN / REGISTER RESPONSE

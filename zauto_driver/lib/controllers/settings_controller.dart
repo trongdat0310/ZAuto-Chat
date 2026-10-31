@@ -191,6 +191,16 @@ class SettingsController
     await save();
   }
 
+  Future<void> updateQuickTapAccept(bool value) async {
+    _settings = _settings.copyWith(quickTapAccept: value);
+    notifyListeners();
+    await save();
+  }
+  Future<void> updateSwipeToReply(bool value) async {
+    _settings = _settings.copyWith(swipeToReply: value);
+    notifyListeners();
+    await save();
+  }
   Future<void> updatePlayTripSound(
       bool value,
       ) async {

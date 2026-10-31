@@ -8,6 +8,7 @@ import {
 
 import {
   findUserConversationMessage,
+  getUserConversationList,
 } from "./conversation-store.js";
 
 // ========================================
@@ -89,7 +90,8 @@ undoUserConversationMessage(
   {
     msgId = null,
     cliMsgId = null,
-  } = {}
+  } = {},
+  { connect = connectUserZalo } = {}
 ) {
 
   const safeUserId =
@@ -349,8 +351,14 @@ undoUserConversationMessage(
   // LAY API ZALO CUA USER
   // ========================================
 
+  const conversation = getUserConversationList(safeUserId)
+    .find(item => String(item.groupId) === safeGroupId);
+  const threadType = conversation?.type === "user"
+    ? ThreadType.User
+    : ThreadType.Group;
+
   const api =
-    await connectUserZalo(
+    await connect(
       safeUserId
     );
 
@@ -367,7 +375,7 @@ undoUserConversationMessage(
           targetCliMsgId,
 
         type:
-          "Group",
+          conversation?.type === "user" ? "User" : "Group",
       }
     );
 
@@ -393,7 +401,7 @@ undoUserConversationMessage(
 
       safeGroupId,
 
-      ThreadType.Group
+      threadType
     );
 
 

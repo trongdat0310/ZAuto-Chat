@@ -1,4 +1,7 @@
 import express from "express";
+import { paymentRouter, sepayWebhook } from "./payments/payment-routes.js";
+import { subscriptionRouter } from "./subscriptions/subscription-routes.js";
+import { bootstrapAdmin } from "./auth/admin-bootstrap.js";
 import cors from "cors";
 import dotenv from "dotenv";
 import multer from "multer";
@@ -52,6 +55,7 @@ import {
   loginUser,
   toPublicUser,
 } from "./auth/auth-service.js";
+import { requestPasswordRecovery, changeAccountEmail } from "./auth/email-account-service.js";
 
 import {
   requireAuth,
@@ -78,6 +82,7 @@ import {
 
 import {
   setUserGroupEnabled,
+  setUserGroupsEnabled,
 } from "./zalo/user-group-settings.js";
 
 import {
@@ -147,15 +152,17 @@ import {
 
 import {
   getUserConversationList,
+  syncConversationGroups,
   getUserConversationMessages,
   getUserConversationMessagesPage,
   findUserConversationMessage,
-  syncConversationGroups,
   getUserConversationMessageContext,
   markUserConversationRead,
   setUserConversationPinned,
   deleteUserConversation,
 } from "./conversations/conversation-store.js";
+
+import { refreshPrivateConversationAvatars } from "./conversations/private-conversation-avatar-service.js";
 
 import {
   getUserMessageSettings,
@@ -169,6 +176,10 @@ import {
 import {
   sendUserConversationMessage,
 } from "./conversations/conversation-send-service.js";
+
+import {
+  runConversationSendOnce,
+} from "./conversations/conversation-send-idempotency.js";
 
 import {
   undoUserConversationMessage,
@@ -221,7 +232,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
+app.post('/api/payments/sepay/webhook', express.raw({ type: 'application/json', limit: '64kb' }), sepayWebhook);
 app.use(express.json());
+app.use('/api/payments', paymentRouter);
+app.use("/api/subscriptions", subscriptionRouter);
 
 
 // ========================================
@@ -670,6 +684,7 @@ app.post(
       const {
         name,
         phone,
+        email,
         password,
       } = req.body;
 
@@ -678,6 +693,7 @@ app.post(
         await registerUser({
           name,
           phone,
+          email,
           password,
         });
 
@@ -692,8 +708,7 @@ app.post(
     } catch (error) {
 
       const status =
-        error.code ===
-        "PHONE_EXISTS"
+        ["PHONE_EXISTS", "EMAIL_EXISTS"].includes(error.code)
           ? 409
           : 400;
 
@@ -758,6 +773,35 @@ app.post(
   }
 );
 
+
+
+// Password recovery returns a uniform response to prevent account enumeration.
+app.post("/api/auth/forgot-password", async (req, res) => {
+  try {
+    await requestPasswordRecovery(req.body?.email);
+    return res.json({
+      success: true,
+      message: "Neu email da dang ky, mat khau moi se duoc gui den hop thu.",
+    });
+  } catch (error) {
+    console.error("[PASSWORD RECOVERY]", error?.code || error?.message);
+    return res.status(503).json({
+      success: false,
+      error: error?.code === "MAIL_NOT_CONFIGURED"
+        ? "May chu chua cau hinh gui email (SMTP)."
+        : "Khong the gui email luc nay. Vui long thu lai sau.",
+    });
+  }
+});
+
+app.patch("/api/me/email", requireAuth, async (req, res) => {
+  try {
+    const user = await changeAccountEmail(req.user.id, req.body?.email, req.body?.password);
+    res.json({ success: true, user: toPublicUser(user) });
+  } catch (error) {
+    res.status(error.status || 400).json({ success: false, error: error.message });
+  }
+});
 
 // ========================================
 // CURRENT USER
@@ -971,6 +1015,31 @@ app.get(
   }
 );
 
+// Toggle all current Zalo groups with one request and one settings write.
+// Keep enable-all compatible with the previous client.
+app.post(["/api/me/groups/toggle-all", "/api/me/groups/enable-all"], requireAuth, async (req, res) => {
+  try {
+    const enabled = req.body?.enabled ?? true;
+    if (typeof enabled !== "boolean") {
+      return res.status(400).json({ success: false, error: "enabled phải là true hoặc false." });
+    }
+    const groups = await getUserGroups(req.user.id);
+    const updates = setUserGroupsEnabled(req.user.id, groups.map(group => group.groupId), enabled);
+    for (const group of updates) {
+      broadcastUserEvent(req.user.id, "group_notification_toggled", group);
+    }
+    return res.json({
+      success: true,
+      groups: groups.map(group => ({ ...group, enabled })),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error?.message ?? "Không thể cập nhật thông báo cho tất cả nhóm.",
+    });
+  }
+});
+
 // ========================================
 // CURRENT USER GROUP TOGGLE
 // ========================================
@@ -1049,6 +1118,21 @@ app.post(
           groupId,
           enabled
         );
+
+
+      broadcastUserEvent(
+        userId,
+        "group_notification_toggled",
+        {
+          groupId,
+          enabled:
+            result.enabled,
+
+          groupName:
+            group.name ??
+            null,
+        }
+      );
 
 
       res.json({
@@ -1638,7 +1722,30 @@ app.get(
     const messages =
       getUserMessages(
         req.user.id,
-        requestedLimit
+        {
+          limit:
+            requestedLimit,
+
+          from:
+            req.query.from ??
+            null,
+
+          to:
+            req.query.to ??
+            null,
+
+          groupId:
+            req.query.groupId ??
+            null,
+
+          status:
+            req.query.status ??
+            null,
+
+          q:
+            req.query.q ??
+            null,
+        }
       );
 
 
@@ -2306,6 +2413,8 @@ app.get(
         phone:
           user.phone,
 
+        email: user.email ?? null,
+
         membership:
           user.membership,
 
@@ -2614,12 +2723,12 @@ app.get(
 
   requireAuth,
 
-  (req, res) => {
+  async (req, res) => {
 
     try {
 
       const conversations =
-        getUserConversationList(
+        await refreshPrivateConversationAvatars(
           req.user.id
         );
 
@@ -3326,6 +3435,35 @@ app.patch(
 // SEND / REPLY MESSAGE TO ZALO GROUP
 // ========================================
 
+// Private Zalo message to the original sender of a group message.
+app.post("/api/me/conversations/private/open", requireAuth, async (req, res) => {
+  const userId = String(req.body?.userId ?? "").trim();
+  const name = String(req.body?.name ?? "Người dùng Zalo").trim();
+  if (!userId) return res.status(400).json({ error: "Missing user ID" });
+  syncConversationGroups(req.user.id, [{
+    groupId: userId,
+    name,
+    type: "user",
+  }]);
+  return res.json({ success: true, groupId: userId });
+});
+
+app.post("/api/me/messages/private/send", requireAuth, async (req, res) => {
+  try {
+    const userId = String(req.body?.userId ?? "").trim();
+    const text = String(req.body?.text ?? "").trim();
+    if (!userId || !text || text.length > 2000) {
+      return res.status(400).json({ error: "Nguoi nhan hoac noi dung khong hop le." });
+    }
+    const api = await connectUserZalo(req.user.id);
+    const { ThreadType } = await import("zca-js");
+    await api.sendMessage(text, userId, ThreadType.User);
+    return res.json({ success: true, sent: true });
+  } catch (error) {
+    return res.status(500).json({ error: error.message ?? "Khong gui duoc tin nhan rieng." });
+  }
+});
+
 app.post(
   "/api/me/conversations/:groupId/messages/send",
 
@@ -3355,19 +3493,24 @@ app.post(
 
 
       const result =
-        await sendUserConversationMessage(
+        await runConversationSendOnce(
           req.user.id,
-          groupId,
-          text,
-          {
-            replyToMsgId:
-              replyTo?.msgId ??
-              null,
+          req.body?.clientRequestId,
+          () =>
+            sendUserConversationMessage(
+              req.user.id,
+              groupId,
+              text,
+              {
+                replyToMsgId:
+                  replyTo?.msgId ??
+                  null,
 
-            replyToCliMsgId:
-              replyTo?.cliMsgId ??
-              null,
-          }
+                replyToCliMsgId:
+                  replyTo?.cliMsgId ??
+                  null,
+              }
+            )
         );
 
 
@@ -3414,7 +3557,9 @@ app.post(
         error.code ===
           "MESSAGE_TOO_LONG" ||
         error.code ===
-          "INVALID_GROUP"
+          "INVALID_GROUP" ||
+        error.code ===
+          "INVALID_CLIENT_REQUEST_ID"
       ) {
 
         status =
@@ -3696,21 +3841,26 @@ app.post(
             // GUI QUA WORKER ZALO DANG CHAY
             // ========================================
 
-            await sendUserConversationPhoto(
+            await runConversationSendOnce(
               req.user.id,
+              req.body?.clientRequestId,
+              () =>
+                sendUserConversationPhoto(
+                  req.user.id,
 
-              req.params.groupId,
+                  req.params.groupId,
 
-              {
-                data:
-                  file.buffer,
+                  {
+                    data:
+                      file.buffer,
 
-                filename,
+                    filename,
 
-                width,
+                    width,
 
-                height,
-              }
+                    height,
+                  }
+                )
             );
 
 
@@ -3740,8 +3890,12 @@ app.post(
               error?.code ===
                 "WORKER_NOT_READY"
                 ? 503
-                : error?.code ===
-                    "INVALID_GROUP_ID"
+                : (
+                    error?.code ===
+                      "INVALID_GROUP_ID" ||
+                    error?.code ===
+                      "INVALID_CLIENT_REQUEST_ID"
+                  )
                   ? 400
                   : 500;
 
@@ -4030,14 +4184,19 @@ app.post(
             );
 
 
-            await sendUserConversationPhotos(
+            await runConversationSendOnce(
               req.user.id,
+              req.body?.clientRequestId,
+              () =>
+                sendUserConversationPhotos(
+                  req.user.id,
 
-              req.params.groupId,
+                  req.params.groupId,
 
-              {
-                photos,
-              }
+                  {
+                    photos,
+                  }
+                )
             );
 
 
@@ -4060,12 +4219,31 @@ app.post(
             );
 
 
+            const status =
+              error?.code ===
+                "WORKER_NOT_READY"
+                ? 503
+                : (
+                    error?.code ===
+                      "INVALID_GROUP_ID" ||
+                    error?.code ===
+                      "INVALID_CLIENT_REQUEST_ID" ||
+                    error?.code ===
+                      "NO_PHOTOS" ||
+                    error?.code ===
+                      "TOO_MANY_PHOTOS" ||
+                    error?.code ===
+                      "INVALID_PHOTO_DATA" ||
+                    error?.code ===
+                      "INVALID_PHOTO_DIMENSIONS"
+                  )
+                  ? 400
+                  : 500;
+
+
             return res
               .status(
-                error?.code ===
-                  "WORKER_NOT_READY"
-                  ? 503
-                  : 500
+                status
               )
               .json({
                 success:
@@ -4660,6 +4838,15 @@ async function startServer() {
   // Phai chi khoi dong watchdog/Zalo workers
   // sau khi bind port thanh cong.
   // ========================================
+
+  // Fail closed before exposing HTTP if the admin bootstrap is unsafe.
+  try {
+    await bootstrapAdmin();
+  } catch (error) {
+    console.error("[ADMIN BOOTSTRAP]", error.message);
+    process.exitCode = 1;
+    return;
+  }
 
   const httpServer =
     http.createServer(app);

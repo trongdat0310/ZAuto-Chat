@@ -20,6 +20,8 @@ class _GroupsPageState extends State<GroupsPage> {
 
   bool loading = true;
 
+  bool selectingAllGroups = false;
+
   String searchText = '';
 
   final Set<String> updatingGroups = {};
@@ -38,6 +40,9 @@ class _GroupsPageState extends State<GroupsPage> {
   }
 
   Future<void> loadGroups() async {
+    if (selectingAllGroups || updatingGroups.isNotEmpty) {
+      return;
+    }
     setState(() {
       loading = true;
     });
@@ -70,7 +75,7 @@ class _GroupsPageState extends State<GroupsPage> {
   ) async {
     final groupId = group['groupId'].toString();
 
-    if (updatingGroups.contains(groupId)) {
+    if (loading || selectingAllGroups || updatingGroups.contains(groupId)) {
       return;
     }
 
@@ -97,6 +102,37 @@ class _GroupsPageState extends State<GroupsPage> {
         setState(() {
           updatingGroups.remove(groupId);
         });
+      }
+    }
+  }
+
+  Future<void> changeAllGroupsStatus(bool enabled) async {
+    if (!mounted || loading || selectingAllGroups || updatingGroups.isNotEmpty) {
+      return;
+    }
+    setState(() => selectingAllGroups = true);
+    try {
+      final result = await backend.setAllGroupsEnabled(enabled);
+      if (!mounted) {
+        return;
+      }
+      setState(() => groups = result);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(enabled
+              ? 'Đã bật thông báo cho tất cả ${result.length} nhóm'
+              : 'Đã tắt thông báo cho tất cả ${result.length} nhóm'),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không thể cập nhật thông báo nhóm: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => selectingAllGroups = false);
       }
     }
   }
@@ -194,25 +230,6 @@ class _GroupsPageState extends State<GroupsPage> {
                     ),
                   ),
 
-                  const SizedBox(width: 10),
-
-                  // Nút filter giao diện.
-                  // Logic filter chi tiết sẽ làm sau.
-                  IconButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Bộ lọc danh sách nhóm sẽ được thêm sau',
-                          ),
-                        ),
-                      );
-                    },
-
-                    icon: const Icon(Icons.filter_alt, size: 30),
-
-                    tooltip: 'Lọc nhóm',
-                  ),
                 ],
               ),
 
@@ -239,6 +256,24 @@ class _GroupsPageState extends State<GroupsPage> {
 
                       style: AppTypography.itemTitle,
                     ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  if (selectingAllGroups)
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+
+                  Switch(
+                    value: groups.isNotEmpty && enabledCount == groups.length,
+                    onChanged: loading ||
+                            selectingAllGroups ||
+                            updatingGroups.isNotEmpty ||
+                            groups.isEmpty
+                        ? null
+                        : changeAllGroupsStatus,
                   ),
                 ],
               ),
@@ -385,9 +420,11 @@ class _GroupsPageState extends State<GroupsPage> {
                             : Switch(
                                 value: enabled,
 
-                                onChanged: (value) {
-                                  changeGroupStatus(group, value);
-                                },
+                                onChanged: selectingAllGroups || loading
+                                    ? null
+                                    : (value) {
+                                        changeGroupStatus(group, value);
+                                      },
                               ),
                       ),
 

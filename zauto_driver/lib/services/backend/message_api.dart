@@ -145,9 +145,24 @@ class MessageApi extends BackendApiBase {
     return Map<String, dynamic>.from(decoded);
   }
 
+  Future<void> openPrivateConversation({required String userId, required String name}) async {
+    await postJson(
+      Uri.parse('$baseUrl/api/me/conversations/private/open'),
+      body: {'userId': userId, 'name': name},
+    );
+  }
+
+  Future<void> sendPrivateMessage({required String userId, required String text}) async {
+    await postJson(
+      Uri.parse('$baseUrl/api/me/messages/private/send'),
+      body: {'userId': userId, 'text': text},
+    );
+  }
+
   Future<void> sendConversationMessage({
     required String groupId,
     required String text,
+    required String clientRequestId,
 
     String? replyToMsgId,
     String? replyToCliMsgId,
@@ -160,7 +175,10 @@ class MessageApi extends BackendApiBase {
 
     final encodedGroupId = Uri.encodeComponent(groupId);
 
-    final body = <String, dynamic>{'text': safeText};
+    final body = <String, dynamic>{
+      'text': safeText,
+      'clientRequestId': clientRequestId,
+    };
 
     // ========================================
     // REPLY

@@ -9,6 +9,7 @@ import {
 import {
   createUser,
   findUserByPhone,
+  findUserByEmail,
 } from "../users/user-store.js";
 
 import crypto from "node:crypto";
@@ -59,6 +60,9 @@ export function toPublicUser(
 
     phone:
       user.phone,
+
+    email: user.email ?? null,
+    mustChangePassword: user.mustChangePassword === true,
 
     membership:
       user.membership ??
@@ -111,6 +115,7 @@ function createToken(user) {
 export async function registerUser({
   name,
   phone,
+  email,
   password,
 }) {
   const cleanName =
@@ -120,6 +125,13 @@ export async function registerUser({
   const cleanPhone =
     normalizePhone(phone);
 
+  const cleanEmail = String(email ?? "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) || cleanEmail.length > 254) {
+    throw Object.assign(new Error("Email khong hop le."), { code: "INVALID_EMAIL" });
+  }
+  if (findUserByEmail(cleanEmail)) {
+    throw Object.assign(new Error("Email da duoc dang ky."), { code: "EMAIL_EXISTS" });
+  }
   const cleanPassword =
     String(password ?? "");
 
@@ -203,6 +215,8 @@ export async function registerUser({
       phone:
         cleanPhone,
 
+      email: cleanEmail,
+
       passwordHash,
     });
 
@@ -232,10 +246,9 @@ export async function loginUser({
     String(password ?? "");
 
 
-  const user =
-    findUserByPhone(
-      cleanPhone
-    );
+  const user = String(phone ?? "").includes("@")
+    ? findUserByEmail(phone)
+    : findUserByPhone(cleanPhone);
 
 
   if (!user) {

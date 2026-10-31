@@ -89,6 +89,37 @@ ThemeData _buildTheme(
 }
 
 
+class GlobalKeyboardDismissRegion extends StatelessWidget {
+  final Widget child;
+
+  const GlobalKeyboardDismissRegion({
+    super.key,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+
+      onTap: () {
+        final focus =
+            FocusManager.instance.primaryFocus;
+
+        if (
+          focus != null &&
+          focus.hasFocus
+        ) {
+          focus.unfocus();
+        }
+      },
+
+      child: child,
+    );
+  }
+}
+
+
 class ZautoDriverApp extends StatelessWidget {
   final SettingsController settingsController;
 
@@ -117,58 +148,7 @@ class ZautoDriverApp extends StatelessWidget {
           // ========================================
 
           builder: (context, child) {
-            return Listener(
-              behavior:
-                  HitTestBehavior.translucent,
-
-              onPointerDown: (event) {
-                final focus =
-                    FocusManager.instance.primaryFocus;
-
-                if (
-                  focus == null ||
-                  !focus.hasFocus
-                ) {
-                  return;
-                }
-
-
-                final focusContext =
-                    focus.context;
-
-                final renderObject =
-                    focusContext
-                        ?.findRenderObject();
-
-
-                if (
-                  renderObject is RenderBox &&
-                  renderObject.hasSize
-                ) {
-                  final localPosition =
-                      renderObject.globalToLocal(
-                    event.position,
-                  );
-
-
-                  final insideFocusedField =
-                      localPosition.dx >= 0 &&
-                      localPosition.dy >= 0 &&
-                      localPosition.dx <=
-                          renderObject.size.width &&
-                      localPosition.dy <=
-                          renderObject.size.height;
-
-
-                  if (insideFocusedField) {
-                    return;
-                  }
-                }
-
-
-                focus.unfocus();
-              },
-
+            return GlobalKeyboardDismissRegion(
               child:
                   child ??
                   const SizedBox.shrink(),

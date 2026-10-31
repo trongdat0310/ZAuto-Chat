@@ -20,6 +20,8 @@ class AppSettings {
 
   final String acceptReplyText;
 
+  final bool quickTapAccept;
+  final bool swipeToReply;
   final bool playTripSound;
 
   final bool readTripNotification;
@@ -47,6 +49,8 @@ class AppSettings {
     this.acceptReplyText =
     'ok',
 
+    this.quickTapAccept = false,
+    this.swipeToReply = true,
     this.playTripSound =
     true,
 
@@ -70,6 +74,8 @@ class AppSettings {
 
     String? acceptReplyText,
 
+    bool? quickTapAccept,
+    bool? swipeToReply,
     bool? playTripSound,
 
     bool? readTripNotification,
@@ -103,6 +109,8 @@ class AppSettings {
       acceptReplyText ??
           this.acceptReplyText,
 
+      quickTapAccept: quickTapAccept ?? this.quickTapAccept,
+      swipeToReply: swipeToReply ?? this.swipeToReply,
       playTripSound:
       playTripSound ??
           this.playTripSound,

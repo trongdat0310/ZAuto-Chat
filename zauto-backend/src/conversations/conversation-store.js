@@ -752,6 +752,8 @@ export function syncConversationGroups(
       {
         groupId,
 
+        type: group.type ?? old?.type ?? 'group',
+
         name:
           group.name ??
           old?.name ??
@@ -1889,69 +1891,6 @@ export function saveConversationMessage(
     {};
 
     // ========================================
-    // DEBUG VOICE PAYLOAD
-    // TAM THOI DE XAC DINH CAU TRUC AUDIO
-    // ========================================
-
-    const debugMsgType =
-      String(
-        data?.msgType ??
-        ""
-      )
-        .trim()
-        .toLowerCase();
-
-
-    if (
-      debugMsgType ===
-        "chat.voice" ||
-      debugMsgType ===
-        "chat.voice.msg" ||
-      debugMsgType ===
-        "chat.audio" ||
-      debugMsgType ===
-        "31"
-    ) {
-
-      console.log(
-        "\n========================================"
-      );
-
-      console.log(
-        "[VOICE DEBUG]"
-      );
-
-      console.log({
-        msgId:
-          data?.msgId ??
-          null,
-
-        cliMsgId:
-          data?.cliMsgId ??
-          null,
-
-        msgType:
-          data?.msgType ??
-          null,
-
-        content:
-          data?.content ??
-          null,
-
-        rawData:
-          data,
-      });
-
-      console.log(
-        "[VOICE DEBUG END]"
-      );
-
-      console.log(
-        "========================================\n"
-      );
-    }
-
-    // ========================================
     // BO QUA EVENT KHONG PHAI MESSAGE HIEN THI
     //
     // QUAN TRONG:
@@ -1963,28 +1902,6 @@ export function saveConversationMessage(
         data
       )
     ) {
-
-      console.log(
-        "[CONVERSATION] SKIP NON-DISPLAY EVENT:",
-        {
-          threadId:
-            message?.threadId ??
-            null,
-
-          msgType:
-            data?.msgType ??
-            null,
-
-          msgId:
-            data?.msgId ??
-            null,
-
-          cliMsgId:
-            data?.cliMsgId ??
-            null,
-        }
-      );
-
 
       return null;
     }
@@ -2271,49 +2188,44 @@ export function saveConversationMessage(
   };
 
 
+  const previousLast =
+    messages.length > 0
+      ? messages[
+          messages.length - 1
+        ]
+      : null;
+
+
   messages.push(
     record
   );
 
+
   // ========================================
-  // DEBUG VOICE RECORD DA LUU
+  // GIU THU TU CHRONOLOGICAL
+  //
+  // Realtime binh thuong:
+  // timestamp moi >= timestamp cuoi
+  // -> append O(1), KHONG sort lai ca history.
+  //
+  // History sync / event den tre:
+  // chi khi timestamp bi lui moi sort.
   // ========================================
 
   if (
-    record.msgType ===
-    "chat.voice"
+    previousLast &&
+    Number(
+      previousLast.timestamp
+    ) >
+      timestamp
   ) {
 
-    console.log(
-      "[VOICE SAVED]",
-      {
-        msgId:
-          record.msgId,
-
-        mediaType:
-          record.mediaType,
-
-        mediaUrl:
-          record.mediaUrl,
-
-        mediaDuration:
-          record.mediaDuration,
-
-        mediaFileSize:
-          record.mediaFileSize,
-
-        waveformSamples:
-          record.waveformSamples,
-      }
+    messages.sort(
+      (a, b) =>
+        Number(a.timestamp) -
+        Number(b.timestamp)
     );
   }
-
-
-  messages.sort(
-    (a, b) =>
-      Number(a.timestamp) -
-      Number(b.timestamp)
-  );
 
 
   writeJsonAtomic(
@@ -2446,12 +2358,32 @@ export function saveConversationMessage(
     true
   ) {
 
-    conversation.hidden =
-      false;
+    const deletedAtMs =
+      Date.parse(
+        conversation.deletedAt ??
+        ""
+      );
 
 
-    conversation.deletedAt =
-      null;
+    const isAfterDelete =
+      !Number.isFinite(
+        deletedAtMs
+      ) ||
+      timestamp >
+        deletedAtMs;
+
+
+    // History sync may replay old messages after a local delete.
+    // Those records can be stored for dedupe/context, but they must
+    // NOT revive the conversation. Only a genuinely newer message
+    // may make the conversation visible again.
+    if (
+      isAfterDelete
+    ) {
+
+      conversation.hidden =
+        false;
+    }
   }
 
   // ========================================
@@ -3220,7 +3152,11 @@ export function setUserConversationPinned(
     );
 
 
-  if (!conversation) {
+  if (
+    !conversation ||
+    conversation.hidden ===
+      true
+  ) {
 
     return null;
   }
@@ -3431,6 +3367,68 @@ export function getUserConversationList(
 }
 
 
+function conversationHistoryCutoffMs(
+  userId,
+  groupId
+) {
+  const conversations =
+    readJson(
+      indexFile(userId),
+      []
+    );
+
+  const conversation =
+    conversations.find(
+      item =>
+        String(item?.groupId ?? "") ===
+        String(groupId ?? "")
+    );
+
+  const cutoff =
+    Date.parse(
+      conversation?.deletedAt ??
+      ""
+    );
+
+  return Number.isFinite(cutoff)
+    ? cutoff
+    : null;
+}
+
+
+function visibleConversationMessages(
+  userId,
+  groupId
+) {
+  const messages =
+    readJson(
+      groupMessageFile(
+        userId,
+        groupId
+      ),
+      []
+    );
+
+  const cutoff =
+    conversationHistoryCutoffMs(
+      userId,
+      groupId
+    );
+
+  if (cutoff === null) {
+    return messages;
+  }
+
+  return messages.filter(
+    item =>
+      Number(
+        item?.timestamp ??
+        0
+      ) > cutoff
+  );
+}
+
+
 // ========================================
 // READ MESSAGES
 // ========================================
@@ -3443,12 +3441,9 @@ export function getUserConversationMessages(
   } = {}
 ) {
   const messages =
-    readJson(
-      groupMessageFile(
-        userId,
-        groupId
-      ),
-      []
+    visibleConversationMessages(
+      userId,
+      groupId
     );
 
 
@@ -3487,20 +3482,14 @@ export function getUserConversationMessagesPage(
   } = {}
 ) {
 
+  // Message file duoc duy tri theo thu tu timestamp
+  // ngay luc ghi. Khong clone + sort lai toan bo history
+  // cho moi request pagination.
   const messages =
-    readJson(
-      groupMessageFile(
-        userId,
-        groupId
-      ),
-      []
-    )
-      .slice()
-      .sort(
-        (a, b) =>
-          Number(a.timestamp) -
-          Number(b.timestamp)
-      );
+    visibleConversationMessages(
+      userId,
+      groupId
+    );
 
 
   const safeLimit =

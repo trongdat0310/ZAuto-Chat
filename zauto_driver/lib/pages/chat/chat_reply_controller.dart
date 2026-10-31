@@ -62,6 +62,46 @@ class ChatReplyController {
     return null;
   }
 
+  bool clearIfTargetUnavailable(Map<String, dynamic> message) {
+    final reply = replyingToMessage;
+
+    if (reply == null) {
+      return false;
+    }
+
+    final status = message['status']?.toString() ?? 'normal';
+
+    if (status == 'normal') {
+      return false;
+    }
+
+    const keys = <String>['msgId', 'cliMsgId', 'id'];
+
+    var sameMessage = false;
+
+    for (final key in keys) {
+      final replyValue = reply[key]?.toString().trim() ?? '';
+
+      final incomingValue = message[key]?.toString().trim() ?? '';
+
+      if (replyValue.isNotEmpty &&
+          incomingValue.isNotEmpty &&
+          replyValue == incomingValue) {
+        sameMessage = true;
+
+        break;
+      }
+    }
+
+    if (!sameMessage) {
+      return false;
+    }
+
+    replyingToMessage = null;
+
+    return true;
+  }
+
   void cancelReply() {
     replyingToMessage = null;
   }

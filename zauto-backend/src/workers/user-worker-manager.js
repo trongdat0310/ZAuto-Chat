@@ -48,8 +48,8 @@ import {
 } from "../conversations/conversation-store.js";
 
 import {
-  getUserAvatars,
-} from "../users/user-avatar-service.js";
+  getConversationEventAvatars,
+} from "../conversations/private-conversation-avatar-service.js";
 
 import {
   getUserMessageSettings,
@@ -719,13 +719,13 @@ async function storeConversationEvent(
   // ========================================
 
   if (
-    message?.type !==
-    ThreadType.Group
+    message?.type !== ThreadType.Group &&
+    message?.type !== ThreadType.User
   ) {
-
     return null;
   }
 
+  const isPrivate = message.type === ThreadType.User;
 
   const groupId =
     String(
@@ -791,27 +791,6 @@ async function storeConversationEvent(
     )
   ) {
 
-    console.log(
-      "[CONVERSATION] SKIP NON-DISPLAY EVENT:",
-      {
-        threadId:
-          groupId,
-
-        msgType:
-          data?.msgType ??
-          null,
-
-        msgId:
-          data?.msgId ??
-          null,
-
-        cliMsgId:
-          data?.cliMsgId ??
-          null,
-      }
-    );
-
-
     return null;
   }
 
@@ -826,7 +805,7 @@ async function storeConversationEvent(
 
   try {
 
-    groupName =
+    groupName = isPrivate ? (data?.dName ?? data?.senderName ?? 'Tin nhắn riêng') :
       await getUserGroupName(
         userId,
         groupId
@@ -852,55 +831,28 @@ async function storeConversationEvent(
     // LAY AVATAR NGUOI GUI
     // ========================================
 
-    const senderId =
-      data?.uidFrom != null
-        ? String(
-            data.uidFrom
-          ).trim()
-        : "";
-
-
-    let senderAvatar =
-      null;
-
-
-    if (
-      senderId
-    ) {
-
-      try {
-
-        const avatars =
-          await getUserAvatars(
-            userId,
-            [
-              senderId,
-            ]
-          );
-
-
-        senderAvatar =
-          avatars[
-            senderId
-          ] ??
-          null;
-
-      } catch (error) {
-
-        console.warn(
-          "[USER AVATAR] MESSAGE ENRICH ERROR:",
-          userId,
-          senderId,
-          error?.message ??
-          error
-        );
-      }
+    let senderAvatar = null;
+    let peerAvatar = null;
+    try {
+      ({ senderAvatar, peerAvatar } = await getConversationEventAvatars(userId, message));
+    } catch (error) {
+      console.warn("[USER AVATAR] MESSAGE ENRICH ERROR:", userId, error?.message ?? error);
     }
 
 
   // ========================================
   // LUU VAO CONVERSATION STORE
   // ========================================
+
+  if (isPrivate) {
+    const existing = getUserConversationList(userId).find(item => String(item.groupId) === groupId);
+    syncConversationGroups(userId, [{
+      groupId,
+      name: existing?.name ?? groupName,
+      type: 'user',
+      avatar: peerAvatar,
+    }]);
+  }
 
   const saved =
     saveConversationMessage(
@@ -921,16 +873,6 @@ async function storeConversationEvent(
 
     return null;
   }
-
-
-  console.log(
-    "[CONVERSATION] SAVED:",
-    userId,
-    groupId,
-    saved.msgId ??
-    saved.cliMsgId ??
-    saved.id
-  );
 
 
   // ========================================
@@ -1176,6 +1118,14 @@ function requestMissedGroupMessages(
               .requestOldMessages(
                 ThreadType.Group
               );
+
+          }
+
+          // Also catch up one-to-one conversations; never feed them to trip filters.
+          try {
+            api.listener.requestOldMessages(ThreadType.User);
+          } catch (error) {
+            console.warn("[PRIVATE HISTORY] REQUEST ERROR:", key, error?.message ?? error);
           }
 
 
@@ -1970,6 +1920,19 @@ export async function startUserWorker(
     // KHONG PUSH LAI CUOC CU.
     // ========================================
 
+    // Private message history is independent of the group-trip catch-up cursor.
+    api.listener.on("old_messages", (oldMessages, type) => {
+      if (workers.get(key) !== worker || type !== ThreadType.User ||
+          !Array.isArray(oldMessages)) {
+        return;
+      }
+      for (const message of oldMessages) {
+        void storeConversationEvent(key, message).catch(error => {
+          console.warn("[PRIVATE HISTORY] STORE ERROR:", key, error?.message ?? error);
+        });
+      }
+    });
+
     api.listener.on(
       "old_messages",
 
@@ -2652,15 +2615,6 @@ export async function startUserWorker(
         if (
           workers.get(key) !==
           worker
-        ) {
-          return;
-        }
-
-
-        // Hien tai chi quan tam group.
-        if (
-          undo?.isGroup !==
-          true
         ) {
           return;
         }

@@ -10,7 +10,10 @@ import '../../services/backend_service.dart';
 import '../../services/speech_service.dart';
 import '../../services/audio_service.dart';
 import '../../services/app_realtime_service.dart';
+import '../../services/backend/subscription_api.dart';
+import '../../widgets/quota_exhausted_dialog.dart';
 
+import '../chat/chat_page.dart';
 import 'trip_card.dart';
 import 'home_notification.dart';
 import 'home_realtime.dart';
@@ -18,16 +21,20 @@ import 'home_realtime.dart';
 class HomePage extends StatefulWidget {
   final SettingsController settingsController;
 
+  final bool isActive;
+
   final Future<void> Function() onOpenGroups;
 
   final VoidCallback onOpenNotificationFilter;
 
   final VoidCallback onOpenAutoAcceptFilter;
 
+
   final AppRealtimeService realtimeService;
 
   const HomePage({
     super.key,
+    this.isActive = true,
 
     required this.realtimeService,
     required this.onOpenGroups,
@@ -56,11 +63,40 @@ class _HomePageState extends State<HomePage>
   final List<Map<String, dynamic>> activeTrips = [];
 
   Timer? tripCountdownTimer;
+  Timer? quotaRefreshTimer;
+  final SubscriptionGateway subscriptionApi = createSubscriptionApi();
+  Map<String, dynamic>? quotaOverview;
+  bool quotaLoading = false;
+
+  Future<void> loadQuota() async {
+    if (quotaLoading || !mounted) return;
+    quotaLoading = true;
+    try {
+      final result = await subscriptionApi.overview();
+      if (mounted) setState(() => quotaOverview = result);
+    } catch (error) {
+      debugPrint('HOME QUOTA ERROR: $error');
+    } finally {
+      quotaLoading = false;
+    }
+  }
+
+  String quotaLabel(String feature) {
+    final sub = subscriptionMap(quotaOverview?['subscription']);
+    for (final row in subscriptionRows(sub['features'])) {
+      if (row['feature'] != feature) continue;
+      if (row['limit'] == null && row['allowed'] == true) return '∞';
+      final limit = (row['limit'] as num?)?.toInt() ?? 0;
+      final remaining = (row['remaining'] as num?)?.toInt() ?? 0;
+      return '${remaining.clamp(0, limit)}/$limit';
+    }
+    return '0';
+  }
+
 
   int enabledGroupCount = 0;
   int totalGroupCount = 0;
 
-  bool filterActive = false;
   int notificationFilterCount = 0;
 
   String connectionStatus = 'Đang kết nối backend...';
@@ -95,6 +131,8 @@ class _HomePageState extends State<HomePage>
     speechService.initialize();
 
     loadHomeSummary();
+    unawaited(loadQuota());
+    quotaRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) => unawaited(loadQuota()));
 
     notificationHandler = HomeNotificationHandler(
       settingsController: widget.settingsController,
@@ -185,7 +223,7 @@ class _HomePageState extends State<HomePage>
         }
 
         setState(() {
-          connectionStatus = 'Mất kết nối';
+          connectionStatus = 'Đang kết nối lại...';
         });
       },
 
@@ -195,7 +233,7 @@ class _HomePageState extends State<HomePage>
         }
 
         setState(() {
-          connectionStatus = 'Backend đã ngắt kết nối';
+          connectionStatus = 'Kết nối realtime đã dừng';
         });
       },
     );
@@ -511,7 +549,14 @@ class _HomePageState extends State<HomePage>
 
     notificationInitialized = true;
 
-    notificationHandler.initialize(context);
+    unawaited(
+      notificationHandler.initialize(context).catchError((Object error) {
+        debugPrint(
+          'HOME NOTIFICATION INIT ERROR: '
+          '$error',
+        );
+      }),
+    );
   }
 
   bool get _hasCountdownTrips {
@@ -537,6 +582,7 @@ class _HomePageState extends State<HomePage>
       return;
     }
 
+    quotaRefreshTimer?.cancel();
     tripCountdownTimer?.cancel();
 
     tripCountdownTimer = null;
@@ -673,7 +719,7 @@ class _HomePageState extends State<HomePage>
       for (final trip in activeTrips) {
         final status = trip['_uiStatus']?.toString() ?? 'new';
 
-        if (status != 'new') {
+        if (status != 'new' || trip['_replying'] == true) {
           continue;
         }
 
@@ -780,7 +826,7 @@ class _HomePageState extends State<HomePage>
     _stopTripCountdownTimerIfIdle();
 
     try {
-      await backend.acceptMessage(
+      final response = await backend.acceptMessage(
         tripId,
 
         replyText: widget.settingsController.settings.acceptReplyText,
@@ -794,18 +840,9 @@ class _HomePageState extends State<HomePage>
         trip['_uiStatus'] = 'accepted';
       });
 
-      // ========================================
-      // CHO NGUOI DUNG THAY "DA NHAN"
-      // ROI MOI BIEN MAT
-      // ========================================
-
-      await Future.delayed(const Duration(milliseconds: 1500));
-
-      if (!mounted) {
-        return;
-      }
-
+      unawaited(loadQuota());
       removeTrip(tripId);
+      await _openAcceptedMessage(trip, response);
     } catch (error) {
       if (!mounted) {
         return;
@@ -821,8 +858,109 @@ class _HomePageState extends State<HomePage>
 
       _ensureTripCountdownTimer();
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Không thể nhận cuốc: $error')));
+      if (isQuotaExhausted(error)) {
+        unawaited(loadQuota());
+        await showQuotaExhaustedDialog(context);
+      } else {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Không thể nhận cuốc: $error')));
+      }
+    }
+  }
+
+  void startTripReply(Map<String, dynamic> trip) {
+    if (trip['_uiStatus'] != 'new' || trip['_replying'] == true) return;
+    setState(() {
+      for (final other in activeTrips) {
+        if (other['_replying'] == true) {
+          other['_replying'] = false;
+          _resumeTripCountdown(other);
+        }
+      }
+      _pauseTripCountdown(trip);
+      trip['_replying'] = true;
+    });
+  }
+
+  void cancelTripReply(Map<String, dynamic> trip) {
+    if (trip['_replying'] != true) return;
+    setState(() {
+      trip['_replying'] = false;
+      _resumeTripCountdown(trip);
+    });
+    _ensureTripCountdownTimer();
+  }
+
+  Future<void> _openAcceptedMessage(
+    Map<String, dynamic> trip,
+    Map<String, dynamic> response,
+  ) async {
+    if (!mounted) return;
+    final accepted = response['message'] is Map
+        ? Map<String, dynamic>.from(response['message'] as Map)
+        : response;
+    final targetMsgId = (accepted['replyZaloMessageId'] ?? '').toString().trim();
+    final targetCliMsgId =
+        (accepted['replyZaloCliMessageId'] ?? '').toString().trim();
+    final groupId = (accepted['sourceThreadId'] ??
+            accepted['groupId'] ??
+            trip['groupId'] ??
+            '').toString().trim();
+    if (groupId.isEmpty || (targetMsgId.isEmpty && targetCliMsgId.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đã nhận cuốc nhưng chưa xác định được tin nhắn trả lời')),
+      );
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatPage(
+          realtimeService: widget.realtimeService,
+          groupId: groupId,
+          groupName: (trip['groupName'] ?? 'Nhóm Zalo').toString(),
+          groupAvatar: null,
+          targetMsgId: targetMsgId.isEmpty ? null : targetMsgId,
+          targetCliMsgId: targetCliMsgId.isEmpty ? null : targetCliMsgId,
+        ),
+      ),
+    );
+  }
+
+  Future<bool> sendTripReply(Map<String, dynamic> trip, String text) async {
+    final tripId = trip['id']?.toString().trim() ?? '';
+    if (tripId.isEmpty) return false;
+    try {
+      // Use the accept endpoint so the reply is recorded in accepted history.
+      final response = await backend.acceptMessage(tripId, replyText: text);
+      if (!mounted) return true;
+      setState(() {
+        trip['_replying'] = false;
+        trip['_uiStatus'] = 'replied';
+      });
+      _stopTripCountdownTimerIfIdle();
+      removeTrip(tripId);
+      await _openAcceptedMessage(trip, response);
+      return true;
+    } catch (error) {
+      if (mounted) {
+        if (isQuotaExhausted(error)) {
+          unawaited(loadQuota());
+          await showQuotaExhaustedDialog(context);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Không thể nhận cuốc: $error')),
+          );
+        }
+      }
+      return false;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant HomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) {
+      loadHomeSummary();
     }
   }
 
@@ -830,13 +968,11 @@ class _HomePageState extends State<HomePage>
     try {
       final groups = await backend.getGroups();
 
-      final filters = await backend.getFilters();
+      final filters = await backend.getNotificationFilters();
 
       if (!mounted) {
         return;
       }
-
-      final includeKeywords = filters['includeKeywords'];
 
       setState(() {
         totalGroupCount = groups.length;
@@ -845,11 +981,9 @@ class _HomePageState extends State<HomePage>
             .where((group) => group['enabled'] == true)
             .length;
 
-        filterActive = filters['enabled'] == true;
-
-        notificationFilterCount = includeKeywords is List
-            ? includeKeywords.length
-            : 0;
+        notificationFilterCount = filters
+            .where((filter) => filter['enabled'] != false)
+            .length;
       });
     } catch (error) {
       debugPrint('HOME SUMMARY ERROR: $error');
@@ -938,6 +1072,8 @@ class _HomePageState extends State<HomePage>
         false;
 
     realtimeHandler.dispose();
+
+    notificationHandler.dispose();
 
     tripCountdownTimer?.cancel();
 
@@ -1341,20 +1477,30 @@ class _HomePageState extends State<HomePage>
     );
   }
 
+  Future<void> _refreshHome() async {
+    await Future.wait<void>([
+      loadHomeSummary(),
+      loadQuota(),
+      _reconcileActiveTrips(),
+    ]);
+  }
+
   Widget buildIdleHome() {
     final colorScheme = Theme.of(context).colorScheme;
 
     String notificationFilterText;
 
-    if (!filterActive || notificationFilterCount == 0) {
-      notificationFilterText = 'Chưa bật bộ lọc nào — mọi cuốc đều hiện';
+    if (notificationFilterCount == 0) {
+      notificationFilterText = 'Chưa có bộ lọc nào đang hoạt động';
     } else {
       notificationFilterText =
-          '$notificationFilterCount điều kiện lọc đang hoạt động';
+          '$notificationFilterCount bộ lọc đang hoạt động';
     }
 
-    return SafeArea(
-      child: Padding(
+    return RefreshIndicator(
+      onRefresh: _refreshHome,
+      child: SafeArea(
+        child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
 
         child: Column(
@@ -1370,7 +1516,7 @@ class _HomePageState extends State<HomePage>
 
                 const SizedBox(width: 8),
 
-                const Text('0/0', style: TextStyle(fontSize: 17)),
+                Text(quotaLabel('trip_screen_accept'), key: const ValueKey('home-trip-screen-quota'), style: const TextStyle(fontSize: 17)),
 
                 const SizedBox(width: 28),
 
@@ -1378,7 +1524,7 @@ class _HomePageState extends State<HomePage>
 
                 const SizedBox(width: 8),
 
-                const Text('0/0', style: TextStyle(fontSize: 17)),
+                Text(quotaLabel('chat_accept'), key: const ValueKey('home-chat-quota'), style: const TextStyle(fontSize: 17)),
 
                 const Spacer(),
 
@@ -1402,106 +1548,88 @@ class _HomePageState extends State<HomePage>
             // KHONG CO CUOC
             // ========================================
             if (activeTrips.isEmpty) ...[
-              // ----------------------------------------
-              // DANG LANG NGHE
-              // ----------------------------------------
-
-              Row(
-                children: [
-                  Container(
-                    width: 9,
-                    height: 9,
-
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-
-                      color: connectionStatus == 'Đã kết nối realtime'
-                          ? Colors.green
-                          : Colors.grey,
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) => SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      child: SizedBox(
+                        height: constraints.maxHeight < 480 ? 480 : constraints.maxHeight,
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              child: Row(
+                      children: [
+                        Container(
+                          width: 9,
+                          height: 9,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: connectionStatus == 'Đã kết nối realtime'
+                                ? Colors.green
+                                : connectionStatus == 'Đang kết nối lại...'
+                                    ? Colors.amber
+                                    : connectionStatus == 'Xác thực realtime thất bại'
+                                        ? colorScheme.error
+                                        : colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          connectionStatus == 'Đã kết nối realtime'
+                              ? 'Đang lắng nghe'
+                              : connectionStatus,
+                          style: TextStyle(
+                            color: colorScheme.onSurfaceVariant,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    ),
+                            ),
+                            Align(
+                              alignment: const Alignment(0, -0.2),
+                              child: Card(
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          homeSettingItem(
+                            icon: Icons.notifications_none,
+                            title: 'Nhóm nhận thông báo',
+                            subtitle: 'Chỉ cuốc từ nhóm đã bật mới hiện ở đây',
+                            trailingText: '$enabledGroupCount/$totalGroupCount',
+                            onTap: openGroups,
+                          ),
+                          const Divider(height: 1),
+                          homeSettingItem(
+                            icon: Icons.tune,
+                            title: 'Bộ lọc thông báo',
+                            subtitle: notificationFilterText,
+                            onTap: widget.onOpenNotificationFilter,
+                          ),
+                          const Divider(height: 1),
+                          homeSettingItem(
+                            icon: Icons.bolt,
+                            title: 'Bộ lọc tự động nhận',
+                            subtitle: 'Chưa bật bộ lọc nào — không cuốc nào được tự nhận',
+                            onTap: widget.onOpenAutoAcceptFilter,
+                          ),
+                        ],
+                      ),
+                    ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-
-                  const SizedBox(width: 12),
-
-                  Text(
-                    connectionStatus == 'Đã kết nối realtime'
-                        ? 'Đang lắng nghe'
-                        : connectionStatus,
-
-                    style: TextStyle(
-                      color: colorScheme.onSurfaceVariant,
-
-                      fontSize: 15,
-                    ),
-                  ),
-                ],
-              ),
-
-              // ----------------------------------------
-              // KHOANG TRONG
-              // ----------------------------------------
-              const Spacer(),
-
-              // ========================================
-              // SETTINGS
-              // CHI HIEN KHI KHONG CO CUOC
-              // ========================================
-              Card(
-                clipBehavior: Clip.antiAlias,
-
-                child: Column(
-                  children: [
-                    // ==================================
-                    // NHOM NHAN THONG BAO
-                    // ==================================
-
-                    homeSettingItem(
-                      icon: Icons.notifications_none,
-
-                      title: 'Nhóm nhận thông báo',
-
-                      subtitle: 'Chỉ cuốc từ nhóm đã bật mới hiện ở đây',
-
-                      trailingText: '$enabledGroupCount/$totalGroupCount',
-
-                      onTap: openGroups,
-                    ),
-
-                    const Divider(height: 1),
-
-                    // ==================================
-                    // BO LOC THONG BAO
-                    // ==================================
-                    homeSettingItem(
-                      icon: Icons.tune,
-
-                      title: 'Bộ lọc thông báo',
-
-                      subtitle: notificationFilterText,
-
-                      onTap: widget.onOpenNotificationFilter,
-                    ),
-
-                    const Divider(height: 1),
-
-                    // ==================================
-                    // TU DONG NHAN
-                    // ==================================
-                    homeSettingItem(
-                      icon: Icons.bolt,
-
-                      title: 'Bộ lọc tự động nhận',
-
-                      subtitle:
-                          'Chưa bật bộ lọc nào — không cuốc nào được tự nhận',
-
-                      onTap: widget.onOpenAutoAcceptFilter,
-                    ),
-                  ],
                 ),
               ),
-
-              const Spacer(flex: 2),
             ] else ...[
               // ========================================
               // CO CUOC
@@ -1536,12 +1664,16 @@ class _HomePageState extends State<HomePage>
                       onIgnore: () {
                         ignoreTrip(activeTrips[index]);
                       },
+                      onSwipeReply: () => startTripReply(activeTrips[index]),
+      onCancelReply: () => cancelTripReply(activeTrips[index]),
+      onSendReply: (text) => sendTripReply(activeTrips[index], text),
                     );
                   },
                 ),
               ),
             ],
           ],
+        ),
         ),
       ),
     );

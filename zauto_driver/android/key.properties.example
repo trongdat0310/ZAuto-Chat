@@ -1,0 +1,7 @@
+# Copy this file to android/key.properties and replace placeholders.
+# Never commit android/key.properties or the keystore file.
+
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=upload
+storeFile=C:/path/to/zautochat-upload.jks

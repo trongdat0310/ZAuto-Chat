@@ -104,7 +104,7 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
                         showImages: value,
                       );
                     } catch (error) {
-                      if (!mounted) {
+                      if (!context.mounted) {
                         return;
                       }
 
@@ -150,7 +150,7 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
                         deduplicateMessages: value,
                       );
                     } catch (error) {
-                      if (!mounted) {
+                      if (!context.mounted) {
                         return;
                       }
 
@@ -238,7 +238,7 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
                     showVoiceMessages: value,
                   );
                 } catch (error) {
-                  if (!mounted) {
+                  if (!context.mounted) {
                     return;
                   }
 

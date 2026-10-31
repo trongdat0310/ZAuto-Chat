@@ -1,6 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import '../../services/backend/acceptance_api.dart';
+import '../../services/auth_service.dart';
+import '../../widgets/quota_exhausted_dialog.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -8,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_config.dart';
 
 import '../../services/backend_service.dart';
+import '../../services/settings_service.dart';
 import '../../services/chat_state_service.dart';
 import '../../services/app_realtime_service.dart';
 import '../../services/media_download_service.dart';
@@ -89,17 +94,20 @@ class _ChatPageState extends State<ChatPage> {
 
   late final ChatMediaController mediaController;
 
+  ChatPhotoAlbumIndex? photoAlbumIndex;
+
   late final ChatReplyController replyController;
 
   final ScrollController scrollController = ScrollController();
 
-  final TextEditingController messageController = TextEditingController();
+  final _MentionTextController messageController = _MentionTextController();
 
   final ImagePicker imagePicker = ImagePicker();
 
   final FocusNode messageFocusNode = FocusNode();
 
   bool canSendMessage = false;
+
 
   Timer? topNoticeTimer;
 
@@ -111,6 +119,12 @@ class _ChatPageState extends State<ChatPage> {
   bool scrollToLatestAfterReload = false;
 
   bool hasDeferredNewMessages = false;
+
+  bool realtimeConnected = false;
+
+  bool realtimeAuthFailed = false;
+
+  String? initialLoadError;
 
   void _removeMessageFromUi(Map<String, dynamic> message) {
     if (!mounted) {
@@ -172,11 +186,55 @@ class _ChatPageState extends State<ChatPage> {
   final GlobalKey targetMessageKey = GlobalKey();
 
   final BackendService backend = BackendService(baseUrl: AppConfig.backendUrl);
+  bool _quickTapAcceptEnabled = false;
+  bool _quickAcceptBusy = false;
+
+  Future<void> _loadQuickTapAccept() async {
+    final settings = await SettingsService().load();
+    if (mounted) setState(() => _quickTapAcceptEnabled = settings.quickTapAccept);
+  }
+
+  Future<void> _acceptChatMessage(Map<String, dynamic> message) async {
+    if (!_quickTapAcceptEnabled || _quickAcceptBusy || message['isSelf'] == true) return;
+    final msgId = (message['msgId'] ?? '').toString().trim();
+    final cliMsgId = (message['cliMsgId'] ?? '').toString().trim();
+    if (msgId.isEmpty && cliMsgId.isEmpty) return;
+    _quickAcceptBusy = true;
+    try {
+      final settings = await SettingsService().load();
+      final result = await AcceptanceApi(
+        baseUrl: AppConfig.backendUrl,
+        auth: AuthService(),
+      ).acceptChatMessage(
+        groupId: widget.groupId,
+        msgId: msgId.isEmpty ? null : msgId,
+        cliMsgId: cliMsgId.isEmpty ? null : cliMsgId,
+        replyText: settings.acceptReplyText,
+      );
+      if (mounted) {
+        _showTopNotice(result['alreadyAccepted'] == true
+            ? 'Cuốc đã được nhận trước đó' : 'Đã nhận cuốc');
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      if (isQuotaExhausted(error)) {
+        await showQuotaExhaustedDialog(context);
+      } else {
+        _showTopNotice('Không thể nhận cuốc: $error');
+      }
+    } finally {
+      _quickAcceptBusy = false;
+    }
+  }
+
 
   @override
   void initState() {
     super.initState();
 
+    _loadQuickTapAccept();
     ChatStateService.instance.openGroup(widget.groupId);
 
     messagesController = ChatMessagesController(
@@ -188,6 +246,10 @@ class _ChatPageState extends State<ChatPage> {
       backend: backend,
       groupId: widget.groupId,
     );
+
+    realtimeConnected = widget.realtimeService.isConnected;
+
+    realtimeAuthFailed = widget.realtimeService.hasAuthFailed;
 
     mediaController = ChatMediaController();
 
@@ -222,6 +284,40 @@ class _ChatPageState extends State<ChatPage> {
 
       onMessage: (incoming) {
         upsertRealtimeMessage(incoming);
+      },
+
+      onConnected: () {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          realtimeConnected = true;
+
+          realtimeAuthFailed = false;
+        });
+      },
+
+      onDisconnected: () {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          realtimeConnected = false;
+        });
+      },
+
+      onAuthError: () {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          realtimeConnected = false;
+
+          realtimeAuthFailed = true;
+        });
       },
     );
 
@@ -258,6 +354,23 @@ class _ChatPageState extends State<ChatPage> {
       return;
     }
 
+    messageController.mentionPrefix = null;
+    // Pre-fill @sender when replying to someone else's message.
+    // Keep the composer untouched when replying to our own message.
+    if (message['isSelf'] != true) {
+      final senderName = (message['senderName'] ?? '').toString().trim().replaceFirst(RegExp(r'^@+'), '');
+      if (senderName.isNotEmpty) {
+        final mention = '@$senderName ';
+        messageController.mentionPrefix = mention;
+        if (!messageController.text.startsWith(mention)) {
+          messageController.text = '$mention${messageController.text}';
+        }
+        messageController.selection = TextSelection.collapsed(
+          offset: messageController.text.length,
+        );
+      }
+    }
+
     setState(() {});
 
     messageFocusNode.requestFocus();
@@ -270,6 +383,7 @@ class _ChatPageState extends State<ChatPage> {
 
     setState(() {
       replyController.cancelReply();
+      messageController.mentionPrefix = null;
     });
   }
 
@@ -527,6 +641,45 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  Future<void> _sendPrivateMessage(Map<String, dynamic> message) async {
+    final raw = message['rawData'];
+    final uid = (message['uidFrom'] ??
+        (raw is Map ? raw['uidFrom'] : null) ?? '').toString().trim();
+    if (uid.isEmpty || message['isSelf'] == true) {
+      _showTopNotice('Không tìm thấy tài khoản Zalo của người gửi');
+      return;
+    }
+    await backend.openPrivateConversation(
+      userId: uid,
+      name: (message['senderName'] ?? 'Người gửi').toString(),
+    );
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatPage(
+          realtimeService: widget.realtimeService,
+          groupId: uid,
+          groupName: (message['senderName'] ?? 'Người gửi').toString(),
+          groupAvatar: message['senderAvatar']?.toString(),
+        ),
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _messageMentions(Map<String, dynamic> message) {
+    final raw = message['rawData'];
+    if (raw is! Map) return const [];
+    dynamic value = raw['mentions'] ?? raw['mention'];
+    if (value == null && raw['propertyExt'] is String) {
+      try {
+        final decoded = jsonDecode(raw['propertyExt'] as String);
+        if (decoded is Map) value = decoded['mentions'] ?? decoded['mention'];
+      } catch (_) {}
+    }
+    if (value is! List) return const [];
+    return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
   void _showMessageActions(Map<String, dynamic> message) {
     final status = message['status']?.toString() ?? 'normal';
 
@@ -564,6 +717,9 @@ class _ChatPageState extends State<ChatPage> {
           canReply: canReply,
 
           canCopy: canCopy,
+          canPrivateMessage: !isSelf && status == 'normal' &&
+              (message['uidFrom'] ?? message['rawData']?['uidFrom']) != null,
+          onPrivateMessage: () => _sendPrivateMessage(message),
 
           canUndo: canUndo,
 
@@ -773,7 +929,8 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _sendChatMessage() async {
-    if (actionsController.sendingMessage) {
+    if (actionsController.sendingMessage ||
+        actionsController.sendingPhoto) {
       return;
     }
 
@@ -819,6 +976,7 @@ class _ChatPageState extends State<ChatPage> {
       }
 
       messageController.clear();
+      messageController.mentionPrefix = null;
 
       setState(() {
         replyController.clearReply();
@@ -839,7 +997,9 @@ class _ChatPageState extends State<ChatPage> {
         }
       });
 
-      messageFocusNode.requestFocus();
+      // Giu focus hien tai tu nhien.
+      // Khong requestFocus lai sau async send vi tren Android
+      // co the lam IME dong mot nhip roi bat lai (keyboard flicker).
 
       // ========================================
       // CHI TU DONG CUON XUONG CUOI
@@ -864,7 +1024,29 @@ class _ChatPageState extends State<ChatPage> {
         return;
       }
 
-      _showTopNotice('Gửi tin nhắn thất bại');
+      final errorText = error.toString().replaceFirst('Exception: ', '').trim();
+
+      final lower = errorText.toLowerCase();
+
+      final replyUnavailable =
+          lower.contains('khong con co the tra loi') ||
+          lower.contains('không còn có thể trả lời') ||
+          lower.contains('khong tim thay tin nhan can tra loi') ||
+          lower.contains('không tìm thấy tin nhắn cần trả lời');
+
+      if (replyUnavailable) {
+        setState(() {
+          replyController.clearReply();
+        });
+
+        _showTopNotice('Tin nhắn gốc đã bị xóa hoặc thu hồi.');
+      } else {
+        _showTopNotice(
+          errorText.isEmpty
+              ? 'Gửi tin nhắn thất bại'
+              : errorText,
+        );
+      }
 
       debugPrint('SEND MESSAGE ERROR: $error');
     } finally {
@@ -877,15 +1059,8 @@ class _ChatPageState extends State<ChatPage> {
   Future<void> _openVideo(Map<String, dynamic> message) async {
     final url = mediaController.messageMediaUrl(message);
 
-    debugPrint(
-      'OPEN VIDEO CALLED: '
-      'mediaUrl=$url',
-    );
-
     if (url == null || url.isEmpty) {
       _showTopNotice('Video không có đường dẫn');
-
-      debugPrint('OPEN VIDEO ABORT: EMPTY URL');
 
       return;
     }
@@ -895,14 +1070,10 @@ class _ChatPageState extends State<ChatPage> {
     if (uri == null || !uri.hasScheme) {
       _showTopNotice('Đường dẫn video không hợp lệ');
 
-      debugPrint('OPEN VIDEO ABORT: INVALID URL');
-
       return;
     }
 
     try {
-      debugPrint('OPEN VIDEO NAVIGATING...');
-
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (context) {
@@ -992,6 +1163,10 @@ class _ChatPageState extends State<ChatPage> {
       return;
     }
 
+    setState(() {
+      initialLoadError = null;
+    });
+
     // ========================================
     // loadInitial() CHAY DONG BO DEN
     // await DAU TIEN.
@@ -1060,13 +1235,14 @@ class _ChatPageState extends State<ChatPage> {
         return;
       }
 
+      final message = error.toString().replaceFirst('Exception: ', '').trim();
+
       setState(() {
         targetController.finishSeeking();
-      });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không thể tải hội thoại: $error')),
-      );
+        initialLoadError =
+            message.isEmpty ? 'Không thể tải hội thoại.' : message;
+      });
     }
   }
 
@@ -1108,6 +1284,50 @@ class _ChatPageState extends State<ChatPage> {
     _removeTargetHighlightLater();
 
     return true;
+  }
+
+  Future<String> _resolveMissingMessageReason({
+    String? msgId,
+    String? cliMsgId,
+  }) async {
+    final safeMsgId = msgId?.trim() ?? '';
+
+    final safeCliMsgId = cliMsgId?.trim() ?? '';
+
+    if (safeMsgId.isEmpty && safeCliMsgId.isEmpty) {
+      return 'not_found';
+    }
+
+    try {
+      final result = await backend.findConversationMessage(
+        groupId: widget.groupId,
+        msgId: safeMsgId.isEmpty ? null : safeMsgId,
+        cliMsgId: safeCliMsgId.isEmpty ? null : safeCliMsgId,
+      );
+
+      final reason = result['reason']?.toString().trim();
+
+      if (reason == 'deleted_local' || reason == 'recalled') {
+        return reason!;
+      }
+
+      final rawMessage = result['message'];
+
+      if (rawMessage is Map) {
+        final status = rawMessage['status']?.toString().trim();
+
+        if (status == 'deleted_local' || status == 'recalled') {
+          return status!;
+        }
+      }
+    } catch (error) {
+      debugPrint(
+        'CHAT RESOLVE MISSING MESSAGE REASON ERROR: '
+        '$error',
+      );
+    }
+
+    return 'not_found';
   }
 
   Future<void> _seekTargetFromLatest() async {
@@ -1152,7 +1372,16 @@ class _ChatPageState extends State<ChatPage> {
         // ========================================
 
         if (!messagesController.hasMoreOlder) {
-          targetController.setError('not_found');
+          final reason = await _resolveMissingMessageReason(
+            msgId: targetController.targetMsgId,
+            cliMsgId: targetController.targetCliMsgId,
+          );
+
+          if (!mounted) {
+            return;
+          }
+
+          targetController.setError(reason);
 
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _showTargetNotFound();
@@ -1164,7 +1393,16 @@ class _ChatPageState extends State<ChatPage> {
         final beforeId = messagesController.messages.first['id']?.toString();
 
         if (beforeId == null || beforeId.isEmpty) {
-          targetController.setError('not_found');
+          final reason = await _resolveMissingMessageReason(
+            msgId: targetController.targetMsgId,
+            cliMsgId: targetController.targetCliMsgId,
+          );
+
+          if (!mounted) {
+            return;
+          }
+
+          targetController.setError(reason);
 
           _showTargetNotFound();
 
@@ -1377,13 +1615,24 @@ class _ChatPageState extends State<ChatPage> {
 
         if (!messagesController.hasMoreOlder ||
             messagesController.messages.isEmpty) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Không tìm thấy tin nhắn gốc trong lịch sử.'),
-              ),
-            );
+          final reason = await _resolveMissingMessageReason(
+            msgId: quoteMsgId,
+            cliMsgId: quoteCliMsgId,
+          );
+
+          if (!mounted) {
+            return;
           }
+
+          final notice = switch (reason) {
+            'deleted_local' => 'Tin nhắn gốc đã bị xóa.',
+            'recalled' => 'Tin nhắn gốc đã được thu hồi.',
+            _ => 'Không tìm thấy tin nhắn gốc trong lịch sử.',
+          };
+
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(notice)));
 
           return;
         }
@@ -2001,6 +2250,13 @@ class _ChatPageState extends State<ChatPage> {
 
     final incomingStatus = incoming['status']?.toString() ?? 'normal';
 
+    final replyCleared =
+        replyController.clearIfTargetUnavailable(incoming);
+
+    if (replyCleared) {
+      setState(() {});
+    }
+
     // ========================================
     // MESSAGE DA XOA
     // ========================================
@@ -2203,8 +2459,6 @@ class _ChatPageState extends State<ChatPage> {
 
     if (!scrollController.hasClients) {
       if (attempt >= 10) {
-        debugPrint('JUMP TO LATEST FAILED');
-
         return;
       }
 
@@ -2534,8 +2788,9 @@ class _ChatPageState extends State<ChatPage> {
     final mediaGroupId = mediaController.mediaGroupId(message);
 
     final album = mediaGroupId != null
-        ? mediaController.albumMessagesFor(messagesController.messages, message)
-        : [message];
+        ? (photoAlbumIndex?.albumFor(mediaGroupId, message) ??
+            <Map<String, dynamic>>[message])
+        : <Map<String, dynamic>>[message];
 
     // ========================================
     // PHOTO UI
@@ -2587,6 +2842,7 @@ class _ChatPageState extends State<ChatPage> {
     // ========================================
 
     return PhotoMediaRow(
+      swipeEnabled: true,
       rowKey: isTarget ? targetMessageKey : ValueKey('chat-media-$stableKey'),
 
       isSelf: isSelf,
@@ -2635,6 +2891,7 @@ class _ChatPageState extends State<ChatPage> {
         index.toString();
 
     return SimpleMediaRow(
+      swipeEnabled: true,
       rowKey: isTarget ? targetMessageKey : ValueKey('chat-media-$stableKey'),
 
       isSelf: isSelf,
@@ -2756,11 +3013,14 @@ class _ChatPageState extends State<ChatPage> {
       // ========================================
 
       if (mediaGroupId != null) {
-        final renderIndex = mediaController.albumRenderIndex(
-          messagesController.messages,
-          mediaGroupId,
-          targetIndex: targetController.targetIndex,
-        );
+        final renderIndex =
+            photoAlbumIndex?.renderIndexFor(
+              mediaGroupId,
+              targetIndex: targetController.targetIndex,
+              messages: messagesController.messages,
+              resolveGroupId: mediaController.mediaGroupId,
+            ) ??
+            -1;
 
         if (renderIndex != index) {
           return const SizedBox.shrink();
@@ -2868,6 +3128,8 @@ class _ChatPageState extends State<ChatPage> {
 
       content: content,
 
+      mentions: _messageMentions(message),
+
       timeText: formatTime(message['timestamp']),
 
       hasQuote: quote != null,
@@ -2900,6 +3162,10 @@ class _ChatPageState extends State<ChatPage> {
 
       bubble: bubble,
 
+      onTap: _quickTapAcceptEnabled && !isSelf && status == 'normal'
+          ? () => _acceptChatMessage(message)
+          : null,
+
       onReply: () {
         _startReply(message);
       },
@@ -2912,7 +3178,9 @@ class _ChatPageState extends State<ChatPage> {
 
   Widget _buildMessageComposer() {
     final disabled =
-        messagesController.loading || targetController.seekingTarget;
+        messagesController.loading ||
+        targetController.seekingTarget ||
+        realtimeAuthFailed;
 
     // ========================================
     // COMPOSER UI
@@ -2947,7 +3215,7 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   void dispose() {
-    ChatStateService.instance.closeGroup();
+    ChatStateService.instance.closeGroup(widget.groupId);
 
     markReadController.dispose();
 
@@ -2976,6 +3244,10 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    photoAlbumIndex = mediaController.buildPhotoAlbumIndex(
+      messagesController.messages,
+    );
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
 
@@ -2987,12 +3259,87 @@ class _ChatPageState extends State<ChatPage> {
 
       body: Column(
         children: [
+          if (!realtimeConnected)
+            Material(
+              color: realtimeAuthFailed
+                  ? Theme.of(context).colorScheme.errorContainer
+                  : Theme.of(context).colorScheme.surfaceContainerHigh,
+              child: SafeArea(
+                top: false,
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      if (!realtimeAuthFailed)
+                        const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      else
+                        Icon(
+                          Icons.error_outline_rounded,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          realtimeAuthFailed
+                              ? 'Phiên realtime không hợp lệ. Vui lòng đăng nhập lại.'
+                              : 'Đang kết nối lại realtime...',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
           // ========================================
           // KHU VUC NOI DUNG CHAT
           // ========================================
 
           Expanded(
-            child: Stack(
+            child: initialLoadError != null &&
+                    !messagesController.loading &&
+                    messagesController.messages.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.cloud_off_outlined, size: 56),
+                          const SizedBox(height: 14),
+                          const Text(
+                            'Không thể tải hội thoại',
+                            style: TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            initialLoadError!,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          FilledButton.icon(
+                            onPressed: loadMessages,
+                            icon: const Icon(Icons.refresh_rounded),
+                            label: const Text('Thử lại'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : Stack(
               children: [
                 Positioned.fill(
                   child: ChatBackground(
@@ -3054,5 +3401,34 @@ class _ChatPageState extends State<ChatPage> {
         ],
       ),
     );
+  }
+}
+
+class _MentionTextController extends TextEditingController {
+  String? mentionPrefix;
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    final prefix = mentionPrefix;
+    if (prefix == null || !text.startsWith(prefix)) {
+      return TextSpan(style: style, text: text);
+    }
+    return TextSpan(style: style, children: [
+      TextSpan(
+        text: prefix,
+        style: style?.copyWith(
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w600,
+        ) ?? TextStyle(
+          color: Theme.of(context).colorScheme.primary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      TextSpan(text: text.substring(prefix.length)),
+    ]);
   }
 }
