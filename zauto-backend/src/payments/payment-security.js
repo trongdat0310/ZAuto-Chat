@@ -57,9 +57,21 @@ export function extractOrderCode(tx) {
   const matches = [...content.matchAll(/(?:^|[^A-Z0-9])(ZCA[A-F0-9]{18})(?![A-Z0-9])/g)].map(m => m[1]);
   const codes = [...new Set(matches)];
   const providerCode = String(tx.code || "").toUpperCase();
-  if (codes.length > 1 || (providerCode && codes.length && !codes.includes(providerCode))) return null;
-  if (providerCode && !isOrderId(providerCode)) return null;
-  return codes[0] || (isOrderId(providerCode) ? providerCode : null);
+  if (codes.length > 1) return null;
+  if (codes.length === 1) {
+    const fullCode = codes[0];
+    if (!providerCode || providerCode === fullCode) return fullCode;
+    // SePay derives "code" using the merchant's configurable pattern. A
+    // digits-only/short pattern can return ZCA7 for ZCA7A... in the bank
+    // content. Accept that metadata ONLY when the signed original content
+    // supplies one complete, bounded code and the short code is its prefix.
+    // Never resolve an order by a partial code, amount, or account alone.
+    const truncatedPrefix = /^ZCA[A-F0-9]{1,17}$/.test(providerCode) &&
+      fullCode.startsWith(providerCode);
+    return truncatedPrefix ? fullCode : null;
+  }
+  // Preserve the exact full-code fallback; short metadata alone is not enough.
+  return isOrderId(providerCode) ? providerCode : null;
 }
 
 export function transactionFingerprint(tx) {
