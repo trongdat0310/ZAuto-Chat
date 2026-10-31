@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { createPaymentReconciliation } from "./payment-reconciliation.js";
 import { paymentError, sha256, isOrderId, sameBank, validateTransaction,
   extractOrderCode, transactionTime, transactionFingerprint } from "./payment-security.js";
 
@@ -9,6 +10,12 @@ export function createPaymentOperations({ read, change, planById, validate, isAc
   dateVN, endOfDayVN, monthAfterVN, renewMain, clock }) {
   const assertNow = now => { if (!(now instanceof Date) || !Number.isFinite(+now)) throw paymentError("INVALID_TIME"); };
   return {
+    ...createPaymentReconciliation({ read, change, validate, clock,
+      simulate: (snapshot, options) => createPaymentOperations({
+        read: () => snapshot, change: fn => fn(snapshot), planById, validate, isActive,
+        dateVN, endOfDayVN, monthAfterVN, renewMain, clock,
+      }).confirmPayment(options),
+    }),
     createPaymentOrder({ userId, planId, amount, accountNumber, gateway = "VPBank", subAccount = "",
       requestId, ttlMinutes = 30, now = clock() }) {
       validate(userId); assertNow(now);
