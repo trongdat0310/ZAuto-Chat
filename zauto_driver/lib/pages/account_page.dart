@@ -8,6 +8,8 @@ import '../services/auth_service.dart';
 import '../theme/app_typography.dart';
 import 'subscriptions/subscription_page.dart';
 import '../services/backend/subscription_api.dart';
+import 'account/membership_info_sheet.dart';
+import 'account/membership_status.dart';
 
 class AccountPage extends StatefulWidget {
   final Future<void> Function() onLogout;
@@ -42,6 +44,9 @@ class _AccountPageState extends State<AccountPage> {
 
   Timer? refreshTimer;
   bool isSubscriptionAdmin = false;
+  MembershipStatus? _membershipStatus;
+  bool _membershipLoading = true;
+  bool _membershipSheetOpen = false;
 
   List<Map<String, dynamic>> notificationGroups = [];
 
@@ -82,9 +87,13 @@ class _AccountPageState extends State<AccountPage> {
 
       final result = await backend.getProfile();
       bool adminAccess = isSubscriptionAdmin;
+      MembershipStatus? latestMembership;
       try {
-        final overview = await createSubscriptionApi().overview();
+        final overview = await createSubscriptionApi().overview().timeout(
+          const Duration(seconds: 15),
+        );
         adminAccess = overview['isAdmin'] == true;
+        latestMembership = MembershipStatus.fromOverview(overview);
       } catch (_) { /* Keep profile usable if subscriptions are unavailable. */ }
 
       final user = Map<String, dynamic>.from(result['user'] ?? {});
@@ -135,6 +144,8 @@ class _AccountPageState extends State<AccountPage> {
       setState(() {
         profile = result;
         isSubscriptionAdmin = adminAccess;
+        _membershipStatus = latestMembership;
+        _membershipLoading = false;
 
         notificationGroups = zaloLinked ? groups : [];
 
@@ -155,6 +166,30 @@ class _AccountPageState extends State<AccountPage> {
           error = e.toString().replaceFirst('Exception: ', '');
         }
       });
+    }
+  }
+
+  Future<void> showMembershipInfo() async {
+    if (_membershipSheetOpen || !mounted) {
+      return;
+    }
+    _membershipSheetOpen = true;
+    try {
+      await showMembershipInfoSheet(
+        context,
+        initialStatus: _membershipStatus,
+        loadOverview: () => createSubscriptionApi().overview(),
+        onStatusLoaded: (status) {
+          if (mounted) {
+            setState(() {
+              _membershipStatus = status;
+              _membershipLoading = false;
+            });
+          }
+        },
+      );
+    } finally {
+      _membershipSheetOpen = false;
     }
   }
 
@@ -1545,7 +1580,8 @@ class _AccountPageState extends State<AccountPage> {
 
     final phone = user['phone']?.toString() ?? '';
 
-    final membership = user['membership']?.toString().toUpperCase() ?? 'FREE';
+    final membership = _membershipStatus?.displayName() ??
+        (_membershipLoading ? 'Đang tải...' : 'Chưa tải được thông tin gói');
 
     final zaloLinked = user['zaloLinked'] == true;
 
@@ -1607,17 +1643,19 @@ class _AccountPageState extends State<AccountPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
 
                     children: [
-                      Text(
-                        name,
-
-                        maxLines: 1,
-
-                        overflow: TextOverflow.ellipsis,
-
-                        style: const TextStyle(
-                          fontSize: 25,
-
-                          fontWeight: FontWeight.w700,
+                      Tooltip(
+                        message: 'Đổi tên',
+                        child: InkWell(
+                          onTap: editName,
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 25,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
 
@@ -1900,9 +1938,9 @@ class _AccountPageState extends State<AccountPage> {
 
                 title: 'Thông tin thành viên',
 
-                subtitle: membership == 'FREE' ? 'Miễn phí' : membership,
+                subtitle: membership,
 
-                onTap: editName,
+                onTap: showMembershipInfo,
               ),
               _accountTile(
                 icon: Icons.email_outlined,
