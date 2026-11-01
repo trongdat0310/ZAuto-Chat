@@ -10,6 +10,7 @@ import 'subscriptions/subscription_page.dart';
 import '../services/backend/subscription_api.dart';
 import 'account/membership_info_sheet.dart';
 import 'account/membership_status.dart';
+import 'account/customer_support_sheet.dart';
 
 class AccountPage extends StatefulWidget {
   final Future<void> Function() onLogout;
@@ -47,6 +48,8 @@ class _AccountPageState extends State<AccountPage> {
   MembershipStatus? _membershipStatus;
   bool _membershipLoading = true;
   bool _membershipSheetOpen = false;
+  bool _openingSupportWebsite = false;
+  bool _supportSheetOpen = false;
 
   List<Map<String, dynamic>> notificationGroups = [];
 
@@ -190,6 +193,40 @@ class _AccountPageState extends State<AccountPage> {
       );
     } finally {
       _membershipSheetOpen = false;
+    }
+  }
+
+  Future<void> _openSupportWebsite() async {
+    if (_openingSupportWebsite || !mounted) {
+      return;
+    }
+    _openingSupportWebsite = true;
+    try {
+      final opened = await launchSupportWebsite().timeout(
+        const Duration(seconds: 15),
+      );
+      if (!opened) {
+        throw StateError('Unable to open website');
+      }
+    } catch (_) {
+      _showTopMessage(
+        'Không mở được website. Vui lòng thử lại hoặc truy cập '
+        'https://zchatauto.io.vn/ bằng trình duyệt.',
+      );
+    } finally {
+      _openingSupportWebsite = false;
+    }
+  }
+
+  Future<void> _showCustomerSupport() async {
+    if (_supportSheetOpen || !mounted) {
+      return;
+    }
+    _supportSheetOpen = true;
+    try {
+      await showCustomerSupportSheet(context);
+    } finally {
+      _supportSheetOpen = false;
     }
   }
 
@@ -1974,9 +2011,7 @@ class _AccountPageState extends State<AccountPage> {
 
                 title: 'Trang chủ',
 
-                onTap: () {
-                  _showTopMessage('Trang chủ');
-                },
+                onTap: _openSupportWebsite,
               ),
 
               Divider(
@@ -1992,9 +2027,7 @@ class _AccountPageState extends State<AccountPage> {
 
                 title: 'Hướng dẫn sử dụng',
 
-                onTap: () {
-                  _showTopMessage('Hướng dẫn sử dụng');
-                },
+                onTap: _openSupportWebsite,
               ),
 
               Divider(
@@ -2010,9 +2043,7 @@ class _AccountPageState extends State<AccountPage> {
 
                 title: 'Hỗ trợ khách hàng',
 
-                onTap: () {
-                  _showTopMessage('Hỗ trợ khách hàng');
-                },
+                onTap: _showCustomerSupport,
               ),
             ],
           ),
