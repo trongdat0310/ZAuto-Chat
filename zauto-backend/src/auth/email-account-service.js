@@ -113,7 +113,7 @@ export async function requestPasswordRecovery(value) {
       contentDisposition: "inline",
     }],
   });
-  if (!updateUser(user.id, { passwordHash, mustChangePassword: true })) {
+  if (!updateUser(user.id, { passwordHash, mustChangePassword: true, sessionVersion: crypto.randomUUID() })) {
     throw error("USER_NOT_FOUND", "Tai khoan khong ton tai.", 404);
   }
   attempts.set(email, Date.now());
