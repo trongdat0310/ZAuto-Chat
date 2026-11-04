@@ -576,7 +576,30 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void showError(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    if (!mounted) return;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final colors = Theme.of(dialogContext).colorScheme;
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: colors.error),
+              const SizedBox(width: 10),
+              const Expanded(child: Text('Đăng nhập không thành công')),
+            ],
+          ),
+          content: Text(text),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Đóng'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
