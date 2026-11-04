@@ -241,6 +241,8 @@ app.use(legacyRouteGuard);
 const limitLogin = createAuthRateLimiter({ max: 10, ipMax: 100, failureOnly: true });
 const limitRegister = createAuthRateLimiter({ max: 3, windowMs: 24 * 60 * 60_000, ipMax: 20, ipWindowMs: 60 * 60_000 });
 const limitRecovery = createAuthRateLimiter({ max: 3, windowMs: 60 * 60_000, ipMax: 30 });
+// Serialize repeated recovery requests within five minutes, including concurrent calls.
+const limitRecoveryCooldown = createAuthRateLimiter({ max: 1, windowMs: 5 * 60_000, ipMax: 30, ipWindowMs: 60 * 60_000 });
 app.use('/api/payments', paymentRouter);
 app.use("/api/subscriptions", subscriptionRouter);
 
@@ -785,7 +787,7 @@ app.post(
 
 
 // Password recovery returns a uniform response to prevent account enumeration.
-app.post("/api/auth/forgot-password", limitRecovery, async (req, res) => {
+app.post("/api/auth/forgot-password", limitRecovery, limitRecoveryCooldown, async (req, res) => {
   try {
     await requestPasswordRecovery(req.body?.email);
     return res.json({
