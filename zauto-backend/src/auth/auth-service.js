@@ -85,7 +85,7 @@ export function toPublicUser(
 // CREATE TOKEN
 // ========================================
 
-function createToken(user) {
+export function createToken(user) {
   return jwt.sign(
     {
       sub:
