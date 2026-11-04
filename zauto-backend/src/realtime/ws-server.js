@@ -1,3 +1,4 @@
+import { isSessionCurrent } from "../auth/session-version.js";
 import {
   WebSocketServer,
   WebSocket,
@@ -160,7 +161,7 @@ function authenticateToken(
   }
 
 
-  if ((user.sessionVersion ?? null) !== (payload.sv ?? null)) {
+  if (!isSessionCurrent(user, payload)) {
     throw new Error("Phien dang nhap da het hieu luc.");
   }
 
@@ -552,7 +553,7 @@ export function broadcastUserEvent(
         true
     ) {
       const currentUser = findUserById(key);
-      if (!currentUser || (currentUser.sessionVersion ?? null) !== (socket.sessionVersion ?? null)) {
+      if (!currentUser || !isSessionCurrent(currentUser, { sv: socket.sessionVersion })) {
         socket.close(4004, "Session expired");
         continue;
       }
