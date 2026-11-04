@@ -1,0 +1,40 @@
+name: Backend security tests
+
+on:
+  push:
+    branches:
+      - refactor/architecture
+    paths:
+      - 'zauto-backend/**'
+      - '.github/workflows/backend-security.yml'
+  pull_request:
+    paths:
+      - 'zauto-backend/**'
+      - '.github/workflows/backend-security.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  security-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24]
+    defaults:
+      run:
+        working-directory: zauto-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: zauto-backend/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Run authentication and security tests
+        run: npm run test:security
