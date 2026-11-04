@@ -254,7 +254,7 @@ export async function loginUser({
   if (!user) {
     const error =
       new Error(
-        "Sai so dien thoai hoac mat khau."
+        "Sai Số Điện Thoại Hoặc Mật Khẩu."
       );
 
     error.code =
@@ -274,7 +274,7 @@ export async function loginUser({
   if (!valid) {
     const error =
       new Error(
-        "Sai so dien thoai hoac mat khau."
+        "Sai Số Điện Thoại Hoặc Mật Khẩu."
       );
 
     error.code =
