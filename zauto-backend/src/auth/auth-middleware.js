@@ -95,6 +95,13 @@ export function requireAuth(
     }
 
 
+    if (user.mustChangePassword === true &&
+        !req.originalUrl.split("?")[0].endsWith("/api/me/change-password") &&
+        !req.originalUrl.split("?")[0].endsWith("/api/me") &&
+        !req.originalUrl.split("?")[0].endsWith("/api/auth/logout")) {
+      return res.status(403).json({ success: false, code: "PASSWORD_CHANGE_REQUIRED", error: "Ban phai doi mat khau truoc khi su dung ung dung." });
+    }
+
     req.user =
       user;
 

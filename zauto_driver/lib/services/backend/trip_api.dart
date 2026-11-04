@@ -10,7 +10,7 @@ class TripApi extends BackendApiBase {
   }) async {
     final decoded = await postJson(
       Uri.parse(
-        '$baseUrl/api/me/messages/'
+        '$baseUrl/api/subscriptions/trips/'
         '$messageId/accept',
       ),
 
@@ -31,13 +31,49 @@ class TripApi extends BackendApiBase {
     return Map<String, dynamic>.from(decoded);
   }
 
-  Future<List<Map<String, dynamic>>> getMessages({int limit = 100}) async {
-    final decoded = await getJson(
-      Uri.parse(
-        '$baseUrl/api/me/messages'
-        '?limit=$limit',
-      ),
-    );
+  Future<List<Map<String, dynamic>>> getMessages({
+    int limit = 100,
+    DateTime? from,
+    DateTime? to,
+    String? groupId,
+    String? status,
+    String? query,
+  }) async {
+    final parameters = <String, String>{
+      'limit': limit.toString(),
+    };
+
+    if (from != null) {
+      parameters['from'] = from.toUtc().toIso8601String();
+    }
+
+    if (to != null) {
+      parameters['to'] = to.toUtc().toIso8601String();
+    }
+
+    final safeGroupId = groupId?.trim();
+
+    if (safeGroupId != null && safeGroupId.isNotEmpty) {
+      parameters['groupId'] = safeGroupId;
+    }
+
+    final safeStatus = status?.trim();
+
+    if (safeStatus != null && safeStatus.isNotEmpty) {
+      parameters['status'] = safeStatus;
+    }
+
+    final safeQuery = query?.trim();
+
+    if (safeQuery != null && safeQuery.isNotEmpty) {
+      parameters['q'] = safeQuery;
+    }
+
+    final uri = Uri.parse(
+      '$baseUrl/api/me/messages',
+    ).replace(queryParameters: parameters);
+
+    final decoded = await getJson(uri);
 
     final rawMessages = decoded['messages'];
 

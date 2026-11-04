@@ -31,7 +31,7 @@ class _LoginPageState extends State<LoginPage> {
     final password = passwordController.text;
 
     if (phone.isEmpty || password.isEmpty) {
-      showError('Vui lòng nhập số điện thoại và mật khẩu.');
+      showError('Vui lòng nhập email hoặc số điện thoại và mật khẩu.');
 
       return;
     }
@@ -41,10 +41,13 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      await auth.login(phone: phone, password: password);
+      final user = await auth.login(phone: phone, password: password);
 
       if (!mounted) return;
-
+      if (user['mustChangePassword'] == true) {
+        final changed = await _forcePasswordChange(password);
+        if (!changed || !mounted) return;
+      }
       await widget.onAuthenticated();
     } catch (error) {
       if (!mounted) return;
@@ -57,6 +60,503 @@ class _LoginPageState extends State<LoginPage> {
         });
       }
     }
+  }
+
+  Future<bool> _forcePasswordChange(String temporaryPassword) async {
+    String newPassword = '';
+    String confirmPassword = '';
+
+    String? newPasswordError;
+    String? confirmPasswordError;
+    String? generalError;
+
+    bool submitting = false;
+
+    bool hideNewPassword = true;
+    bool hideConfirmPassword = true;
+
+    final success = await showDialog<bool>(
+      context: context,
+
+      barrierDismissible: false,
+
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final colorScheme = Theme.of(context).colorScheme;
+
+            // ========================================
+            // PASSWORD RULE STATES
+            // ========================================
+
+            final hasLength = newPassword.length >= 8;
+
+            final hasUppercase = RegExp(r'[A-Z]').hasMatch(newPassword);
+
+            final hasLowercase = RegExp(r'[a-z]').hasMatch(newPassword);
+
+            final hasNumber = RegExp(r'[0-9]').hasMatch(newPassword);
+
+            final hasSpecial = RegExp(r'[^A-Za-z0-9\s]').hasMatch(newPassword);
+
+            // ========================================
+            // PASSWORD RULE WIDGET
+            // ========================================
+
+            Widget passwordRule(String text, bool passed) {
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+
+                children: [
+                  Icon(
+                    passed ? Icons.check_circle : Icons.radio_button_unchecked,
+
+                    size: 17,
+
+                    color: passed
+                        ? colorScheme.primary
+                        : colorScheme.onSurfaceVariant,
+                  ),
+
+                  const SizedBox(width: 5),
+
+                  Text(
+                    text,
+
+                    style: TextStyle(
+                      fontSize: 12,
+
+                      color: passed
+                          ? colorScheme.primary
+                          : colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            // ========================================
+            // SUBMIT
+            // ========================================
+
+            Future<void> submit() async {
+              if (submitting) {
+                return;
+              }
+
+              setDialogState(() {
+                newPasswordError = null;
+
+                confirmPasswordError = null;
+
+                generalError = null;
+              });
+
+              bool valid = true;
+
+              // ========================================
+              // NEW PASSWORD POLICY
+              // ========================================
+
+              if (newPassword.isEmpty) {
+                newPasswordError = 'Vui lòng nhập mật khẩu mới';
+
+                valid = false;
+              } else if (!hasLength) {
+                newPasswordError = 'Mật khẩu phải có ít nhất 8 ký tự';
+
+                valid = false;
+              } else if (!hasUppercase) {
+                newPasswordError = 'Cần ít nhất 1 chữ hoa A-Z';
+
+                valid = false;
+              } else if (!hasLowercase) {
+                newPasswordError = 'Cần ít nhất 1 chữ thường a-z';
+
+                valid = false;
+              } else if (!hasNumber) {
+                newPasswordError = 'Cần ít nhất 1 chữ số 0-9';
+
+                valid = false;
+              } else if (!hasSpecial) {
+                newPasswordError = 'Cần ít nhất 1 ký tự đặc biệt';
+
+                valid = false;
+              }
+
+              // ========================================
+              // CONFIRM
+              // ========================================
+
+              if (confirmPassword.isEmpty) {
+                confirmPasswordError = 'Vui lòng nhập lại mật khẩu mới';
+
+                valid = false;
+              } else if (confirmPassword != newPassword) {
+                confirmPasswordError = 'Mật khẩu nhập lại không khớp';
+
+                valid = false;
+              }
+
+              if (!valid) {
+                setDialogState(() {});
+
+                return;
+              }
+
+              // ========================================
+              // CALL BACKEND
+              // ========================================
+
+              setDialogState(() {
+                submitting = true;
+              });
+
+              try {
+                await auth.changeRecoveredPassword(
+                  currentPassword: temporaryPassword,
+
+                  newPassword: newPassword,
+                );
+
+                if (!dialogContext.mounted) {
+                  return;
+                }
+
+                Navigator.of(dialogContext).pop(true);
+              } catch (error) {
+                if (!dialogContext.mounted) {
+                  return;
+                }
+
+                var message = error.toString();
+
+                message = message.replaceFirst('Exception: ', '');
+
+                setDialogState(() {
+                  submitting = false;
+
+                  generalError = message;
+                });
+              }
+            }
+
+            // ========================================
+            // DIALOG
+            // ========================================
+
+            return PopScope(
+              canPop: false,
+              child: AlertDialog(
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 24,
+              ),
+
+              title: const Text('Bắt buộc đổi mật khẩu'),
+
+              content: SingleChildScrollView(
+                child: SizedBox(
+                  width: double.maxFinite,
+
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+
+                    children: [
+                      // ========================================
+                      // NEW PASSWORD
+                      // ========================================
+                      TextFormField(
+                        obscureText: hideNewPassword,
+
+                        enabled: !submitting,
+
+                        textInputAction: TextInputAction.next,
+
+                        onChanged: (value) {
+                          // Quan trong:
+                          // rebuild checklist moi lan go.
+                          setDialogState(() {
+                            newPassword = value;
+
+                            newPasswordError = null;
+
+                            generalError = null;
+                          });
+                        },
+
+                        decoration: InputDecoration(
+                          labelText: 'Mật khẩu mới',
+
+                          border: const OutlineInputBorder(),
+
+                          errorText: newPasswordError,
+
+                          suffixIcon: IconButton(
+                            onPressed: submitting
+                                ? null
+                                : () {
+                                    setDialogState(() {
+                                      hideNewPassword = !hideNewPassword;
+                                    });
+                                  },
+
+                            icon: Icon(
+                              hideNewPassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      // ========================================
+                      // REALTIME PASSWORD CHECKLIST
+                      // ========================================
+                      Wrap(
+                        spacing: 14,
+                        runSpacing: 8,
+
+                        children: [
+                          passwordRule('8+ ký tự', hasLength),
+
+                          passwordRule('Chữ hoa A-Z', hasUppercase),
+
+                          passwordRule('Chữ thường a-z', hasLowercase),
+
+                          passwordRule('Số 0-9', hasNumber),
+
+                          passwordRule('Ký tự đặc biệt', hasSpecial),
+                        ],
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      // ========================================
+                      // CONFIRM PASSWORD
+                      // ========================================
+                      TextFormField(
+                        obscureText: hideConfirmPassword,
+
+                        enabled: !submitting,
+
+                        textInputAction: TextInputAction.done,
+
+                        onChanged: (value) {
+                          setDialogState(() {
+                            confirmPassword = value;
+
+                            confirmPasswordError = null;
+                          });
+                        },
+
+                        onFieldSubmitted: (_) {
+                          if (!submitting) {
+                            submit();
+                          }
+                        },
+
+                        decoration: InputDecoration(
+                          labelText: 'Nhập lại mật khẩu mới',
+
+                          border: const OutlineInputBorder(),
+
+                          errorText: confirmPasswordError,
+
+                          suffixIcon: IconButton(
+                            onPressed: submitting
+                                ? null
+                                : () {
+                                    setDialogState(() {
+                                      hideConfirmPassword =
+                                          !hideConfirmPassword;
+                                    });
+                                  },
+
+                            icon: Icon(
+                              hideConfirmPassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // ========================================
+                      // GENERAL ERROR
+                      // ========================================
+                      if (generalError != null) ...[
+                        const SizedBox(height: 16),
+
+                        Container(
+                          padding: const EdgeInsets.all(12),
+
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.errorContainer,
+
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onErrorContainer,
+                              ),
+
+                              const SizedBox(width: 10),
+
+                              Expanded(
+                                child: Text(
+                                  generalError!,
+
+                                  style: TextStyle(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onErrorContainer,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
+                      if (submitting) ...[
+                        const SizedBox(height: 18),
+
+                        const Center(child: CircularProgressIndicator()),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+
+              actions: [
+                FilledButton(
+                  onPressed: submitting ? null : submit,
+
+                  child: Text(submitting ? 'ĐANG ĐỔI...' : 'ĐỔI MẬT KHẨU'),
+                ),
+              ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    return success == true;
+  }
+
+  Future<void> forgotPassword() async {
+    String email = '';
+    String? emailError;
+    String? requestError;
+    bool sending = false;
+    bool sent = false;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => PopScope(
+          canPop: !sending,
+          child: AlertDialog(
+            insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            title: Text(sent ? 'Đã xử lý yêu cầu' : 'Quên mật khẩu'),
+            content: SingleChildScrollView(
+              child: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (sent)
+                      const Text('Nếu email đã đăng ký, mật khẩu tạm thời sẽ được gửi đến hộp thư. Vui lòng kiểm tra cả thư mục Spam.')
+                    else ...[
+                      const Text('Nhập email đã đăng ký để nhận mật khẩu tạm thời gồm 6 chữ số.'),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        autofocus: true,
+                        enabled: !sending,
+                        keyboardType: TextInputType.emailAddress,
+                        textInputAction: TextInputAction.done,
+                        onChanged: (value) => setDialogState(() {
+                          email = value.trim();
+                          emailError = null;
+                          requestError = null;
+                        }),
+                        decoration: InputDecoration(
+                          labelText: 'Email đã đăng ký',
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.email_outlined),
+                          errorText: emailError,
+                        ),
+                      ),
+                      if (requestError != null) ...[
+                        const SizedBox(height: 14),
+                        Text(requestError!, style: TextStyle(color: Theme.of(dialogContext).colorScheme.error)),
+                      ],
+                      if (sending) ...[
+                        const SizedBox(height: 18),
+                        const Center(child: CircularProgressIndicator()),
+                        const SizedBox(height: 8),
+                        const Center(child: Text('Đang gửi yêu cầu...')),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              if (sent)
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('ĐÓNG'),
+                )
+              else ...[
+                TextButton(
+                  onPressed: sending ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('HỦY'),
+                ),
+                FilledButton(
+                  onPressed: sending ? null : () async {
+                    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+                      setDialogState(() => emailError = 'Vui lòng nhập email hợp lệ');
+                      return;
+                    }
+                    setDialogState(() { sending = true; requestError = null; });
+                    try {
+                      await auth.forgotPassword(email);
+                      if (dialogContext.mounted) {
+                        setDialogState(() { sending = false; sent = true; });
+                      }
+                    } catch (error) {
+                      if (dialogContext.mounted) {
+                        setDialogState(() {
+                          sending = false;
+                          requestError = error.toString().replaceFirst('Exception: ', '');
+                        });
+                      }
+                    }
+                  },
+                  child: const Text('GỬI EMAIL'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> openRegister() async {
@@ -76,7 +576,30 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void showError(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    if (!mounted) return;
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final colors = Theme.of(dialogContext).colorScheme;
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: colors.error),
+              const SizedBox(width: 10),
+              const Expanded(child: Text('Đăng nhập không thành công')),
+            ],
+          ),
+          content: Text(text),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Đóng'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -89,127 +612,167 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final muted = colors.onSurfaceVariant;
+
+    InputDecoration fieldDecoration({
+      required String label,
+      required IconData icon,
+      Widget? suffixIcon,
+    }) {
+      return InputDecoration(
+        hintText: label,
+        hintStyle: TextStyle(color: muted, fontSize: 16),
+        prefixIcon: Icon(icon, color: muted, size: 24),
+        suffixIcon: suffixIcon,
+        filled: true,
+        fillColor: colors.surface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 19),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide(color: colors.outline.withValues(alpha: 0.65), width: 1.1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide(color: colors.primary, width: 1.6),
+        ),
+      );
+    }
+
     return Scaffold(
+
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-
-          children: [
-            const SizedBox(height: 60),
-
-            const CircleAvatar(
-              radius: 48,
-
-              child: Icon(Icons.local_taxi, size: 50),
-            ),
-
-            const SizedBox(height: 28),
-
-            const Text(
-              'Đăng nhập',
-              textAlign: TextAlign.center,
-
-              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
-            const Text(
-              'Đăng nhập để quản lý Zalo và nhận cuốc.',
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 40),
-
-            TextField(
-              controller: phoneController,
-
-              keyboardType: TextInputType.phone,
-
-              textInputAction: TextInputAction.next,
-
-              decoration: const InputDecoration(
-                labelText: 'Số điện thoại',
-
-                prefixIcon: Icon(Icons.phone_outlined),
-
-                border: OutlineInputBorder(),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            TextField(
-              controller: passwordController,
-
-              obscureText: hidePassword,
-
-              onSubmitted: (_) => login(),
-
-              decoration: InputDecoration(
-                labelText: 'Mật khẩu',
-
-                prefixIcon: const Icon(Icons.lock_outline),
-
-                suffixIcon: IconButton(
-                  onPressed: () {
-                    setState(() {
-                      hidePassword = !hidePassword;
-                    });
-                  },
-
-                  icon: Icon(
-                    hidePassword
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight - 40),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(height: constraints.maxHeight > 700 ? 65 : 20),
+                  Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(32),
+                      child: Image.asset(
+                        'assets/images/AvatarApp.png',
+                        width: 138,
+                        height: 138,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   ),
-                ),
-
-                border: const OutlineInputBorder(),
-              ),
-            ),
-
-            const SizedBox(height: 28),
-
-            SizedBox(
-              height: 56,
-
-              child: FilledButton(
-                onPressed: loading ? null : login,
-
-                child: loading
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text(
-                        'ĐĂNG NHẬP',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
+                  const SizedBox(height: 42),
+                  Text(
+                    'Đăng nhập',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w700,
+                      color: colors.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Đăng nhập để quản lý Zalo và nhận cuốc.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, color: muted),
+                  ),
+                  SizedBox(height: constraints.maxHeight > 700 ? 65 : 36),
+                  TextField(
+                    controller: phoneController,
+                    enabled: !loading,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    decoration: fieldDecoration(
+                      label: 'Email hoặc số điện thoại',
+                      icon: Icons.phone_outlined,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  TextField(
+                    controller: passwordController,
+                    enabled: !loading,
+                    obscureText: hidePassword,
+                    onSubmitted: (_) => login(),
+                    decoration: fieldDecoration(
+                      label: 'Mật khẩu',
+                      icon: Icons.lock_outline,
+                      suffixIcon: IconButton(
+                        onPressed: loading ? null : () => setState(
+                          () => hidePassword = !hidePassword,
+                        ),
+                        icon: Icon(
+                          hidePassword
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          color: muted,
                         ),
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: loading ? null : forgotPassword,
+                      child: Text(
+                        'Quên mật khẩu?',
+                        style: TextStyle(color: colors.primary, fontSize: 15),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  SizedBox(
+                    height: 56,
+                    child: FilledButton(
+                      onPressed: loading ? null : login,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: colors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: loading
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text(
+                              'ĐĂNG NHẬP',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 70),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Chưa có tài khoản?',
+                        style: TextStyle(color: muted),
+                      ),
+                      TextButton(
+                        onPressed: loading ? null : openRegister,
+                        child: Text(
+                          'Đăng ký',
+                          style: TextStyle(
+                            color: colors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-
-            const SizedBox(height: 20),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-
-              children: [
-                const Text('Chưa có tài khoản?'),
-
-                TextButton(
-                  onPressed: openRegister,
-
-                  child: const Text('Đăng ký'),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );

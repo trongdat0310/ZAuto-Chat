@@ -8,6 +8,7 @@ import {
 
 import {
   findUserConversationMessage,
+  getUserConversationList,
   markConversationMessageDeletedLocal,
 } from "./conversation-store.js";
 
@@ -28,7 +29,8 @@ deleteUserConversationMessage(
   {
     msgId = null,
     cliMsgId = null,
-  } = {}
+  } = {},
+  { connect = connectUserZalo } = {}
 ) {
 
   const safeUserId =
@@ -198,8 +200,14 @@ deleteUserConversationMessage(
   }
 
 
+  const conversation = getUserConversationList(safeUserId)
+    .find(item => String(item.groupId) === safeGroupId);
+  const threadType = conversation?.type === "user"
+    ? ThreadType.User
+    : ThreadType.Group;
+
   const api =
-    await connectUserZalo(
+    await connect(
       safeUserId
     );
 
@@ -232,7 +240,7 @@ deleteUserConversationMessage(
           safeGroupId,
 
         type:
-          ThreadType.Group,
+          threadType,
       },
 
       true

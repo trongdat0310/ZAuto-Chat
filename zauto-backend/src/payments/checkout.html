@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ZAutoChat - Thanh toán gói</title>
+<style>
+:root{color-scheme:light dark;font-family:system-ui,Arial,sans-serif}*{box-sizing:border-box}body{margin:0;background:#101923;color:#edf3ff;min-height:100vh;padding:24px 16px}main{max-width:570px;margin:auto}header{margin:12px 0 24px}h1{margin:6px 0;font-size:28px}.muted{color:#b8c8df;line-height:1.65}section{background:#192738;border:1px solid #34465f;border-radius:18px;padding:24px;margin-bottom:18px}label{display:block;margin:16px 0 8px;font-weight:600}input,select,button{font:inherit;border-radius:10px;padding:13px;width:100%;border:1px solid #617796}input,select{background:#101923;color:#fff}button{background:#a5ceff;color:#10243b;font-weight:700;margin-top:16px;cursor:pointer}button:disabled{opacity:.5;cursor:default}.secondary{background:transparent;color:#edf3ff}.price{font-size:28px;font-weight:750;margin:20px 0 6px}.qr{display:block;max-width:100%;width:260px;min-height:200px;margin:20px auto;background:white;border-radius:12px;padding:10px}dl{display:grid;grid-template-columns:auto 1fr;gap:10px 16px;font-size:14px}dt{color:#b8c8df}dd{margin:0;text-align:right;overflow-wrap:anywhere;font-weight:600}.status{background:#273e57;border-radius:10px;padding:16px;line-height:1.6}.status[data-state=paid]{background:#164a40}.status[data-state=expired],.error{color:#ffb5ad}.check{display:flex;gap:10px;align-items:flex-start;font-weight:400;line-height:1.5}.check input{width:auto;flex:none;margin-top:5px}small{display:block;line-height:1.6}[hidden]{display:none!important}footer{font-size:12px;color:#b8c8df;line-height:1.6;text-align:center}a{color:#a5ceff}
+</style><script src="/checkout.js" defer></script></head>
+<body><main><header><small>ZAUTOCHAT / THANH TOÁN</small><h1>Mua gói sử dụng</h1><div class="muted">Chuyển khoản VPBank · Xác nhận tự động qua SePay</div></header>
+<section id="create"><form id="order-form"><label for="phone">Số điện thoại đăng ký ZAutoChat</label><input id="phone" name="phone" inputmode="tel" autocomplete="tel" placeholder="09xxxxxxxx" required maxlength="20">
+<label for="plan">Gói sử dụng</label><select id="plan" name="plan" required disabled></select><div id="price" class="price"></div>
+<small class="muted">Gói chính: 1 tháng. Mua lại cùng gói sẽ gia hạn, không xóa lượt đã dùng. Gói thêm lượt có thể dùng riêng, hết hạn cuối ngày Việt Nam.</small>
+<label class="check"><input id="confirmed" type="checkbox" required><span>Tôi đã kiểm tra đúng số điện thoại được cấp gói.</span></label>
+<p id="error" class="error" role="alert"></p><button id="submit" disabled>Tạo đơn và lấy mã QR</button></form></section>
+<section id="payment" hidden><small>MÃ ĐƠN <span id="order-id"></span></small><div id="amount" class="price"></div><img id="qr" class="qr" alt="Mã QR chuyển khoản VPBank">
+<p id="qr-fallback" class="muted" hidden>Không tải được QR. Bạn có thể chuyển khoản thủ công theo thông tin bên dưới.</p>
+<dl><dt>Ngân hàng</dt><dd id="bank"></dd><dt>Số tài khoản</dt><dd id="account"></dd><dt>Người nhận</dt><dd id="owner"></dd><dt>Nội dung</dt><dd id="memo"></dd><dt>Hạn thanh toán</dt><dd id="expires"></dd></dl>
+<small class="muted">Kiểm tra người nhận trong app ngân hàng. Chuyển đúng số tiền và giữ nguyên nội dung. Không chuyển thêm lần nữa khi đang chờ xác nhận.</small>
+<button id="copy" type="button" class="secondary">Sao chép nội dung</button><p id="status" class="status" role="status" aria-live="polite"></p>
+<button id="check" type="button" class="secondary">Kiểm tra trạng thái</button><button id="new" type="button" class="secondary">Tạo đơn khác</button></section>
+<footer>Chỉ thông báo từ ngân hàng được xác thực mới kích hoạt gói.<br>Hỗ trợ: 0945.785.631</footer></main></body></html>

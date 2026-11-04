@@ -74,6 +74,10 @@ class VideoMessageBubble extends StatelessWidget {
 
                     fit: BoxFit.cover,
 
+                    cacheWidth: (displayWidth * 2.5).round(),
+
+                    cacheHeight: (displayHeight * 2.5).round(),
+
                     errorBuilder: (context, error, stackTrace) {
                       return const _VideoFallback();
                     },

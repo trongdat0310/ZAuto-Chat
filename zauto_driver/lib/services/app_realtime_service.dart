@@ -16,6 +16,12 @@ class AppRealtimeService {
 
   bool _disposed = false;
 
+  int _sourceGeneration = 0;
+
+  bool _connected = false;
+
+  bool _authFailed = false;
+
   AppRealtimeService({required String baseUrl})
     : _backend = BackendService(baseUrl: baseUrl);
 
@@ -30,6 +36,10 @@ class AppRealtimeService {
 
   bool get isStarted => _started && !_disposed;
 
+  bool get isConnected => _connected && !_disposed;
+
+  bool get hasAuthFailed => _authFailed && !_disposed;
+
   // ========================================
   // START
   // ========================================
@@ -41,16 +51,30 @@ class AppRealtimeService {
 
     _started = true;
 
+    final generation = ++_sourceGeneration;
+
     debugPrint('APP REALTIME START');
 
     _subscription = _backend.connectRealtime().listen(
       (event) {
-        if (_disposed) {
+        if (_disposed || generation != _sourceGeneration) {
           return;
         }
 
         final type =
             event['type']?.toString();
+
+        if (type == 'authenticated') {
+          _connected = true;
+
+          _authFailed = false;
+        } else if (type == 'realtime_disconnected') {
+          _connected = false;
+        } else if (type == 'auth_error') {
+          _connected = false;
+
+          _authFailed = true;
+        }
 
         if (
           type == 'new_trip'
@@ -89,7 +113,7 @@ class AppRealtimeService {
       },
 
       onError: (Object error, StackTrace stackTrace) {
-        if (_disposed) {
+        if (_disposed || generation != _sourceGeneration) {
           return;
         }
 
@@ -102,13 +126,15 @@ class AppRealtimeService {
       },
 
       onDone: () {
-        if (_disposed) {
+        if (_disposed || generation != _sourceGeneration) {
           return;
         }
 
         _subscription = null;
 
         _started = false;
+
+        _connected = false;
 
         debugPrint('APP REALTIME SOURCE DONE');
       },
@@ -128,6 +154,12 @@ class AppRealtimeService {
     }
 
     _started = false;
+
+    _connected = false;
+
+    _authFailed = false;
+
+    _sourceGeneration += 1;
 
     final subscription = _subscription;
 
@@ -154,6 +186,12 @@ class AppRealtimeService {
     _disposed = true;
 
     _started = false;
+
+    _connected = false;
+
+    _authFailed = false;
+
+    _sourceGeneration += 1;
 
     final subscription = _subscription;
 

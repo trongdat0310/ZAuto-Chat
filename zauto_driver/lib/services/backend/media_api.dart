@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:http/http.dart' as http;
 
 import 'backend_api_base.dart';
@@ -49,6 +51,7 @@ class MediaApi extends BackendApiBase {
   Future<void> sendConversationPhotos({
     required String groupId,
     required List<String> filePaths,
+    required String clientRequestId,
   }) async {
     final safePaths = filePaths
         .map((path) => path.trim())
@@ -61,6 +64,24 @@ class MediaApi extends BackendApiBase {
 
     if (safePaths.length > 10) {
       throw Exception('Mỗi lần chỉ gửi tối đa 10 ảnh');
+    }
+
+    for (var index = 0; index < safePaths.length; index += 1) {
+      final file = File(safePaths[index]);
+
+      if (!await file.exists()) {
+        throw Exception('Ảnh ${index + 1} không còn tồn tại trên thiết bị');
+      }
+
+      final size = await file.length();
+
+      if (size <= 0) {
+        throw Exception('Ảnh ${index + 1} bị trống hoặc không đọc được');
+      }
+
+      if (size > 15 * 1024 * 1024) {
+        throw Exception('Ảnh ${index + 1} vượt quá giới hạn 15 MB');
+      }
     }
 
     final headers = await authHeaders();
@@ -78,13 +99,13 @@ class MediaApi extends BackendApiBase {
 
     request.headers.addAll(headers);
 
+    request.fields['clientRequestId'] = clientRequestId;
+
     for (final path in safePaths) {
       request.files.add(await http.MultipartFile.fromPath('photos', path));
     }
 
-    final streamedResponse = await request.send();
-
-    final response = await http.Response.fromStream(streamedResponse);
+    final response = await sendMultipartRequest(request);
 
     await decodeMultipartResponse(response);
   }

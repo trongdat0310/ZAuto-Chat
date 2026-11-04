@@ -667,7 +667,7 @@ class _AddNotificationFilterPageState extends State<AddNotificationFilterPage> {
               ? millions.toInt().toString()
               : millions.toStringAsFixed(1);
 
-      return '${text} triệu';
+      return '$text triệu';
     }
 
     return '${rounded}k';

@@ -1,6 +1,8 @@
 import {
   ThreadType,
 } from "zca-js";
+import { acceptTargetKey, runMeteredAcceptance } from "../subscriptions/acceptance-runner.js";
+import { subscriptionError } from "../subscriptions/subscription-service.js";
 
 import {
   connectUserZalo,
@@ -34,7 +36,8 @@ function acceptLockKey(
 async function acceptUserMessageInternal(
   userId,
   messageId,
-  replyText = "Nhận"
+  replyText = "Nhận",
+  markSending = () => {}
 ) {
   // ========================================
   // GET TRIP MESSAGE
@@ -277,16 +280,24 @@ async function acceptUserMessageInternal(
   // "Nhận"
   // ========================================
 
+  // Mention the original sender with a real Zalo @ tag.
+  // The mention offset and length refer to the exact prefix in msg.
+  const senderId = String(message.senderId ?? "").trim();
+  const senderName = String(message.senderName ?? "").trim().replace(/^@+/, "");
+  const mentionPrefix = senderId && senderName ? `@${senderName}` : "";
+  const outgoingText = mentionPrefix ? `${mentionPrefix} ${text}` : text;
+  const mentions = mentionPrefix
+    ? [{ uid: senderId, pos: 0, len: mentionPrefix.length }]
+    : [];
+
   const sendPayload =
-    quote
+    quote || mentions.length
       ? {
-          msg:
-            text,
-
-          quote,
+          msg: outgoingText,
+          ...(quote ? { quote } : {}),
+          ...(mentions.length ? { mentions } : {}),
         }
-      : text;
-
+      : outgoingText;
 
   // ========================================
   // GET USER ZALO API
@@ -344,6 +355,8 @@ async function acceptUserMessageInternal(
   // ========================================
   // SEND ZALO
   // ========================================
+
+  markSending();
 
   const result =
     await api.sendMessage(
@@ -446,12 +459,22 @@ export async function acceptUserMessage(
   }
 
 
-  const promise =
-    acceptUserMessageInternal(
-      userId,
-      messageId,
-      replyText
-    );
+  const message = getUserMessageById(userId, messageId);
+  if (!message) throw subscriptionError("MESSAGE_NOT_FOUND", "Khong tim thay cuoc.", 404);
+  if (message.status === "accepted") return { alreadyAccepted: true, message };
+  const sourceThreadId = message.sourceThreadId ?? message.groupId;
+  const sourceMsgId = message.sourceMsgId ?? message.zaloMessageId ?? message.sourceQuote?.msgId;
+  const sourceCliMsgId = message.sourceCliMsgId ?? message.clientMessageId ?? message.sourceQuote?.cliMsgId;
+  const targetKey = acceptTargetKey(sourceThreadId, sourceMsgId, sourceCliMsgId);
+  const promise = runMeteredAcceptance({
+    userId,
+    feature: "trip_screen_accept",
+    targetKey,
+    context: { groupId: sourceThreadId, sourceMsgId, sourceCliMsgId,
+      replyText, acceptanceSource: "trip_screen_accept" },
+    perform: async markSending =>
+      acceptUserMessageInternal(userId, messageId, replyText, markSending),
+  });
 
 
   acceptInFlight.set(

@@ -65,6 +65,10 @@ class BackendService {
     return groupApi.getGroups();
   }
 
+  Future<List<Map<String, dynamic>>> setAllGroupsEnabled(bool enabled) {
+    return groupApi.setAllGroupsEnabled(enabled);
+  }
+
   Future<bool> toggleGroup(String groupId, bool enabled) {
     return groupApi.toggleGroup(groupId, enabled);
   }
@@ -139,8 +143,22 @@ class BackendService {
     );
   }
 
-  Future<List<Map<String, dynamic>>> getMessages({int limit = 100}) {
-    return tripApi.getMessages(limit: limit);
+  Future<List<Map<String, dynamic>>> getMessages({
+    int limit = 100,
+    DateTime? from,
+    DateTime? to,
+    String? groupId,
+    String? status,
+    String? query,
+  }) {
+    return tripApi.getMessages(
+      limit: limit,
+      from: from,
+      to: to,
+      groupId: groupId,
+      status: status,
+      query: query,
+    );
   }
 
   Future<Map<String, dynamic>> ignoreMessage(String messageId) {
@@ -280,9 +298,18 @@ class BackendService {
     );
   }
 
+  Future<void> openPrivateConversation({required String userId, required String name}) {
+    return messageApi.openPrivateConversation(userId: userId, name: name);
+  }
+
+  Future<void> sendPrivateMessage({required String userId, required String text}) {
+    return messageApi.sendPrivateMessage(userId: userId, text: text);
+  }
+
   Future<void> sendConversationMessage({
     required String groupId,
     required String text,
+    required String clientRequestId,
 
     String? replyToMsgId,
     String? replyToCliMsgId,
@@ -290,6 +317,7 @@ class BackendService {
     return messageApi.sendConversationMessage(
       groupId: groupId,
       text: text,
+      clientRequestId: clientRequestId,
       replyToMsgId: replyToMsgId,
       replyToCliMsgId: replyToCliMsgId,
     );
@@ -371,10 +399,12 @@ class BackendService {
   Future<void> sendConversationPhotos({
     required String groupId,
     required List<String> filePaths,
+    required String clientRequestId,
   }) async {
     return mediaApi.sendConversationPhotos(
       groupId: groupId,
       filePaths: filePaths,
+      clientRequestId: clientRequestId,
     );
   }
 

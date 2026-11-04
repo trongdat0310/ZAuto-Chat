@@ -262,24 +262,26 @@ class ChatMessageComposer extends StatelessWidget {
 
                     height: 46,
 
-                    child: IconButton.filled(
-                      onPressed:
-                          disabled ||
-                              sendingMessage ||
-                              sendingPhoto ||
-                              !canSendMessage
-                          ? null
-                          : onSend,
+                    child: ExcludeFocus(
+                      child: IconButton.filled(
+                        onPressed:
+                            disabled ||
+                                sendingMessage ||
+                                sendingPhoto ||
+                                !canSendMessage
+                            ? null
+                            : onSend,
 
-                      icon: sendingMessage
-                          ? const SizedBox(
-                              width: 20,
+                        icon: sendingMessage
+                            ? const SizedBox(
+                                width: 20,
 
-                              height: 20,
+                                height: 20,
 
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.send_rounded),
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.send_rounded),
+                      ),
                     ),
                   ),
                 ],

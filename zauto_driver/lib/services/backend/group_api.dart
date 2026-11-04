@@ -18,6 +18,21 @@ class GroupApi extends BackendApiBase {
         .toList();
   }
 
+  Future<List<Map<String, dynamic>>> setAllGroupsEnabled(bool enabled) async {
+    final decoded = await postJson(
+      Uri.parse('$baseUrl/api/me/groups/toggle-all'),
+      body: {'enabled': enabled},
+    );
+    final rawGroups = decoded['groups'];
+    if (rawGroups is! List) {
+      throw Exception('Phản hồi danh sách nhóm không hợp lệ');
+    }
+    return rawGroups
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
   Future<bool> toggleGroup(String groupId, bool enabled) async {
     final decoded = await postJson(
       Uri.parse('$baseUrl/api/me/groups/$groupId/toggle'),

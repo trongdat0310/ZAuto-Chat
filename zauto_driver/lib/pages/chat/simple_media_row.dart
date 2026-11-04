@@ -5,6 +5,7 @@ import 'swipe_reply_wrapper.dart';
 class SimpleMediaRow extends StatelessWidget {
   final Key rowKey;
 
+  final bool swipeEnabled;
   final bool isSelf;
 
   final bool highlighted;
@@ -24,6 +25,7 @@ class SimpleMediaRow extends StatelessWidget {
   const SimpleMediaRow({
     super.key,
     required this.rowKey,
+    required this.swipeEnabled,
     required this.isSelf,
     required this.highlighted,
     required this.senderName,
@@ -121,7 +123,7 @@ class SimpleMediaRow extends StatelessWidget {
     );
 
     return SwipeReplyWrapper(
-      enabled: true,
+      enabled: swipeEnabled,
 
       onReply: onReply,
 

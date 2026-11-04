@@ -1,5 +1,39 @@
 import 'dart:convert';
 
+class ChatPhotoAlbumIndex {
+  final Map<String, List<Map<String, dynamic>>> albums;
+
+  final Map<String, int> renderIndexes;
+
+  const ChatPhotoAlbumIndex({
+    required this.albums,
+    required this.renderIndexes,
+  });
+
+  List<Map<String, dynamic>> albumFor(
+    String groupId,
+    Map<String, dynamic> fallback,
+  ) {
+    return albums[groupId] ?? <Map<String, dynamic>>[fallback];
+  }
+
+  int renderIndexFor(
+    String groupId, {
+    required int? targetIndex,
+    required List<Map<String, dynamic>> messages,
+    required String? Function(Map<String, dynamic>) resolveGroupId,
+  }) {
+    if (targetIndex != null &&
+        targetIndex >= 0 &&
+        targetIndex < messages.length &&
+        resolveGroupId(messages[targetIndex]) == groupId) {
+      return targetIndex;
+    }
+
+    return renderIndexes[groupId] ?? -1;
+  }
+}
+
 class ChatMediaController {
   // ========================================
   // PHOTO CONTENT
@@ -245,6 +279,94 @@ class ChatMediaController {
     }
 
     return value;
+  }
+
+  // ========================================
+  // PHOTO ALBUM INDEX
+  //
+  // Build mot lan moi render cycle.
+  // Tranh moi photo bubble lai scan toan bo
+  // history khi conversation da rat dai.
+  // ========================================
+
+  ChatPhotoAlbumIndex buildPhotoAlbumIndex(
+    List<Map<String, dynamic>> messages,
+  ) {
+    final albums =
+        <String, List<Map<String, dynamic>>>{};
+
+    final renderIndexes =
+        <String, int>{};
+
+    final bestOrders =
+        <String, int>{};
+
+    for (var index = 0; index < messages.length; index += 1) {
+      final item = messages[index];
+
+      if (item['status']?.toString() != 'normal' ||
+          !isPhotoMessage(item)) {
+        continue;
+      }
+
+      final groupId = mediaGroupId(item);
+
+      if (groupId == null) {
+        continue;
+      }
+
+      (albums[groupId] ??= <Map<String, dynamic>>[])
+          .add(item);
+
+      final order =
+          mediaGroupIndex(item) ??
+          999998;
+
+      final currentBest =
+          bestOrders[groupId];
+
+      if (currentBest == null ||
+          order < currentBest) {
+        bestOrders[groupId] = order;
+
+        renderIndexes[groupId] = index;
+      }
+    }
+
+    for (final album in albums.values) {
+      album.sort((a, b) {
+        final aIndex =
+            mediaGroupIndex(a) ??
+            999999;
+
+        final bIndex =
+            mediaGroupIndex(b) ??
+            999999;
+
+        if (aIndex != bIndex) {
+          return aIndex.compareTo(bIndex);
+        }
+
+        final aTime =
+            int.tryParse(
+              a['timestamp']?.toString() ?? '',
+            ) ??
+            0;
+
+        final bTime =
+            int.tryParse(
+              b['timestamp']?.toString() ?? '',
+            ) ??
+            0;
+
+        return aTime.compareTo(bTime);
+      });
+    }
+
+    return ChatPhotoAlbumIndex(
+      albums: albums,
+      renderIndexes: renderIndexes,
+    );
   }
 
   // ========================================

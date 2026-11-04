@@ -81,6 +81,11 @@ export function findUserById(
 }
 
 
+export function findUserByEmail(email) {
+  const normalized = String(email ?? "").trim().toLowerCase();
+  return readUsers().find(user => user.email?.toLowerCase() === normalized) ?? null;
+}
+
 export function findUserByPhone(
   phone
 ) {
@@ -101,6 +106,7 @@ export function createUser({
   name,
   phone,
   passwordHash,
+  email,
 }) {
   const users =
     readUsers();
@@ -114,6 +120,7 @@ export function createUser({
 
     name,
     phone,
+    email,
     passwordHash,
 
     membership:

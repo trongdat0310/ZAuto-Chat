@@ -12,6 +12,7 @@ import {
 
 import {
   findUserConversationMessage,
+  getUserConversationList,
 } from "./conversation-store.js";
 
 
@@ -114,17 +115,21 @@ sendUserConversationMessage(
   }
 
 
+  const conversation = getUserConversationList(safeUserId)
+    .find(item => String(item.groupId) === safeGroupId);
+  const isPrivate = conversation?.type === 'user';
+
   // ========================================
   // KIEM TRA GROUP
   // ========================================
 
-  const groups =
+  const groups = isPrivate ? [] :
     await getUserGroups(
       safeUserId
     );
 
 
-  const groupExists =
+  const groupExists = isPrivate ||
     groups.some(
       item =>
         String(
@@ -154,6 +159,8 @@ sendUserConversationMessage(
 
   let quote =
     null;
+
+  let mentionTarget = null;
 
 
   const safeReplyToMsgId =
@@ -244,6 +251,10 @@ sendUserConversationMessage(
     quote =
       target.rawData;
 
+    if (target.isSelf !== true) {
+      mentionTarget = target;
+    }
+
 
     if (
       quote.msgId == null &&
@@ -277,20 +288,21 @@ sendUserConversationMessage(
   // PAYLOAD
   // ========================================
 
-  const sendPayload =
-    quote
-      ? {
-          msg:
-            safeText,
+  const senderId = String(
+    mentionTarget?.uidFrom ?? mentionTarget?.rawData?.uidFrom ?? ""
+  ).trim();
+  const senderName = String(mentionTarget?.senderName ?? "")
+    .trim().replace(/^@+/, "");
+  const mentionText = senderName ? `@${senderName}` : "";
+  const mentions = senderId && mentionText && safeText.startsWith(mentionText)
+    ? [{ uid: senderId, pos: 0, len: mentionText.length }]
+    : [];
 
-          quote,
-        }
-
-      : {
-          msg:
-            safeText,
-        };
-
+  const sendPayload = {
+    msg: safeText,
+    ...(quote ? { quote } : {}),
+    ...(mentions.length ? { mentions } : {}),
+  };
 
   // ========================================
   // GUI VAO GROUP
@@ -302,7 +314,7 @@ sendUserConversationMessage(
 
       safeGroupId,
 
-      ThreadType.Group
+      isPrivate ? ThreadType.User : ThreadType.Group
     );
 
 

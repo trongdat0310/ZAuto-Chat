@@ -366,8 +366,7 @@ class ChatTargetController {
 
 
     const maxDistanceMs =
-        Duration(minutes: 2)
-            .inMilliseconds;
+        2 * 60 * 1000;
 
     var bestIndex =
         -1;

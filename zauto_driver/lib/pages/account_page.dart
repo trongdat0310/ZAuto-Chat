@@ -4,7 +4,13 @@ import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
 import '../services/backend_service.dart';
+import '../services/auth_service.dart';
 import '../theme/app_typography.dart';
+import 'subscriptions/subscription_page.dart';
+import '../services/backend/subscription_api.dart';
+import 'account/membership_info_sheet.dart';
+import 'account/membership_status.dart';
+import 'account/customer_support_sheet.dart';
 
 class AccountPage extends StatefulWidget {
   final Future<void> Function() onLogout;
@@ -38,6 +44,12 @@ class _AccountPageState extends State<AccountPage> {
   String? error;
 
   Timer? refreshTimer;
+  bool isSubscriptionAdmin = false;
+  MembershipStatus? _membershipStatus;
+  bool _membershipLoading = true;
+  bool _membershipSheetOpen = false;
+  bool _openingSupportWebsite = false;
+  bool _supportSheetOpen = false;
 
   List<Map<String, dynamic>> notificationGroups = [];
 
@@ -77,8 +89,30 @@ class _AccountPageState extends State<AccountPage> {
       // ========================================
 
       final result = await backend.getProfile();
+      bool adminAccess = isSubscriptionAdmin;
+      MembershipStatus? latestMembership;
+      try {
+        final overview = await createSubscriptionApi().overview().timeout(
+          const Duration(seconds: 15),
+        );
+        adminAccess = overview['isAdmin'] == true;
+        latestMembership = MembershipStatus.fromOverview(overview);
+      } catch (_) { /* Keep profile usable if subscriptions are unavailable. */ }
 
       final user = Map<String, dynamic>.from(result['user'] ?? {});
+      // Read the canonical authenticated user when the profile endpoint is
+      // served by an older backend version or an intermediate cache.
+      if ((user['email']?.toString().trim().isNotEmpty ?? false) == false) {
+        try {
+          final currentUser = await AuthService().getCurrentUser();
+          if (currentUser != null && currentUser['email'] != null) {
+            user['email'] = currentUser['email'];
+            result['user'] = user;
+          }
+        } catch (error) {
+          debugPrint('ACCOUNT EMAIL REFRESH ERROR: $error');
+        }
+      }
 
       final zaloLinked = user['zaloLinked'] == true;
 
@@ -112,6 +146,9 @@ class _AccountPageState extends State<AccountPage> {
 
       setState(() {
         profile = result;
+        isSubscriptionAdmin = adminAccess;
+        _membershipStatus = latestMembership;
+        _membershipLoading = false;
 
         notificationGroups = zaloLinked ? groups : [];
 
@@ -132,6 +169,64 @@ class _AccountPageState extends State<AccountPage> {
           error = e.toString().replaceFirst('Exception: ', '');
         }
       });
+    }
+  }
+
+  Future<void> showMembershipInfo() async {
+    if (_membershipSheetOpen || !mounted) {
+      return;
+    }
+    _membershipSheetOpen = true;
+    try {
+      await showMembershipInfoSheet(
+        context,
+        initialStatus: _membershipStatus,
+        loadOverview: () => createSubscriptionApi().overview(),
+        onStatusLoaded: (status) {
+          if (mounted) {
+            setState(() {
+              _membershipStatus = status;
+              _membershipLoading = false;
+            });
+          }
+        },
+      );
+    } finally {
+      _membershipSheetOpen = false;
+    }
+  }
+
+  Future<void> _openSupportWebsite() async {
+    if (_openingSupportWebsite || !mounted) {
+      return;
+    }
+    _openingSupportWebsite = true;
+    try {
+      final opened = await launchSupportWebsite().timeout(
+        const Duration(seconds: 15),
+      );
+      if (!opened) {
+        throw StateError('Unable to open website');
+      }
+    } catch (_) {
+      _showTopMessage(
+        'Không mở được website. Vui lòng thử lại hoặc truy cập '
+        'https://zchatauto.io.vn/ bằng trình duyệt.',
+      );
+    } finally {
+      _openingSupportWebsite = false;
+    }
+  }
+
+  Future<void> _showCustomerSupport() async {
+    if (_supportSheetOpen || !mounted) {
+      return;
+    }
+    _supportSheetOpen = true;
+    try {
+      await showCustomerSupportSheet(context);
+    } finally {
+      _supportSheetOpen = false;
     }
   }
 
@@ -234,6 +329,130 @@ class _AccountPageState extends State<AccountPage> {
     }
   }
 
+  Future<void> editEmail() async {
+    String email = profile?['user']?['email']?.toString() ?? '';
+    String password = '';
+    String? emailError;
+    String? passwordError;
+    String? requestError;
+    bool saving = false;
+    bool hidePassword = true;
+
+    final updated = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => PopScope(
+          canPop: !saving,
+          child: AlertDialog(
+            insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            title: const Text('Đổi email'),
+            content: SingleChildScrollView(
+              child: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      initialValue: email,
+                      autofocus: true,
+                      enabled: !saving,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      onChanged: (value) => setDialogState(() {
+                        email = value.trim();
+                        emailError = null;
+                        requestError = null;
+                      }),
+                      decoration: InputDecoration(
+                        labelText: 'Email mới',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.email_outlined),
+                        errorText: emailError,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      enabled: !saving,
+                      obscureText: hidePassword,
+                      textInputAction: TextInputAction.done,
+                      onChanged: (value) => setDialogState(() {
+                        password = value;
+                        passwordError = null;
+                        requestError = null;
+                      }),
+                      decoration: InputDecoration(
+                        labelText: 'Mật khẩu hiện tại',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        errorText: passwordError,
+                        suffixIcon: IconButton(
+                          onPressed: saving ? null : () => setDialogState(() => hidePassword = !hidePassword),
+                          icon: Icon(hidePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                        ),
+                      ),
+                    ),
+                    if (requestError != null) ...[
+                      const SizedBox(height: 16),
+                      Text(requestError!, style: TextStyle(color: Theme.of(dialogContext).colorScheme.error)),
+                    ],
+                    if (saving) ...[
+                      const SizedBox(height: 18),
+                      const Center(child: CircularProgressIndicator()),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+                child: const Text('HỦY'),
+              ),
+              FilledButton(
+                onPressed: saving ? null : () async {
+                  setDialogState(() { emailError = null; passwordError = null; requestError = null; });
+                  bool valid = true;
+                  if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
+                    emailError = 'Vui lòng nhập email hợp lệ';
+                    valid = false;
+                  }
+                  if (password.isEmpty) {
+                    passwordError = 'Vui lòng nhập mật khẩu hiện tại';
+                    valid = false;
+                  }
+                  if (!valid) { setDialogState(() {}); return; }
+                  setDialogState(() => saving = true);
+                  try {
+                    await AuthService().updateEmail(email, password);
+                    if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                  } catch (error) {
+                    if (dialogContext.mounted) {
+                      setDialogState(() {
+                        saving = false;
+                        requestError = error.toString().replaceFirst('Exception: ', '');
+                      });
+                    }
+                  }
+                },
+                child: Text(saving ? 'ĐANG LƯU...' : 'LƯU EMAIL'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (updated == true && mounted) {
+      await loadProfile(silent: true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã cập nhật email thành công')),
+        );
+      }
+    }
+  }
+
   Future<void> changePassword() async {
     String currentPassword = '';
     String newPassword = '';
@@ -258,6 +477,8 @@ class _AccountPageState extends State<AccountPage> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final colorScheme = Theme.of(context).colorScheme;
+
             // ========================================
             // PASSWORD RULE STATES
             // ========================================
@@ -286,7 +507,9 @@ class _AccountPageState extends State<AccountPage> {
 
                     size: 17,
 
-                    color: passed ? Colors.green : Colors.grey,
+                    color: passed
+                        ? colorScheme.primary
+                        : colorScheme.onSurfaceVariant,
                   ),
 
                   const SizedBox(width: 5),
@@ -297,7 +520,9 @@ class _AccountPageState extends State<AccountPage> {
                     style: TextStyle(
                       fontSize: 12,
 
-                      color: passed ? Colors.green : Colors.grey.shade700,
+                      color: passed
+                          ? colorScheme.primary
+                          : colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -731,6 +956,8 @@ class _AccountPageState extends State<AccountPage> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final colorScheme = Theme.of(context).colorScheme;
+
             Future<void> submit() async {
               if (deleting) {
                 return;
@@ -789,13 +1016,16 @@ class _AccountPageState extends State<AccountPage> {
                 vertical: 24,
               ),
 
-              title: const Row(
+              title: Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded, color: Colors.red),
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: colorScheme.error,
+                  ),
 
-                  SizedBox(width: 10),
+                  const SizedBox(width: 10),
 
-                  Expanded(child: Text('Xóa tài khoản?')),
+                  const Expanded(child: Text('Xóa tài khoản?')),
                 ],
               ),
 
@@ -926,7 +1156,10 @@ class _AccountPageState extends State<AccountPage> {
                 FilledButton(
                   onPressed: deleting ? null : submit,
 
-                  style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: colorScheme.error,
+                    foregroundColor: colorScheme.onError,
+                  ),
 
                   child: Text(deleting ? 'ĐANG XÓA...' : 'XÓA TÀI KHOẢN'),
                 ),
@@ -1384,7 +1617,8 @@ class _AccountPageState extends State<AccountPage> {
 
     final phone = user['phone']?.toString() ?? '';
 
-    final membership = user['membership']?.toString().toUpperCase() ?? 'FREE';
+    final membership = _membershipStatus?.displayName() ??
+        (_membershipLoading ? 'Đang tải...' : 'Chưa tải được thông tin gói');
 
     final zaloLinked = user['zaloLinked'] == true;
 
@@ -1446,17 +1680,19 @@ class _AccountPageState extends State<AccountPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
 
                     children: [
-                      Text(
-                        name,
-
-                        maxLines: 1,
-
-                        overflow: TextOverflow.ellipsis,
-
-                        style: const TextStyle(
-                          fontSize: 25,
-
-                          fontWeight: FontWeight.w700,
+                      Tooltip(
+                        message: 'Đổi tên',
+                        child: InkWell(
+                          onTap: editName,
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 25,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ),
 
@@ -1739,10 +1975,27 @@ class _AccountPageState extends State<AccountPage> {
 
                 title: 'Thông tin thành viên',
 
-                subtitle: membership == 'FREE' ? 'Miễn phí' : membership,
+                subtitle: membership,
 
-                onTap: editName,
+                onTap: showMembershipInfo,
               ),
+              _accountTile(
+                icon: Icons.email_outlined,
+                title: 'Email',
+                subtitle: profile?['user']?['email']?.toString() ?? 'Chưa cập nhật',
+                onTap: editEmail,
+              ),
+              if (isSubscriptionAdmin) ...[
+                Divider(height: 1, indent: 78,
+                  color: colorScheme.outline.withValues(alpha: 0.35)),
+                _accountTile(
+                  icon: Icons.workspace_premium_outlined,
+                  title: 'Gói sử dụng',
+                  subtitle: 'Quản lý gói và lượt nhận cuốc',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const SubscriptionPage())),
+                ),
+              ],
             ],
           ),
 
@@ -1758,9 +2011,7 @@ class _AccountPageState extends State<AccountPage> {
 
                 title: 'Trang chủ',
 
-                onTap: () {
-                  _showTopMessage('Trang chủ');
-                },
+                onTap: _openSupportWebsite,
               ),
 
               Divider(
@@ -1776,9 +2027,7 @@ class _AccountPageState extends State<AccountPage> {
 
                 title: 'Hướng dẫn sử dụng',
 
-                onTap: () {
-                  _showTopMessage('Hướng dẫn sử dụng');
-                },
+                onTap: _openSupportWebsite,
               ),
 
               Divider(
@@ -1794,9 +2043,7 @@ class _AccountPageState extends State<AccountPage> {
 
                 title: 'Hỗ trợ khách hàng',
 
-                onTap: () {
-                  _showTopMessage('Hỗ trợ khách hàng');
-                },
+                onTap: _showCustomerSupport,
               ),
             ],
           ),

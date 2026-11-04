@@ -19,6 +19,12 @@ class ChatRealtimeController {
 
   final void Function(Map<String, dynamic> message) onMessage;
 
+  final VoidCallback onConnected;
+
+  final VoidCallback onDisconnected;
+
+  final VoidCallback onAuthError;
+
   StreamSubscription<Map<String, dynamic>>? _subscription;
 
   bool _disposed = false;
@@ -31,6 +37,9 @@ class ChatRealtimeController {
     required this.onReloadRequested,
     required this.onMarkReadRequested,
     required this.onMessage,
+    required this.onConnected,
+    required this.onDisconnected,
+    required this.onAuthError,
   });
 
   // ========================================
@@ -112,6 +121,8 @@ class ChatRealtimeController {
         '-> reload latest messages',
       );
 
+      onConnected();
+
       onReloadRequested(true);
 
       onMarkReadRequested();
@@ -171,6 +182,14 @@ class ChatRealtimeController {
     if (type == 'auth_error') {
       debugPrint('CHAT REALTIME AUTH ERROR');
 
+      onAuthError();
+
+      return;
+    }
+
+    if (type == 'realtime_disconnected') {
+      onDisconnected();
+
       return;
     }
 
@@ -206,12 +225,20 @@ class ChatRealtimeController {
     // ========================================
 
     if (rawMessage is! Map) {
+      // Receiving a valid realtime event proves the shared stream
+      // is alive even if a previous disconnected event was stale.
+      onConnected();
+
       onReloadRequested(false);
 
       return;
     }
 
     final incoming = Map<String, dynamic>.from(rawMessage);
+
+    // A message delivered by the realtime stream is a stronger health
+    // signal than an older disconnected event. Clear stale reconnect UI.
+    onConnected();
 
     // ========================================
     // DAY MESSAGE VE CHATP PAGE
