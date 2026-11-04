@@ -589,129 +589,167 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    const blue = Color(0xFF2376CE);
+    const muted = Color(0xFFB6B8C0);
+
+    InputDecoration fieldDecoration({
+      required String label,
+      required IconData icon,
+      Widget? suffixIcon,
+    }) {
+      return InputDecoration(
+        hintText: label,
+        hintStyle: const TextStyle(color: muted, fontSize: 16),
+        prefixIcon: Icon(icon, color: muted, size: 24),
+        suffixIcon: suffixIcon,
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 19),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: Color(0xFFC5C7CD), width: 1.1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: blue, width: 1.6),
+        ),
+      );
+    }
+
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-
-          children: [
-            const SizedBox(height: 60),
-
-            const CircleAvatar(
-              radius: 48,
-
-              child: Icon(Icons.local_taxi, size: 50),
-            ),
-
-            const SizedBox(height: 28),
-
-            const Text(
-              'Đăng nhập',
-              textAlign: TextAlign.center,
-
-              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
-            const Text(
-              'Đăng nhập để quản lý Zalo và nhận cuốc.',
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 40),
-
-            TextField(
-              controller: phoneController,
-
-              keyboardType: TextInputType.emailAddress,
-
-              textInputAction: TextInputAction.next,
-
-              decoration: const InputDecoration(
-                labelText: 'Email hoặc số điện thoại',
-
-                prefixIcon: Icon(Icons.person_outline),
-
-                border: OutlineInputBorder(),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            TextField(
-              controller: passwordController,
-
-              obscureText: hidePassword,
-
-              onSubmitted: (_) => login(),
-
-              decoration: InputDecoration(
-                labelText: 'Mật khẩu',
-
-                prefixIcon: const Icon(Icons.lock_outline),
-
-                suffixIcon: IconButton(
-                  onPressed: () {
-                    setState(() {
-                      hidePassword = !hidePassword;
-                    });
-                  },
-
-                  icon: Icon(
-                    hidePassword
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight - 40),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(height: constraints.maxHeight > 700 ? 65 : 20),
+                  Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(32),
+                      child: Image.asset(
+                        'assets/images/AvatarApp.png',
+                        width: 138,
+                        height: 138,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   ),
-                ),
-
-                border: const OutlineInputBorder(),
-              ),
-            ),
-
-            Align(alignment: Alignment.centerRight, child: TextButton(onPressed: forgotPassword, child: const Text("Quên mật khẩu?"))),
-
-            const SizedBox(height: 12),
-
-            SizedBox(
-              height: 56,
-
-              child: FilledButton(
-                onPressed: loading ? null : login,
-
-                child: loading
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text(
-                        'ĐĂNG NHẬP',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
+                  const SizedBox(height: 42),
+                  const Text(
+                    'Đăng nhập',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF191919),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Đăng nhập để quản lý Zalo và nhận cuốc.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, color: Color(0xFF686A72)),
+                  ),
+                  SizedBox(height: constraints.maxHeight > 700 ? 65 : 36),
+                  TextField(
+                    controller: phoneController,
+                    enabled: !loading,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    decoration: fieldDecoration(
+                      label: 'Email hoặc số điện thoại',
+                      icon: Icons.phone_outlined,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  TextField(
+                    controller: passwordController,
+                    enabled: !loading,
+                    obscureText: hidePassword,
+                    onSubmitted: (_) => login(),
+                    decoration: fieldDecoration(
+                      label: 'Mật khẩu',
+                      icon: Icons.lock_outline,
+                      suffixIcon: IconButton(
+                        onPressed: loading ? null : () => setState(
+                          () => hidePassword = !hidePassword,
+                        ),
+                        icon: Icon(
+                          hidePassword
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          color: muted,
                         ),
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: loading ? null : forgotPassword,
+                      child: const Text(
+                        'Quên mật khẩu?',
+                        style: TextStyle(color: blue, fontSize: 15),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  SizedBox(
+                    height: 56,
+                    child: FilledButton(
+                      onPressed: loading ? null : login,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: blue,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: loading
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text(
+                              'ĐĂNG NHẬP',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 70),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'Chưa có tài khoản?',
+                        style: TextStyle(color: Color(0xFF686A72)),
+                      ),
+                      TextButton(
+                        onPressed: loading ? null : openRegister,
+                        child: const Text(
+                          'Đăng ký',
+                          style: TextStyle(
+                            color: blue,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-
-            const SizedBox(height: 20),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-
-              children: [
-                const Text('Chưa có tài khoản?'),
-
-                TextButton(
-                  onPressed: openRegister,
-
-                  child: const Text('Đăng ký'),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
