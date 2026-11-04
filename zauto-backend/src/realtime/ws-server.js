@@ -347,6 +347,7 @@ export function initWebSocket(
 
             socket.authenticated =
               true;
+            socket.sessionVersion = user.sessionVersion ?? null;
 
 
             clearTimeout(
@@ -550,6 +551,11 @@ export function broadcastUserEvent(
       socket.authenticated ===
         true
     ) {
+      const currentUser = findUserById(key);
+      if (!currentUser || (currentUser.sessionVersion ?? null) !== (socket.sessionVersion ?? null)) {
+        socket.close(4004, "Session expired");
+        continue;
+      }
       socket.send(
         payload
       );
