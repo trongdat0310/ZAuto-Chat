@@ -12,7 +12,8 @@
     "payments:local": "node src/payments/local-server.js",
     "payments:report": "node scripts/payment-report.js",
     "test:payments": "node --test src/payments/*.test.js",
-    "payments:reconcile": "node scripts/reconcile-payment.js"
+    "payments:reconcile": "node scripts/reconcile-payment.js",
+    "test:security": "node --test src/auth/*.test.js src/security/*.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
