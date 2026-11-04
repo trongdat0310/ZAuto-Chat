@@ -55,6 +55,7 @@ import {
 import {
   registerUser,
   loginUser,
+  createToken,
   toPublicUser,
 } from "./auth/auth-service.js";
 import { requestPasswordRecovery, changeAccountEmail } from "./auth/email-account-service.js";
@@ -2634,12 +2635,14 @@ app.post(
         req.body?.newPassword
       );
 
-
+      // Rotate the current session while invalidating every previous JWT.
+      const updatedUser = findUserById(req.user.id);
+      if (!updatedUser) throw new Error("Tai khoan khong ton tai.");
       res.json({
         success: true,
-
-        message:
-          "Doi mat khau thanh cong.",
+        token: createToken(updatedUser),
+        user: toPublicUser(updatedUser),
+        message: "Doi mat khau thanh cong.",
       });
 
     } catch (error) {
