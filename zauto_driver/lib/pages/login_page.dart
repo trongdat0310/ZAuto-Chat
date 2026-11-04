@@ -589,8 +589,8 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    const blue = Color(0xFF2376CE);
-    const muted = Color(0xFFB6B8C0);
+    final colors = Theme.of(context).colorScheme;
+    final muted = colors.onSurfaceVariant;
 
     InputDecoration fieldDecoration({
       required String label,
@@ -599,25 +599,25 @@ class _LoginPageState extends State<LoginPage> {
     }) {
       return InputDecoration(
         hintText: label,
-        hintStyle: const TextStyle(color: muted, fontSize: 16),
+        hintStyle: TextStyle(color: muted, fontSize: 16),
         prefixIcon: Icon(icon, color: muted, size: 24),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: Colors.white,
+        fillColor: colors.surface,
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 19),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: Color(0xFFC5C7CD), width: 1.1),
+          borderSide: BorderSide(color: colors.outline.withValues(alpha: 0.65), width: 1.1),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: const BorderSide(color: blue, width: 1.6),
+          borderSide: BorderSide(color: colors.primary, width: 1.6),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) => SingleChildScrollView(
@@ -641,20 +641,20 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                   const SizedBox(height: 42),
-                  const Text(
+                  Text(
                     'Đăng nhập',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF191919),
+                      color: colors.onSurface,
                     ),
                   ),
                   const SizedBox(height: 14),
-                  const Text(
+                  Text(
                     'Đăng nhập để quản lý Zalo và nhận cuốc.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 16, color: Color(0xFF686A72)),
+                    style: TextStyle(fontSize: 16, color: muted),
                   ),
                   SizedBox(height: constraints.maxHeight > 700 ? 65 : 36),
                   TextField(
@@ -694,9 +694,9 @@ class _LoginPageState extends State<LoginPage> {
                     alignment: Alignment.centerRight,
                     child: TextButton(
                       onPressed: loading ? null : forgotPassword,
-                      child: const Text(
+                      child: Text(
                         'Quên mật khẩu?',
-                        style: TextStyle(color: blue, fontSize: 15),
+                        style: TextStyle(color: colors.primary, fontSize: 15),
                       ),
                     ),
                   ),
@@ -706,7 +706,7 @@ class _LoginPageState extends State<LoginPage> {
                     child: FilledButton(
                       onPressed: loading ? null : login,
                       style: FilledButton.styleFrom(
-                        backgroundColor: blue,
+                        backgroundColor: colors.primary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -730,16 +730,16 @@ class _LoginPageState extends State<LoginPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
+                      Text(
                         'Chưa có tài khoản?',
-                        style: TextStyle(color: Color(0xFF686A72)),
+                        style: TextStyle(color: muted),
                       ),
                       TextButton(
                         onPressed: loading ? null : openRegister,
-                        child: const Text(
+                        child: Text(
                           'Đăng ký',
                           style: TextStyle(
-                            color: blue,
+                            color: colors.primary,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
