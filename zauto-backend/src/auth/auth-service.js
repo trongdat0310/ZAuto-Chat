@@ -93,6 +93,7 @@ function createToken(user) {
 
       phone:
         user.phone,
+      sv: user.sessionVersion ?? null,
     },
 
     JWT_SECRET,
