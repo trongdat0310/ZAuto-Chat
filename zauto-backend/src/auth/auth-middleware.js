@@ -1,3 +1,4 @@
+import { isSessionCurrent } from "./session-version.js";
 import jwt from "jsonwebtoken";
 
 import {
@@ -95,7 +96,7 @@ export function requireAuth(
     }
 
 
-    if ((user.sessionVersion ?? null) !== (payload.sv ?? null)) {
+    if (!isSessionCurrent(user, payload)) {
       return res.status(401).json({ success: false, error: "Phien dang nhap da het hieu luc. Vui long dang nhap lai." });
     }
 
