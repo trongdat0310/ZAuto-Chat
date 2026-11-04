@@ -160,6 +160,10 @@ function authenticateToken(
   }
 
 
+  if ((user.sessionVersion ?? null) !== (payload.sv ?? null)) {
+    throw new Error("Phien dang nhap da het hieu luc.");
+  }
+
   return user;
 }
 
