@@ -283,6 +283,8 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    const formBlue = Color(0xFF2376CE);
+    const formBorder = Color(0xFFC5C7CD);
     final password = passwordController.text;
     final canSubmit = !submitting && acceptedTerms;
 
@@ -298,18 +300,19 @@ class _RegisterPageState extends State<RegisterPage> {
         prefixIcon: Icon(icon, size: 27, color: colors.onSurfaceVariant),
         suffixIcon: suffixIcon,
         filled: true,
-        fillColor: colors.surface,
+        fillColor: Colors.white,
+        hintStyle: const TextStyle(color: Color(0xFFB5B7BF), fontSize: 16),
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
           borderSide: BorderSide(
-            color: colors.outline.withValues(alpha: 0.55),
-            width: 1.2,
+            color: formBorder,
+            width: 1.1,
           ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: colors.primary, width: 1.6),
+          borderSide: const BorderSide(color: formBlue, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
@@ -327,7 +330,7 @@ class _RegisterPageState extends State<RegisterPage> {
         child: LayoutBuilder(
           builder: (context, constraints) => SingleChildScrollView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.fromLTRB(28, 14, 28, 28),
+            padding: const EdgeInsets.fromLTRB(28, 14, 28, 36),
             child: ConstrainedBox(
               constraints: BoxConstraints(
                 minHeight: constraints.maxHeight - 42,
@@ -345,13 +348,13 @@ class _RegisterPageState extends State<RegisterPage> {
                       icon: const Icon(Icons.arrow_back_rounded, size: 32),
                     ),
                   ),
-                  const SizedBox(height: 34),
+                  const SizedBox(height: 44),
                   Center(
                     child: Container(
-                      width: 118,
-                      height: 118,
+                      width: 138,
+                      height: 138,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(28),
+                        borderRadius: BorderRadius.circular(32),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.06),
@@ -367,13 +370,13 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 34),
+                  const SizedBox(height: 40),
                   const Text(
                     'Đăng ký ZChatAuto',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 31,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w700,
                       height: 1.15,
                     ),
                   ),
@@ -386,7 +389,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       color: colors.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 34),
+                  const SizedBox(height: 48),
 
                   TextFormField(
                     controller: nameController,
@@ -404,7 +407,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       errorText: nameError,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 22),
 
                   TextFormField(
                     controller: phoneController,
@@ -423,7 +426,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       errorText: phoneError,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 22),
 
                   TextFormField(
                     controller: emailController,
@@ -442,7 +445,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       errorText: emailError,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 22),
 
                   TextFormField(
                     controller: passwordController,
@@ -501,7 +504,7 @@ class _RegisterPageState extends State<RegisterPage> {
                       ],
                     ),
                   ],
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 22),
 
                   TextFormField(
                     controller: confirmPasswordController,
@@ -553,7 +556,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ],
 
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 28),
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Row(
@@ -590,12 +593,13 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                   ),
 
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 28),
                   SizedBox(
-                    height: 58,
+                    height: 56,
                     child: FilledButton(
                       onPressed: canSubmit ? register : null,
                       style: FilledButton.styleFrom(
+                        backgroundColor: formBlue,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -616,7 +620,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ),
 
-                  const SizedBox(height: 34),
+                  const SizedBox(height: 48),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -633,7 +637,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         child: Text(
                           'Đăng nhập',
                           style: TextStyle(
-                            color: colors.primary,
+                            color: formBlue,
                             fontSize: 15.5,
                             fontWeight: FontWeight.w700,
                           ),
