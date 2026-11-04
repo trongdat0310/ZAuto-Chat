@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -230,6 +231,7 @@ export async function changeAccountPassword(
     {
       passwordHash,
       mustChangePassword: false,
+      sessionVersion: randomUUID(),
     }
   );
 
