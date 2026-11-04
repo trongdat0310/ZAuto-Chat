@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/auth_service.dart';
 
@@ -34,6 +36,34 @@ class _RegisterPageState extends State<RegisterPage> {
   bool acceptedTerms = false;
 
   bool loading = false;
+
+  late final TapGestureRecognizer termsTapRecognizer;
+
+  Future<void> openTermsOfService() async {
+    final uri = Uri.parse(
+      'https://zchatauto.io.vn/dieu-khoan-su-dung.html',
+    );
+
+    try {
+      final opened = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened && mounted) {
+        showError('Không thể mở trang điều khoản sử dụng');
+      }
+    } catch (_) {
+      if (mounted) {
+        showError('Không thể mở trang điều khoản sử dụng');
+      }
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    termsTapRecognizer = TapGestureRecognizer()..onTap = openTermsOfService;
+  }
 
   Widget passwordRule(String text, bool passed) {
     return Row(
@@ -240,6 +270,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   void dispose() {
+    termsTapRecognizer.dispose();
     nameController.dispose();
     phoneController.dispose();
     emailController.dispose();
@@ -523,16 +554,9 @@ class _RegisterPageState extends State<RegisterPage> {
                   ],
 
                   const SizedBox(height: 18),
-                  InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: submitting
-                        ? null
-                        : () => setState(
-                              () => acceptedTerms = !acceptedTerms,
-                            ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Checkbox(
@@ -552,6 +576,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                   const TextSpan(text: 'Tôi đồng ý với '),
                                   TextSpan(
                                     text: 'Điều kiện & điều khoản',
+                                    recognizer: termsTapRecognizer,
                                     style: TextStyle(
                                       color: colors.primary,
                                       fontWeight: FontWeight.w600,
@@ -563,7 +588,6 @@ class _RegisterPageState extends State<RegisterPage> {
                           ),
                         ],
                       ),
-                    ),
                   ),
 
                   const SizedBox(height: 22),
