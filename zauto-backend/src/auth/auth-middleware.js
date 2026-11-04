@@ -95,6 +95,10 @@ export function requireAuth(
     }
 
 
+    if ((user.sessionVersion ?? null) !== (payload.sv ?? null)) {
+      return res.status(401).json({ success: false, error: "Phien dang nhap da het hieu luc. Vui long dang nhap lai." });
+    }
+
     if (user.mustChangePassword === true &&
         !req.originalUrl.split("?")[0].endsWith("/api/me/change-password") &&
         !req.originalUrl.split("?")[0].endsWith("/api/me") &&
