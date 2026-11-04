@@ -38,9 +38,9 @@ function makeHandlers(confirmPayment, notify) {
     logger: { info() {}, error() {} },
     env: {
       SEPAY_WEBHOOK_SECRET: secret,
-      PAYMENT_ACCOUNT_NUMBER: "123456789",
-      PAYMENT_ACCOUNT_NAME: "Test Account",
-      PAYMENT_GATEWAY: "VPBank",
+      SEPAY_BANK_ACCOUNT: "123456789",
+      SEPAY_ACCOUNT_NAME: "Test Account",
+      
     },
   });
 }
