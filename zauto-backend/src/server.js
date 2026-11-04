@@ -238,9 +238,9 @@ app.post('/api/payments/sepay/webhook', express.raw({ type: 'application/json', 
 app.use(express.json());
 // Prevent legacy process-global endpoints from leaking data across accounts.
 app.use(legacyRouteGuard);
-const limitLogin = createAuthRateLimiter({ max: 10 });
-const limitRegister = createAuthRateLimiter({ max: 5, windowMs: 60 * 60_000 });
-const limitRecovery = createAuthRateLimiter({ max: 5, windowMs: 60 * 60_000 });
+const limitLogin = createAuthRateLimiter({ max: 10, ipMax: 100, failureOnly: true });
+const limitRegister = createAuthRateLimiter({ max: 3, windowMs: 24 * 60 * 60_000, ipMax: 20, ipWindowMs: 60 * 60_000 });
+const limitRecovery = createAuthRateLimiter({ max: 3, windowMs: 60 * 60_000, ipMax: 30 });
 app.use('/api/payments', paymentRouter);
 app.use("/api/subscriptions", subscriptionRouter);
 
