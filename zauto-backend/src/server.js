@@ -1,5 +1,6 @@
 import express from "express";
 import { legacyRouteGuard } from "./security/legacy-route-guard.js";
+import { createAuthRateLimiter } from "./security/auth-rate-limit.js";
 import { paymentRouter, sepayWebhook } from "./payments/payment-routes.js";
 import { subscriptionRouter } from "./subscriptions/subscription-routes.js";
 import { bootstrapAdmin } from "./auth/admin-bootstrap.js";
@@ -237,6 +238,9 @@ app.post('/api/payments/sepay/webhook', express.raw({ type: 'application/json', 
 app.use(express.json());
 // Prevent legacy process-global endpoints from leaking data across accounts.
 app.use(legacyRouteGuard);
+const limitLogin = createAuthRateLimiter({ max: 10 });
+const limitRegister = createAuthRateLimiter({ max: 5, windowMs: 60 * 60_000 });
+const limitRecovery = createAuthRateLimiter({ max: 5, windowMs: 60 * 60_000 });
 app.use('/api/payments', paymentRouter);
 app.use("/api/subscriptions", subscriptionRouter);
 
@@ -681,6 +685,7 @@ app.post(
 
 app.post(
   "/api/auth/register",
+  limitRegister,
   async (req, res) => {
 
     try {
@@ -737,6 +742,7 @@ app.post(
 
 app.post(
   "/api/auth/login",
+  limitLogin,
   async (req, res) => {
 
     try {
@@ -779,7 +785,7 @@ app.post(
 
 
 // Password recovery returns a uniform response to prevent account enumeration.
-app.post("/api/auth/forgot-password", async (req, res) => {
+app.post("/api/auth/forgot-password", limitRecovery, async (req, res) => {
   try {
     await requestPasswordRecovery(req.body?.email);
     return res.json({
