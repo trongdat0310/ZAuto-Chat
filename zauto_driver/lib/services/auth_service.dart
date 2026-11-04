@@ -239,7 +239,7 @@ class AuthService {
     );
 
     if (response.statusCode == 401) {
-      await logout();
+      await invalidateSession();
       return null;
     }
 
