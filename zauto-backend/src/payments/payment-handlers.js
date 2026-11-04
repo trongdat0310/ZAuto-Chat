@@ -85,7 +85,7 @@ export function createPaymentHandlers({ store, findUserByPhone, findUserById,
         const result = store.confirmPayment({ transaction, rawBody: req.body.toString("utf8"),
           accountNumber: config.accountNumber, gateway: config.gateway, subAccount: config.subAccount,
           now: new Date(clock()), userExists: id => Boolean(findUserById(id)) });
-        if (result.userId) {
+        if (result.status === "paid" && !result.duplicate && result.userId) {
           try { notify(result.userId); } catch { /* Payment is already committed. Do not cause another charge. */ }
         }
         if (!result.duplicate || result.status === "review") {
