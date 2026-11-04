@@ -99,6 +99,15 @@ class AuthService {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception(_apiError(response, 'Không thể đổi mật khẩu'));
     }
+    // The backend invalidates the old JWT on password change.
+    // Persist the replacement before making any further authenticated calls.
+    final decoded = jsonDecode(response.body);
+    final replacement = decoded is Map ? decoded['token']?.toString() : null;
+    if (replacement == null || replacement.isEmpty) {
+      await invalidateSession();
+      throw Exception('Mật khẩu đã thay đổi. Vui lòng đăng nhập lại.');
+    }
+    await _storage.write(key: _tokenKey, value: replacement);
   }
 
   Future<void> forgotPassword(String email) async {
