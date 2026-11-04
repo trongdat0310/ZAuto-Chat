@@ -2,6 +2,7 @@
 // Do not trust forwarded IP headers unless a trusted proxy is configured.
 // Use a shared atomic store (e.g. Redis) before running multiple replicas.
 import { createHash } from "node:crypto";
+import { getRateLimitIp } from "./client-ip.js";
 
 export function createAuthRateLimiter({
   windowMs = 15 * 60_000,
@@ -44,7 +45,7 @@ export function createAuthRateLimiter({
     if (counters.size >= maxEntries) {
       return res.status(503).json({ success: false, error: "May chu dang ban. Vui long thu lai sau." });
     }
-    const ip = String(req.socket?.remoteAddress || req.ip || "unknown");
+    const ip = getRateLimitIp(req);
     const identity = String(req.body?.phone ?? req.body?.email ?? "")
       .trim().toLowerCase().slice(0, 254);
     const prefix = req.path + ":";
