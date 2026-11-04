@@ -233,6 +233,8 @@ const conversationPhotoUpload =
 const app = express();
 
 const PORT = process.env.PORT || 3000;
+const TUNNEL_MODE = process.env.CLOUDFLARE_TUNNEL_MODE === "true";
+const LISTEN_HOST = TUNNEL_MODE ? "127.0.0.1" : (process.env.HOST || "0.0.0.0");
 
 app.use(cors());
 app.post('/api/payments/sepay/webhook', express.raw({ type: 'application/json', limit: '64kb' }), sepayWebhook);
@@ -4790,7 +4792,7 @@ function listenHttpServer(
 
       httpServer.listen(
         PORT,
-        "0.0.0.0"
+        LISTEN_HOST
       );
     }
   );
