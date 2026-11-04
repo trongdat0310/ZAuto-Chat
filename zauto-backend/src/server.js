@@ -1,4 +1,5 @@
 import express from "express";
+import { legacyRouteGuard } from "./security/legacy-route-guard.js";
 import { paymentRouter, sepayWebhook } from "./payments/payment-routes.js";
 import { subscriptionRouter } from "./subscriptions/subscription-routes.js";
 import { bootstrapAdmin } from "./auth/admin-bootstrap.js";
@@ -234,6 +235,8 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.post('/api/payments/sepay/webhook', express.raw({ type: 'application/json', limit: '64kb' }), sepayWebhook);
 app.use(express.json());
+// Prevent legacy process-global endpoints from leaking data across accounts.
+app.use(legacyRouteGuard);
 app.use('/api/payments', paymentRouter);
 app.use("/api/subscriptions", subscriptionRouter);
 
