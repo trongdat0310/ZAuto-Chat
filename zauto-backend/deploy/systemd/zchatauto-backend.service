@@ -1,0 +1,25 @@
+[Unit]
+Description=zchatauto Node.js backend
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=zchatauto
+Group=zchatauto
+WorkingDirectory=/opt/zchatauto/zauto-backend
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/zchatauto/backend.env
+ExecStart=/usr/bin/node /opt/zchatauto/zauto-backend/src/server.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/zchatauto/zauto-backend/data
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
