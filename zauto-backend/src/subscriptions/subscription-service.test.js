@@ -74,9 +74,19 @@ test("calendar months clamp in Vietnam time, including leap year", () => {
   assert.equal(monthAfterVN(new Date("2026-01-30T18:00:00Z"), 1).toISOString(), "2026-02-27T18:00:00.000Z");
   assert.equal(monthAfterVN(new Date("2024-01-30T18:00:00Z"), 1).toISOString(), "2024-02-28T18:00:00.000Z");
 });
-test("add-on requires active main plan", t => {
+test("add-on works without a main plan and expires at midnight Vietnam time", t => {
   const f = fixture(t);
-  assert.throws(() => f.assign("extra10"), { code: "ACTIVE_PLAN_REQUIRED" });
+  f.assign("extra10");
+  const subscription = f.store.getSubscription("user");
+  assert.equal(subscription.main, null);
+  assert.equal(subscription.addons.length, 1);
+  assert.equal(usage(f).allowed, true);
+  assert.equal(usage(f).remaining, 10);
+  consume(f, "addon-only");
+  assert.equal(usage(f).remaining, 9);
+  f.setTime("2026-10-14T17:00:00Z");
+  assert.equal(usage(f).allowed, false);
+  assert.equal(usage(f).remaining, 0);
 });
 test("expired add-on usage never consumes the monthly main allowance", t => {
   const f = fixture(t); f.assign("monthly30"); f.assign("extra10");
