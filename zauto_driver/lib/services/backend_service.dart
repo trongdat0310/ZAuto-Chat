@@ -61,8 +61,8 @@ class BackendService {
     realtimeApi.disconnect();
   }
 
-  Future<List<Map<String, dynamic>>> getGroups() {
-    return groupApi.getGroups();
+  Future<List<Map<String, dynamic>>> getGroups({bool refresh = false}) {
+    return groupApi.getGroups(refresh: refresh);
   }
 
   Future<List<Map<String, dynamic>>> setAllGroupsEnabled(bool enabled) {
