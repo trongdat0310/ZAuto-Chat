@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/auth_service.dart';
+import '../widgets/auth_form_style.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -292,33 +293,12 @@ class _RegisterPageState extends State<RegisterPage> {
       String? errorText,
       Widget? suffixIcon,
     }) {
-      return InputDecoration(
-        hintText: hint,
+      return AuthFormStyle.field(
+        context,
+        hint: hint,
+        icon: icon,
         errorText: errorText,
-        prefixIcon: Icon(icon, size: 27, color: colors.onSurfaceVariant),
         suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: colors.surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(
-            color: colors.outline.withValues(alpha: 0.55),
-            width: 1.2,
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: colors.primary, width: 1.6),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: colors.error),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: colors.error, width: 1.6),
-        ),
       );
     }
 
