@@ -1,0 +1,20 @@
+[Unit]
+Description=zchatauto backup health email alerts
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/zchatauto/ZAuto-Chat/zauto-backend
+ExecStart=/usr/bin/flock -n /run/lock/zchatauto-backup-alert.lock /usr/bin/node /opt/zchatauto/ZAuto-Chat/zauto-backend/scripts/backup-alert.js
+TimeoutStartSec=90
+StateDirectory=zchatauto-backups
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/run/lock
+UMask=0077
