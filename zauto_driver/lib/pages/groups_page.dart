@@ -39,7 +39,7 @@ class _GroupsPageState extends State<GroupsPage> {
     });
   }
 
-  Future<void> loadGroups() async {
+  Future<void> loadGroups({bool refresh = false}) async {
     if (selectingAllGroups || updatingGroups.isNotEmpty) {
       return;
     }
@@ -48,7 +48,7 @@ class _GroupsPageState extends State<GroupsPage> {
     });
 
     try {
-      final result = await backend.getGroups();
+      final result = await backend.getGroups(refresh: refresh);
 
       if (!mounted) return;
 
@@ -182,7 +182,7 @@ class _GroupsPageState extends State<GroupsPage> {
 
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: loadGroups,
+          onRefresh: () => loadGroups(refresh: true),
 
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
