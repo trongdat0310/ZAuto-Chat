@@ -22,7 +22,14 @@ void main() {
       ),
     );
 
-    final field = tester.widget<TextFormField>(find.byType(TextFormField));
+    // TextFormField builds a TextField internally; InputDecoration is exposed
+    // on that TextField, not as a TextFormField getter.
+    final field = tester.widget<TextField>(
+      find.descendant(
+        of: find.byType(TextFormField),
+        matching: find.byType(TextField),
+      ),
+    );
     final decoration = field.decoration!;
     expect(decoration.hintText, 'Email mới');
     expect(decoration.errorText, 'Email không hợp lệ');
