@@ -189,3 +189,119 @@ test("unsupported legacy order cannot be forced",()=>{
   const f=fixture();delete f.data().paymentOrders[f.o.id].version;
   assert.equal(f.preview().reason,"ORDER_CONFIG_CHANGED");
 });
+
+
+function sameMinuteReviewFixture() {
+  const f = fixture({ plan: "extra10", amount: 20000 });
+  // Real-world case: VPBank reports 21:54:00 while the order was created
+  // at 21:54:01.269. The receipt was received after order creation.
+  const order = f.data().paymentOrders[f.o.id];
+  order.createdAt = "2026-11-07T14:54:01.269Z";
+  order.expiresAt = "2026-11-07T15:24:01.269Z";
+  f.patchPayload({
+    transactionDate: "2026-11-07 21:54:00",
+    content: "PAY " + f.o.id,
+    code: f.o.id,
+  });
+  const receipt = f.data().paymentTransactions["sepay:" + f.tx.id];
+  receipt.reason = "TRANSFER_OUTSIDE_WINDOW";
+  receipt.orderId = f.o.id;
+  receipt.receivedAt = "2026-11-07T14:54:33.452Z";
+  f.setNow("2026-11-07T15:03:00.000Z");
+  return f;
+}
+
+test("VPBank time-review cannot be preview-approved without explicit local flag", () => {
+  const f = sameMinuteReviewFixture();
+  const before = structuredClone(f.data()), writes = f.writes();
+  const preview = f.preview();
+  assert.equal(preview.eligible, false);
+  assert.equal(preview.reason, "VPBANK_MINUTE_TIME_FLAG_REQUIRED");
+  assert.deepEqual(f.data(), before);
+  assert.equal(f.writes(), writes);
+});
+
+test("same-minute original bank timestamp is eligible for operator review, not automatic approval", () => {
+  const f = sameMinuteReviewFixture();
+  const before = structuredClone(f.data());
+  const preview = f.preview({ allowVpbankMinuteTime: true });
+  assert.equal(preview.eligible, true);
+  assert.equal(preview.originalReason, "TRANSFER_OUTSIDE_WINDOW");
+  assert.equal(preview.orderId, f.o.id);
+  assert.equal(preview.planId, "extra10");
+  assert.equal(preview.amount, 20000);
+  assert.equal(preview.expectedAmount, 20000);
+  assert.equal(preview.timeCheck.beforeOrderByMs, 1269);
+  assert.equal(preview.timeCheck.sameMinuteCandidate, true);
+  assert.equal(preview.timeCheck.toleranceApplied, true);
+  assert.match(preview.approval, /^[a-f0-9]{64}$/);
+  assert.deepEqual(f.data(), before);
+});
+
+test("explicitly verified same-minute review grants extra10 once and retains original evidence", () => {
+  const f = sameMinuteReviewFixture();
+  const original = structuredClone(f.data().paymentTransactions["sepay:" + f.tx.id]);
+  const preview = f.preview({ allowVpbankMinuteTime: true });
+  const result = f.apply({ allowVpbankMinuteTime: true, approval: preview.approval });
+  assert.equal(result.status, "paid");
+  assert.equal(result.action, "addon");
+  const receipt = f.data().paymentTransactions["sepay:" + f.tx.id];
+  assert.equal(receipt.status, "paid");
+  assert.equal(receipt.rawBody, original.rawBody);
+  assert.deepEqual(receipt.payload, original.payload);
+  assert.equal(receipt.receivedAt, original.receivedAt);
+  assert.equal(receipt.reconciliation.previousReason, "TRANSFER_OUTSIDE_WINDOW");
+  assert.equal(receipt.reconciliation.timeCheck.toleranceApplied, true);
+  assert.equal(f.store.getPaymentOrder(f.o.id).status, "paid");
+  assert.equal(f.data().subscriptions.user.addons.length, 1);
+  assert.equal(f.data().logs.filter(x => x.action === "payment_addon").length, 1);
+  assert.equal(f.data().logs.filter(x => x.action === "payment_review_reconciled").length, 1);
+  assert.equal(f.apply({ allowVpbankMinuteTime: true, approval: preview.approval }).duplicate, true);
+  const validReplay = f.data().paymentTransactions["sepay:" + f.tx.id].payload;
+  assert.equal(f.store.confirmPayment({ transaction: validReplay, accountNumber: ACCOUNT }).duplicate, true);
+  assert.equal(f.data().subscriptions.user.addons.length, 1);
+});
+
+for (const [name, patch] of [
+  ["previous-minute timestamp", { transactionDate: "2026-11-07 21:53:00" }],
+  ["non-minute timestamp", { transactionDate: "2026-11-07 21:54:02" }],
+  ["missing complete order code", { content: "ZCA", code: "ZCA" }],
+  ["different amount", { transferAmount: 19999 }],
+  ["missing bank reference", { referenceCode: "" }],
+]) {
+  test("time-review must reject " + name, () => {
+    const f = sameMinuteReviewFixture();
+    f.patchPayload(patch);
+    const before = structuredClone(f.data());
+    const p = f.preview({ allowVpbankMinuteTime: true });
+    assert.equal(p.eligible, false);
+    assert.deepEqual(f.data(), before);
+    assert.equal(f.store.getPaymentOrder(f.o.id).status, "pending");
+  });
+}
+
+test("same-minute review of a daily add-on is rejected after the Vietnam day ends", () => {
+  const f = sameMinuteReviewFixture();
+  f.setNow("2026-11-07T17:01:00.000Z");
+  const p = f.preview({ allowVpbankMinuteTime: true });
+  assert.equal(p.eligible, false);
+  assert.equal(p.reason, "ADDON_DAY_CHANGED");
+});
+
+test("time-review approval is bound to explicit flag and unchanged bank evidence", () => {
+  const f = sameMinuteReviewFixture();
+  const preview = f.preview({ allowVpbankMinuteTime: true });
+  assert.throws(() => f.apply({ approval: preview.approval }), { code: "VPBANK_MINUTE_TIME_FLAG_REQUIRED" });
+  f.data().logs.push({ action: "concurrent_update" });
+  assert.throws(() => f.apply({ allowVpbankMinuteTime: true, approval: preview.approval }),
+    { code: "REVIEW_CHANGED" });
+  assert.equal(f.store.getPaymentOrder(f.o.id).status, "pending");
+});
+
+test("pre-credited minute-review receipt can never be approved again", () => {
+  const f = sameMinuteReviewFixture();
+  f.data().logs.push({ action: "payment_addon", orderId: f.o.id });
+  const p = f.preview({ allowVpbankMinuteTime: true });
+  assert.equal(p.eligible, false);
+  assert.equal(p.reason, "PREVIOUS_PAYMENT_CREDIT_FOUND");
+});
