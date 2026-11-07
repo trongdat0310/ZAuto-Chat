@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/backend_service.dart';
+import '../../theme/app_typography.dart';
 
 class MessageFilterSheet extends StatefulWidget {
   final BackendService backend;
@@ -84,10 +85,16 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
                 SwitchListTile(
                   value: showImages,
 
-                  title: const Text('Hiển thị ảnh'),
+                  title: const Text(
+                    'Hiển thị ảnh',
+                    style: AppTypography.settingsItemTitle,
+                  ),
 
-                  subtitle: const Text(
+                  subtitle: Text(
                     'Ẩn ảnh khỏi hội thoại khi tắt',
+                    style: AppTypography.settingsItemDescription.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
 
                   onChanged: (value) async {
@@ -130,10 +137,16 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
                 SwitchListTile(
                   value: deduplicateMessages,
 
-                  title: const Text('Lọc trùng thông báo'),
+                  title: const Text(
+                    'Lọc trùng thông báo',
+                    style: AppTypography.settingsItemTitle,
+                  ),
 
-                  subtitle: const Text(
+                  subtitle: Text(
                     'Bỏ qua cuốc trùng khi thông báo trước vẫn đang hiển thị',
+                    style: AppTypography.settingsItemDescription.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
 
                   onChanged: (value) async {
@@ -186,7 +199,10 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
                     child: const Icon(Icons.info_outline),
                   ),
 
-                  title: const Text('Lọc trùng hoạt động thế nào?'),
+                  title: const Text(
+                    'Lọc trùng hoạt động thế nào?',
+                    style: AppTypography.settingsItemTitle,
+                  ),
 
                   trailing: const Icon(Icons.chevron_right),
 
@@ -202,9 +218,7 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
             child: Text(
               'TIN NHẮN THOẠI',
 
-              style: TextStyle(
-                fontSize: 13,
-
+              style: AppTypography.sectionTitle.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
@@ -218,10 +232,16 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
             child: SwitchListTile(
               value: showVoiceMessages,
 
-              title: const Text('Hiển thị tin nhắn thoại'),
+              title: const Text(
+                'Hiển thị tin nhắn thoại',
+                style: AppTypography.settingsItemTitle,
+              ),
 
-              subtitle: const Text(
+              subtitle: Text(
                 'Ẩn voice/audio khỏi hội thoại khi tắt',
+                style: AppTypography.settingsItemDescription.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
 
               onChanged: (value) async {
@@ -270,13 +290,17 @@ class _MessageFilterSheetState extends State<MessageFilterSheet> {
 
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Hướng dẫn Lọc trùng thông báo'),
+          title: const Text(
+            'Hướng dẫn Lọc trùng thông báo',
+            style: AppTypography.sheetTitle,
+          ),
 
           content: const Text(
             'Khi Lọc trùng thông báo được bật, ZChatAuto sẽ so sánh người gửi và nội dung cuốc.\n\n'
             'Nếu cùng một người gửi đăng cùng một nội dung trong nhiều nhóm trong thời gian thông báo trước đó vẫn đang hiển thị, hệ thống chỉ hiển thị cuốc đó một lần.\n\n'
             'Khoảng thời gian lọc trùng sử dụng đúng thời gian bạn chọn tại Giao diện và Tương tác: 5, 10 hoặc 15 giây.\n\n'
             'Nếu nội dung giống nhau nhưng do hai người khác nhau gửi, các cuốc vẫn được hiển thị riêng.',
+            style: AppTypography.body,
           ),
 
           actions: [
