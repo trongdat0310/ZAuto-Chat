@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_typography.dart';
+
 class AcceptReplyEditorSheet extends StatefulWidget {
   final String initialText;
 
@@ -47,8 +49,7 @@ class _AcceptReplyEditorSheetState extends State<AcceptReplyEditorSheet> {
           Text(
             'Nội dung trả lời',
 
-            style: Theme.of(context).textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.bold),
+            style: AppTypography.sheetTitle,
           ),
 
           const SizedBox(height: 8),
@@ -56,7 +57,9 @@ class _AcceptReplyEditorSheetState extends State<AcceptReplyEditorSheet> {
           Text(
             'Đây là nội dung ZChatAuto sẽ gửi khi bạn nhận cuốc.',
 
-            style: TextStyle(color: colorScheme.onSurfaceVariant),
+            style: AppTypography.body.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
 
           const SizedBox(height: 18),
