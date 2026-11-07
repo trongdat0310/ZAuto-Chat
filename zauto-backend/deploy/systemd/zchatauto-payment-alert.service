@@ -1,0 +1,18 @@
+[Unit]
+Description=zchatauto SePay payment email alerts
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=zchatauto
+Group=zchatauto
+WorkingDirectory=/opt/zchatauto/ZAuto-Chat/zauto-backend
+ExecStart=/usr/bin/flock -n /opt/zchatauto/ZAuto-Chat/zauto-backend/data/.payment-alert.lock /usr/bin/node /opt/zchatauto/ZAuto-Chat/zauto-backend/scripts/payment-alert.js
+TimeoutStartSec=90
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/zchatauto/ZAuto-Chat/zauto-backend/data
+UMask=0077
