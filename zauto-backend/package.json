@@ -14,7 +14,9 @@
     "test:payments": "node --test src/payments/*.test.js",
     "payments:reconcile": "node scripts/reconcile-payment.js",
     "test:security": "node --test src/auth/*.test.js src/security/*.test.js",
-    "payments:alert": "node scripts/payment-alert.js"
+    "payments:alert": "node scripts/payment-alert.js",
+    "backup:alert": "node scripts/backup-alert.js",
+    "test:backup": "node --test src/diagnostics/backup-monitor-core.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
