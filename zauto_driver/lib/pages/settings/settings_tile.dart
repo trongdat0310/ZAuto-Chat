@@ -76,7 +76,7 @@ class SettingsTile extends StatelessWidget {
                   Text(
                     title,
 
-                    style: AppTypography.itemTitle.copyWith(
+                    style: AppTypography.settingsItemTitle.copyWith(
                       color: enabled
                           ? null
                           : colorScheme.onSurfaceVariant.withValues(
@@ -90,9 +90,7 @@ class SettingsTile extends StatelessWidget {
                   Text(
                     subtitle,
 
-                    style: AppTypography.caption.copyWith(
-                      fontSize: 13,
-
+                    style: AppTypography.settingsItemDescription.copyWith(
                       color: colorScheme.onSurfaceVariant.withValues(
                         alpha: enabled ? 1 : 0.5,
                       ),
