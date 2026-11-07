@@ -1,0 +1,26 @@
+# zchatauto: first iOS compile check on a macOS build machine.
+# This workflow is manual and intentionally does NOT sign or distribute an IPA.
+# Flutter app lives in zauto_driver/, while this YAML must be at repo root.
+workflows:
+  zchatauto-ios-unsigned:
+    name: zchatauto iOS - unsigned compile check
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    working_directory: zauto_driver
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Verify Flutter and iOS project
+        script: |
+          flutter --version
+          xcodebuild -version
+          test -f ios/Runner.xcodeproj/project.pbxproj
+      - name: Install Flutter dependencies
+        script: flutter pub get
+      - name: Compile iOS without code signing
+        script: flutter build ios --debug --no-codesign
+    artifacts:
+      - zauto_driver/build/ios/iphoneos/**/*.app
+      - /tmp/xcodebuild_logs/*.log
