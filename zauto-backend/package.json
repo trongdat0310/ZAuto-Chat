@@ -16,7 +16,8 @@
     "test:security": "node --test src/auth/*.test.js src/security/*.test.js",
     "payments:alert": "node scripts/payment-alert.js",
     "backup:alert": "node scripts/backup-alert.js",
-    "test:backup": "node --test src/diagnostics/backup-monitor-core.test.js"
+    "test:backup": "node --test src/diagnostics/backup-monitor-core.test.js",
+    "test:groups": "node --test src/zalo/user-group-directory.test.js src/settings/user-group-selection.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
