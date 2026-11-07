@@ -63,21 +63,21 @@ function saveState(filename, state) {
 export function formatPaymentAlert(issues, now = new Date()) {
   const lines = issues.slice(0, 50).map((issue, index) =>
     (index + 1) + ". " + issue.type + " | SePay ID: " + issue.transaction +
-    " | Don: " + (issue.orderId || "khong ro") + " | Ly do: " + (issue.reason || "n/a"));
+    " | Đơn: " + (issue.orderId || "không xác định") + " | Lý do: " + (issue.reason || "n/a"));
   return {
-    subject: "[zchatauto][SePay] " + issues.length + " giao dich can kiem tra",
+    subject: "[zchatauto] Cảnh báo SePay: " + issues.length + " giao dịch cần đối soát",
     text: [
-      "ZCHATAUTO | CANH BAO THANH TOAN SEPAY",
-      "Thoi gian (VN): " + now.toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
-      "So su co moi: " + issues.length,
+      "ZCHATAUTO | CẢNH BÁO ĐỐI SOÁT THANH TOÁN SEPAY",
+      "Thời gian phát hiện (Việt Nam): " + now.toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
+      "Số sự cố mới: " + issues.length,
       "",
       ...lines,
-      ...(issues.length > lines.length ? ["... con " + (issues.length - lines.length) + " su co; kiem tra bao cao tren server."] : []),
+      ...(issues.length > lines.length ? ["... con " + (issues.length - lines.length) + " sự cố; xem báo cáo trên máy chủ."] : []),
       "",
-      "Day la canh bao chi doc. Khong tu dong cap goi hay phe duyet thanh toan.",
-      "Doi chieu don hang goc va giao dich SePay/VPBank truoc khi xu ly thu cong.",
+      "Đây là cảnh báo chỉ đọc. Hệ thống không tự cấp gói hoặc phê duyệt thanh toán.",
+      "Vui lòng đối chiếu đơn hàng gốc với giao dịch SePay/VPBank trước khi xử lý thủ công.",
       "Chay: sudo -u zchatauto npm run payments:report",
-      "Khong chuyen tien lai chi de thu lai doi soat.",
+      "Không chuyển khoản thêm chỉ để thử lại việc đối soát.",
     ].join("\n"),
   };
 }
