@@ -1,0 +1,10 @@
+[Unit]
+Description=Check local/offsite zchatauto backups every 30 minutes
+
+[Timer]
+OnCalendar=*-*-* *:00,30:00
+Persistent=true
+Unit=zchatauto-backup-alert.service
+
+[Install]
+WantedBy=timers.target
