@@ -45,6 +45,22 @@ class AppTypography {
       );
 
 
+  // Settings rows: make the option title clearly distinct from its description.
+  static const TextStyle settingsItemTitle = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 17,
+    fontWeight: FontWeight.w700,
+    height: 1.25,
+  );
+
+  static const TextStyle settingsItemDescription = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13.5,
+    fontWeight: FontWeight.w400,
+    height: 1.4,
+  );
+
+
   static const TextStyle body =
       TextStyle(
         fontFamily: fontFamily,
