@@ -3,8 +3,9 @@ import 'backend_api_base.dart';
 class GroupApi extends BackendApiBase {
   GroupApi({required super.baseUrl, required super.auth});
 
-  Future<List<Map<String, dynamic>>> getGroups() async {
-    final decoded = await getJson(Uri.parse('$baseUrl/api/me/groups'));
+  Future<List<Map<String, dynamic>>> getGroups({bool refresh = false}) async {
+    final suffix = refresh ? '?refresh=1' : '';
+    final decoded = await getJson(Uri.parse('$baseUrl/api/me/groups$suffix'));
 
     final rawGroups = decoded['groups'];
 
