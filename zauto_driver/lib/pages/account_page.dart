@@ -6,6 +6,7 @@ import '../config/app_config.dart';
 import '../services/backend_service.dart';
 import '../services/auth_service.dart';
 import '../theme/app_typography.dart';
+import '../widgets/auth_form_style.dart';
 import 'subscriptions/subscription_page.dart';
 import '../services/backend/subscription_api.dart';
 import 'account/membership_info_sheet.dart';
@@ -345,8 +346,19 @@ class _AccountPageState extends State<AccountPage> {
         builder: (dialogContext, setDialogState) => PopScope(
           canPop: !saving,
           child: AlertDialog(
-            insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-            title: const Text('Đổi email'),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            backgroundColor: Theme.of(dialogContext).colorScheme.surface,
+            titlePadding: const EdgeInsets.fromLTRB(22, 22, 22, 10),
+            title: AuthFormStyle.dialogHeader(
+              dialogContext,
+              title: 'Thay đổi email',
+              description: 'Nhập email mới và mật khẩu hiện tại để xác nhận.',
+            ),
+            contentPadding: const EdgeInsets.fromLTRB(22, 10, 22, 8),
+            actionsPadding: const EdgeInsets.fromLTRB(22, 8, 22, 18),
             content: SingleChildScrollView(
               child: SizedBox(
                 width: double.maxFinite,
@@ -359,16 +371,18 @@ class _AccountPageState extends State<AccountPage> {
                       autofocus: true,
                       enabled: !saving,
                       keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.email],
+                      textCapitalization: TextCapitalization.none,
                       textInputAction: TextInputAction.next,
                       onChanged: (value) => setDialogState(() {
                         email = value.trim();
                         emailError = null;
                         requestError = null;
                       }),
-                      decoration: InputDecoration(
-                        labelText: 'Email mới',
-                        border: const OutlineInputBorder(),
-                        prefixIcon: const Icon(Icons.email_outlined),
+                      decoration: AuthFormStyle.field(
+                        dialogContext,
+                        hint: 'Email mới',
+                        icon: Icons.email_rounded,
                         errorText: emailError,
                       ),
                     ),
@@ -376,20 +390,22 @@ class _AccountPageState extends State<AccountPage> {
                     TextFormField(
                       enabled: !saving,
                       obscureText: hidePassword,
+                      autofillHints: const [AutofillHints.password],
                       textInputAction: TextInputAction.done,
                       onChanged: (value) => setDialogState(() {
                         password = value;
                         passwordError = null;
                         requestError = null;
                       }),
-                      decoration: InputDecoration(
-                        labelText: 'Mật khẩu hiện tại',
-                        border: const OutlineInputBorder(),
-                        prefixIcon: const Icon(Icons.lock_outline),
+                      decoration: AuthFormStyle.field(
+                        dialogContext,
+                        hint: 'Mật khẩu hiện tại',
+                        icon: Icons.lock_rounded,
                         errorText: passwordError,
                         suffixIcon: IconButton(
                           onPressed: saving ? null : () => setDialogState(() => hidePassword = !hidePassword),
-                          icon: Icon(hidePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                          icon: Icon(hidePassword ? Icons.visibility_off_rounded
+                                    : Icons.visibility_rounded),
                         ),
                       ),
                     ),
@@ -406,12 +422,11 @@ class _AccountPageState extends State<AccountPage> {
               ),
             ),
             actions: [
-              TextButton(
-                onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
-                child: const Text('HỦY'),
-              ),
-              FilledButton(
-                onPressed: saving ? null : () async {
+              AuthFormStyle.dialogActions(
+                dialogContext,
+                loading: saving,
+                onCancel: () => Navigator.pop(dialogContext, false),
+                onSubmit: () async {
                   setDialogState(() { emailError = null; passwordError = null; requestError = null; });
                   bool valid = true;
                   if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
@@ -436,7 +451,8 @@ class _AccountPageState extends State<AccountPage> {
                     }
                   }
                 },
-                child: Text(saving ? 'ĐANG LƯU...' : 'LƯU EMAIL'),
+                submitLabel: 'LƯU EMAIL',
+                loadingLabel: 'ĐANG LƯU...',
               ),
             ],
           ),
@@ -662,12 +678,19 @@ class _AccountPageState extends State<AccountPage> {
             // ========================================
 
             return AlertDialog(
-              insetPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 24,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
               ),
-
-              title: const Text('Đổi mật khẩu'),
+              backgroundColor: colorScheme.surface,
+              titlePadding: const EdgeInsets.fromLTRB(22, 22, 22, 10),
+              title: AuthFormStyle.dialogHeader(
+                context,
+                title: 'Đổi mật khẩu',
+                description: 'Tạo mật khẩu mới để bảo vệ tài khoản của bạn.',
+              ),
+              contentPadding: const EdgeInsets.fromLTRB(22, 10, 22, 8),
+              actionsPadding: const EdgeInsets.fromLTRB(22, 8, 22, 18),
 
               content: SingleChildScrollView(
                 child: SizedBox(
@@ -687,9 +710,8 @@ class _AccountPageState extends State<AccountPage> {
                         autofocus: true,
 
                         obscureText: hideCurrentPassword,
-
                         enabled: !submitting,
-
+                        autofillHints: const [AutofillHints.password],
                         textInputAction: TextInputAction.next,
 
                         onChanged: (value) {
@@ -700,11 +722,10 @@ class _AccountPageState extends State<AccountPage> {
                           });
                         },
 
-                        decoration: InputDecoration(
-                          labelText: 'Mật khẩu hiện tại',
-
-                          border: const OutlineInputBorder(),
-
+                        decoration: AuthFormStyle.field(
+                          context,
+                          hint: 'Mật khẩu hiện tại',
+                          icon: Icons.lock_rounded,
                           errorText: currentPasswordError,
 
                           suffixIcon: IconButton(
@@ -719,8 +740,8 @@ class _AccountPageState extends State<AccountPage> {
 
                             icon: Icon(
                               hideCurrentPassword
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
+                                  ? Icons.visibility_off_rounded
+                                  : Icons.visibility_rounded,
                             ),
                           ),
                         ),
@@ -733,9 +754,8 @@ class _AccountPageState extends State<AccountPage> {
                       // ========================================
                       TextFormField(
                         obscureText: hideNewPassword,
-
                         enabled: !submitting,
-
+                        autofillHints: const [AutofillHints.newPassword],
                         textInputAction: TextInputAction.next,
 
                         onChanged: (value) {
@@ -750,11 +770,10 @@ class _AccountPageState extends State<AccountPage> {
                           });
                         },
 
-                        decoration: InputDecoration(
-                          labelText: 'Mật khẩu mới',
-
-                          border: const OutlineInputBorder(),
-
+                        decoration: AuthFormStyle.field(
+                          context,
+                          hint: 'Mật khẩu mới',
+                          icon: Icons.lock_rounded,
                           errorText: newPasswordError,
 
                           suffixIcon: IconButton(
@@ -768,8 +787,8 @@ class _AccountPageState extends State<AccountPage> {
 
                             icon: Icon(
                               hideNewPassword
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
+                                  ? Icons.visibility_off_rounded
+                                  : Icons.visibility_rounded,
                             ),
                           ),
                         ),
@@ -804,9 +823,8 @@ class _AccountPageState extends State<AccountPage> {
                       // ========================================
                       TextFormField(
                         obscureText: hideConfirmPassword,
-
                         enabled: !submitting,
-
+                        autofillHints: const [AutofillHints.newPassword],
                         textInputAction: TextInputAction.done,
 
                         onChanged: (value) {
@@ -823,11 +841,10 @@ class _AccountPageState extends State<AccountPage> {
                           }
                         },
 
-                        decoration: InputDecoration(
-                          labelText: 'Nhập lại mật khẩu mới',
-
-                          border: const OutlineInputBorder(),
-
+                        decoration: AuthFormStyle.field(
+                          context,
+                          hint: 'Nhập lại mật khẩu mới',
+                          icon: Icons.lock_rounded,
                           errorText: confirmPasswordError,
 
                           suffixIcon: IconButton(
@@ -842,8 +859,8 @@ class _AccountPageState extends State<AccountPage> {
 
                             icon: Icon(
                               hideConfirmPassword
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
+                                  ? Icons.visibility_off_rounded
+                                  : Icons.visibility_rounded,
                             ),
                           ),
                         ),
@@ -861,7 +878,7 @@ class _AccountPageState extends State<AccountPage> {
                           decoration: BoxDecoration(
                             color: Theme.of(context).colorScheme.errorContainer,
 
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                           ),
 
                           child: Row(
@@ -905,20 +922,13 @@ class _AccountPageState extends State<AccountPage> {
               ),
 
               actions: [
-                TextButton(
-                  onPressed: submitting
-                      ? null
-                      : () {
-                          Navigator.of(dialogContext).pop(false);
-                        },
-
-                  child: const Text('HỦY'),
-                ),
-
-                FilledButton(
-                  onPressed: submitting ? null : submit,
-
-                  child: Text(submitting ? 'ĐANG ĐỔI...' : 'ĐỔI MẬT KHẨU'),
+                AuthFormStyle.dialogActions(
+                  context,
+                  loading: submitting,
+                  onCancel: () => Navigator.of(dialogContext).pop(false),
+                  onSubmit: submit,
+                  submitLabel: 'ĐỔI MẬT KHẨU',
+                  loadingLabel: 'ĐANG ĐỔI...',
                 ),
               ],
             );
