@@ -1,0 +1,24 @@
+[Unit]
+Description=zchatauto encrypted offsite backup to Cloudflare R2
+Wants=network-online.target
+After=network-online.target
+OnFailure=zchatauto-backup-alert.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+EnvironmentFile=/etc/zchatauto/backup-offsite.env
+Environment=RESTIC_CACHE_DIR=/var/cache/zchatauto-restic
+ExecStart=/usr/bin/flock -n /run/lock/zchatauto-offsite.lock /usr/local/sbin/zchatauto-offsite-backup.sh
+TimeoutStartSec=45min
+StateDirectory=zchatauto-backups
+StateDirectoryMode=0700
+CacheDirectory=zchatauto-restic
+CacheDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/run/lock
+UMask=0077
