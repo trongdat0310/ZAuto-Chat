@@ -4,8 +4,10 @@ import { paymentError, sha256, extractOrderCode, validateTransaction,
   transactionFingerprint, sameBank } from "./payment-security.js";
 
 // LOCAL OPERATOR TOOL ONLY. Never add this to a public webhook/checkout route.
-// This recovers only receipts quarantined by the old truncated-code matcher.
+// Recovers only previously quarantined truncated-code receipts or exact
+// same-minute VPBank timestamp cases after explicit operator verification.
 // All business checks run through the same confirmation code as a fresh webhook.
+// No time exception is enabled for the public webhook.
 export function createPaymentReconciliation({ read, change, simulate, validate, clock }) {
   function prepare(data, { transactionId, expectedOrderId, accountNumber,
     gateway = "VPBank", subAccount = "", userExists, now = clock(), allowVpbankMinuteTime = false }) {
@@ -24,9 +26,14 @@ export function createPaymentReconciliation({ read, change, simulate, validate, 
       Object.assign(summary, { orderId: receipt.orderId, userId: receipt.userId });
       return blocked("ALREADY_PAID");
     }
-    if (receipt.status !== "review" || receipt.reason !== "MISSING_OR_AMBIGUOUS_CODE") {
+    const isCodeReview = receipt.reason === "MISSING_OR_AMBIGUOUS_CODE";
+    const isMinuteReview = receipt.reason === "TRANSFER_OUTSIDE_WINDOW";
+    if (receipt.status !== "review" || (!isCodeReview && !isMinuteReview)) {
       return blocked("REVIEW_REASON_NOT_SUPPORTED");
     }
+    // Only an explicitly selected LOCAL time review can recover time rejects.
+    // The original time policy stays unchanged for incoming webhooks.
+    if (isMinuteReview && !allowVpbankMinuteTime) return blocked("VPBANK_MINUTE_TIME_FLAG_REQUIRED");
     if (receipt.conflicts?.length || receipt.reconciliation) return blocked("RECEIPT_HAS_CONFLICTS");
     let tx;
     try {
@@ -41,8 +48,12 @@ export function createPaymentReconciliation({ read, change, simulate, validate, 
     } catch { return blocked("RECEIPT_INTEGRITY_MISMATCH"); }
     const code = extractOrderCode(tx);
     const prefix = String(tx.code || "").toUpperCase();
-    if (!code || extractOrderCode({ ...tx, code: null }) !== code ||
-        !/^ZCA[A-F0-9]{1,17}$/.test(prefix) || !code.startsWith(prefix)) {
+    if (!code || extractOrderCode({ ...tx, code: null }) !== code) {
+      return blocked(isCodeReview ? "NOT_TRUNCATED_CODE_CASE" : "NOT_COMPLETE_CODE_CASE");
+    }
+    // The legacy path is still limited to signed bank memos whose provider
+    // metadata was truncated. Time-review receipts already had a recognized ID.
+    if (isCodeReview && (!/^ZCA[A-F0-9]{1,17}$/.test(prefix) || !code.startsWith(prefix))) {
       return blocked("NOT_TRUNCATED_CODE_CASE");
     }
     const order = data.paymentOrders?.[code];
@@ -54,6 +65,11 @@ export function createPaymentReconciliation({ read, change, simulate, validate, 
     if (!order) return blocked("ORDER_NOT_FOUND");
     const reviewTime = { allowVpbankMinuteTime, receivedAt: receipt.receivedAt };
     summary.timeCheck = assessPaymentTime(tx, order, now, reviewTime);
+    // Never approve an arbitrary time conflict, even if a transaction would
+    // now pass the normal checks. This must be the special same-minute case.
+    if (isMinuteReview && !summary.timeCheck.toleranceApplied) {
+      return blocked("VPBANK_MINUTE_TIME_NOT_ELIGIBLE");
+    }
     if (expectedOrderId !== undefined && expectedOrderId !== code) return blocked("EXPECTED_ORDER_MISMATCH");
     if (receipt.orderId && receipt.orderId !== code) return blocked("RECEIPT_ORDER_CONFLICT");
     if (order.status !== "pending" || order.transactionId || order.entitlementId) return blocked("ORDER_ALREADY_PROCESSED");
