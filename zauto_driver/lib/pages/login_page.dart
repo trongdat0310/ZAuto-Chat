@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../widgets/auth_form_style.dart';
 import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -620,22 +621,11 @@ class _LoginPageState extends State<LoginPage> {
       required IconData icon,
       Widget? suffixIcon,
     }) {
-      return InputDecoration(
-        hintText: label,
-        hintStyle: TextStyle(color: muted, fontSize: 16),
-        prefixIcon: Icon(icon, color: muted, size: 24),
+      return AuthFormStyle.field(
+        context,
+        hint: label,
+        icon: icon,
         suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: colors.surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 19),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: colors.outline.withValues(alpha: 0.65), width: 1.1),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
-          borderSide: BorderSide(color: colors.primary, width: 1.6),
-        ),
       );
     }
 
