@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily zchatauto encrypted offsite backup (after local 03:00 archive)
+
+[Timer]
+OnCalendar=*-*-* 03:20:00 Asia/Ho_Chi_Minh
+Persistent=true
+Unit=zchatauto-offsite-backup.service
+
+[Install]
+WantedBy=timers.target
