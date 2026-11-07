@@ -119,11 +119,15 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                 Padding(
                   padding: const EdgeInsets.all(18),
 
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Giao diện', style: TextStyle(fontSize: 16)),
+                      const Text(
+                        'Giao diện',
+                        style: AppTypography.settingsItemTitle,
+                      ),
 
-                      const Spacer(),
+                      const SizedBox(height: 12),
 
                       SegmentedButton<String>(
                         segments: const [
@@ -185,7 +189,7 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                           const Text(
                             'Cỡ chữ thông báo',
 
-                            style: TextStyle(fontSize: 16),
+                            style: AppTypography.settingsItemTitle,
                           ),
 
                           const Spacer(),
@@ -257,10 +261,9 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                             Text(
                               'Xem trước thông báo',
 
-                              style:
-                                  AppTypography.caption.copyWith(
-                                color:
-                                    colorScheme.onSurfaceVariant,
+                              style: AppTypography.settingsItemDescription.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.onSurfaceVariant,
                               ),
                             ),
 
@@ -295,9 +298,7 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
             child: Text(
               'TƯƠNG TÁC VỚI THẺ CUỐC',
 
-              style: TextStyle(
-                fontSize: 13,
-
+              style: AppTypography.sectionTitle.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
@@ -315,7 +316,10 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                 // ========================================
 
                 ListTile(
-                  title: const Text('Thời gian hiện thông báo'),
+                  title: const Text(
+                    'Thời gian hiện thông báo',
+                    style: AppTypography.settingsItemTitle,
+                  ),
 
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -349,8 +353,16 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                 SwitchListTile(
  value: quickTapAccept,
  onChanged: (value) async { setState(() => quickTapAccept = value); await widget.settingsController.updateQuickTapAccept(value); },
- title: const Text('Chạm vào tin nhắn để nhận nhanh'),
- subtitle: const Text('Chạm vào thẻ cuốc để nhận'),
+ title: const Text(
+   'Chạm vào tin nhắn để nhận nhanh',
+   style: AppTypography.settingsItemTitle,
+ ),
+ subtitle: Text(
+   'Chạm vào thẻ cuốc để nhận',
+   style: AppTypography.settingsItemDescription.copyWith(
+     color: colorScheme.onSurfaceVariant,
+   ),
+ ),
 ),
 
                 const Divider(height: 1),
@@ -362,8 +374,16 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                 SwitchListTile(
  value: swipeToReply,
  onChanged: (value) async { setState(() => swipeToReply = value); await widget.settingsController.updateSwipeToReply(value); },
- title: const Text('Vuốt để trả lời thông báo'),
- subtitle: const Text('Vuốt trái thẻ cuốc ở Home để nhập trả lời'),
+ title: const Text(
+   'Vuốt để trả lời thông báo',
+   style: AppTypography.settingsItemTitle,
+ ),
+ subtitle: Text(
+   'Vuốt trái thẻ cuốc ở Home để nhập trả lời',
+   style: AppTypography.settingsItemDescription.copyWith(
+     color: colorScheme.onSurfaceVariant,
+   ),
+ ),
 ),
 
                 const Divider(height: 1),
@@ -372,7 +392,10 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                 // ACCEPT BUTTON POSITION
                 // ========================================
                 ListTile(
-                  title: const Text('Vị trí nút nhận'),
+                  title: const Text(
+                    'Vị trí nút nhận',
+                    style: AppTypography.settingsItemTitle,
+                  ),
 
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -433,7 +456,7 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                   child: Text(
                     'Thời gian hiện thông báo',
 
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    style: AppTypography.sheetTitle,
                   ),
                 ),
                 RadioGroup<int>(
@@ -574,7 +597,7 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                   child: Text(
                     'Vị trí nút nhận',
 
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    style: AppTypography.sheetTitle,
                   ),
                 ),
 
