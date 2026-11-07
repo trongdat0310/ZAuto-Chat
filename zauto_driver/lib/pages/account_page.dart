@@ -411,7 +411,31 @@ class _AccountPageState extends State<AccountPage> {
                     ),
                     if (requestError != null) ...[
                       const SizedBox(height: 16),
-                      Text(requestError!, style: TextStyle(color: Theme.of(dialogContext).colorScheme.error)),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(dialogContext).colorScheme.errorContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.error_outline_rounded,
+                              color: Theme.of(dialogContext).colorScheme.onErrorContainer,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                requestError!,
+                                style: TextStyle(
+                                  color: Theme.of(dialogContext).colorScheme.onErrorContainer,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                     if (saving) ...[
                       const SizedBox(height: 18),
