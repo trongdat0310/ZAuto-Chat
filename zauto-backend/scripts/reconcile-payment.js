@@ -32,7 +32,10 @@ Optional LOCAL time review (never enabled for public webhook requests):
   allow earlier minutes, late transfers, changed evidence or a wrong amount.
   A matching minute alone does NOT prove the bank truncated the timestamp.
 
-Only old MISSING_OR_AMBIGUOUS_CODE receipts with a truncated provider code are supported.
+Supported review reasons: old MISSING_OR_AMBIGUOUS_CODE with a truncated provider
+code, or TRANSFER_OUTSIDE_WINDOW when --vpbank-minute-time is explicitly set and
+the original signed receipt qualifies as a same-minute VPBank candidate.
+The time exception NEVER changes how incoming webhooks are automatically credited.
 A preview never grants a plan, never changes order status and never sends money.
 --apply changes local entitlements/order status; it does not initiate a bank transfer.
 Do not apply to simulated bank events or payments already compensated/refunded.
