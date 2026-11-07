@@ -64,16 +64,6 @@ class AuthFormStyle {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Image.asset(
-            'assets/images/AvatarApp.png',
-            width: 62,
-            height: 62,
-            fit: BoxFit.cover,
-          ),
-        ),
-        const SizedBox(height: 14),
         Text(
           title,
           textAlign: TextAlign.center,
