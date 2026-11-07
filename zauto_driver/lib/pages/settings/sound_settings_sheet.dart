@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../controllers/settings_controller.dart';
+import '../../theme/app_typography.dart';
 
 class SoundSettingsSheet extends StatefulWidget {
   final SettingsController settingsController;
@@ -57,9 +58,17 @@ class _SoundSettingsSheetState extends State<SoundSettingsSheet> {
                   SwitchListTile(
                     value: settings.playTripSound,
 
-                    title: const Text('Phát âm báo cuốc mới'),
+                    title: const Text(
+                      'Phát âm báo cuốc mới',
+                      style: AppTypography.settingsItemTitle,
+                    ),
 
-                    subtitle: const Text('Kêu một tiếng khi có cuốc mới'),
+                    subtitle: Text(
+                      'Kêu một tiếng khi có cuốc mới',
+                      style: AppTypography.settingsItemDescription.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
 
                     onChanged: (value) async {
                       await widget.settingsController.updatePlayTripSound(
@@ -82,9 +91,17 @@ class _SoundSettingsSheetState extends State<SoundSettingsSheet> {
                   SwitchListTile(
                     value: settings.readTripNotification,
 
-                    title: const Text('Đọc thông báo cuốc'),
+                    title: const Text(
+                      'Đọc thông báo cuốc',
+                      style: AppTypography.settingsItemTitle,
+                    ),
 
-                    subtitle: const Text('Đọc nội dung cuốc vừa nhận được'),
+                    subtitle: Text(
+                      'Đọc nội dung cuốc vừa nhận được',
+                      style: AppTypography.settingsItemDescription.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
 
                     onChanged: (value) async {
                       await widget.settingsController
@@ -112,7 +129,10 @@ class _SoundSettingsSheetState extends State<SoundSettingsSheet> {
                       children: [
                         Row(
                           children: [
-                            const Text('Tốc độ đọc'),
+                            const Text(
+                              'Tốc độ đọc',
+                              style: AppTypography.settingsItemTitle,
+                            ),
 
                             const Spacer(),
 
