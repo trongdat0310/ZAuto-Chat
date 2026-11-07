@@ -995,7 +995,8 @@ app.get(
 
       const groups =
         await getUserGroups(
-          req.user.id
+          req.user.id,
+          { forceRefresh: req.query.refresh === "1" }
         );
 
 
@@ -1037,7 +1038,7 @@ app.post(["/api/me/groups/toggle-all", "/api/me/groups/enable-all"], requireAuth
     if (typeof enabled !== "boolean") {
       return res.status(400).json({ success: false, error: "enabled phải là true hoặc false." });
     }
-    const groups = await getUserGroups(req.user.id);
+    const groups = await getUserGroups(req.user.id, { forceRefresh: true });
     const updates = setUserGroupsEnabled(req.user.id, groups.map(group => group.groupId), enabled);
     for (const group of updates) {
       broadcastUserEvent(req.user.id, "group_notification_toggled", group);
@@ -1101,7 +1102,8 @@ app.post(
 
       const groups =
         await getUserGroups(
-          userId
+          userId,
+          { forceRefresh: true }
         );
 
 
@@ -3210,7 +3212,8 @@ app.post(
 
       const groups =
         await getUserGroups(
-          req.user.id
+          req.user.id,
+          { forceRefresh: true }
         );
 
 
