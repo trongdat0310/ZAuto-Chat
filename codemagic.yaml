@@ -59,6 +59,19 @@ workflows:
             ditto -c -k --sequesterRsrc --keepParent Payload ../ipa/zchatauto-unsigned.ipa
           )
           unzip -l build/ios/ipa/zchatauto-unsigned.ipa | grep 'Payload/Runner.app/Info.plist'
+          test -s build/ios/ipa/zchatauto-unsigned.ipa
+          echo "[IPA] Created unsigned release IPA:"
+          ls -lh build/ios/ipa/zchatauto-unsigned.ipa
+          # CM_EXPORT_DIR is collected by Codemagic independently from YAML
+          # artifact globs, providing a second download route.
+          test -n "${CM_EXPORT_DIR:-}"
+          mkdir -p "$CM_EXPORT_DIR"
+          cp build/ios/ipa/zchatauto-unsigned.ipa "$CM_EXPORT_DIR/zchatauto-unsigned.ipa"
+          test -s "$CM_EXPORT_DIR/zchatauto-unsigned.ipa"
+          echo "[IPA] Export directory contains:"
+          ls -lh "$CM_EXPORT_DIR/zchatauto-unsigned.ipa"
     artifacts:
-      - zauto_driver/build/ios/ipa/zchatauto-unsigned.ipa
+      # Paths are anchored at the repository clone root, NOT working_directory.
+      - $CM_BUILD_DIR/zauto_driver/build/ios/ipa/zchatauto-unsigned.ipa
+      - $CM_EXPORT_DIR/zchatauto-unsigned.ipa
       - /tmp/xcodebuild_logs/*.log
