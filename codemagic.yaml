@@ -1,5 +1,5 @@
 # zchatauto: first iOS compile check on a macOS build machine.
-# This workflow is manual and intentionally does NOT sign or distribute an IPA.
+# All workflows are manual. No Apple credentials are used in cloud builds.
 # Flutter app lives in zauto_driver/, while this YAML must be at repo root.
 workflows:
   zchatauto-ios-unsigned:
@@ -23,4 +23,42 @@ workflows:
         script: flutter build ios --debug --no-codesign
     artifacts:
       - zauto_driver/build/ios/iphoneos/**/*.app
+      - /tmp/xcodebuild_logs/*.log
+
+  # Optional: package the successfully compiled unsigned .app as a standard IPA
+  # ZIP for LOCAL signing with a personal Apple ID. This IPA is NOT installable
+  # until a trusted local signer has applied a valid Apple provisioning profile.
+  zchatauto-ios-personal-test:
+    name: zchatauto iOS - unsigned IPA for Windows personal test
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    working_directory: zauto_driver
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Verify Flutter iOS project
+        script: |
+          flutter --version
+          xcodebuild -version
+          test -f ios/Runner.xcodeproj/project.pbxproj
+      - name: Install Flutter dependencies
+        script: flutter pub get
+      - name: Compile iOS without code signing
+        script: flutter build ios --debug --no-codesign
+      - name: Package unsigned IPA for local signing on Windows
+        script: |
+          set -eu
+          test -d build/ios/iphoneos/Runner.app
+          mkdir -p build/ios/ipa
+          mkdir -p build/ios/iphoneos/Payload
+          ditto build/ios/iphoneos/Runner.app build/ios/iphoneos/Payload/Runner.app
+          (
+            cd build/ios/iphoneos
+            ditto -c -k --sequesterRsrc --keepParent Payload ../ipa/zchatauto-unsigned.ipa
+          )
+          unzip -l build/ios/ipa/zchatauto-unsigned.ipa | grep 'Payload/Runner.app/Info.plist'
+    artifacts:
+      - zauto_driver/build/ios/ipa/zchatauto-unsigned.ipa
       - /tmp/xcodebuild_logs/*.log
