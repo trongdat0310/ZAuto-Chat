@@ -50,6 +50,7 @@ import {
 import {
   getConversationEventAvatars,
 } from "../conversations/private-conversation-avatar-service.js";
+import { resolvePrivatePeerName } from "../conversations/private-conversation-name.js";
 
 import {
   getUserMessageSettings,
@@ -805,11 +806,9 @@ async function storeConversationEvent(
 
   try {
 
-    groupName = isPrivate ? (data?.dName ?? data?.senderName ?? 'Tin nhắn riêng') :
-      await getUserGroupName(
-        userId,
-        groupId
-      );
+    if (!isPrivate) {
+      groupName = getUserGroupName(userId, groupId);
+    }
 
   } catch {
 
@@ -833,8 +832,9 @@ async function storeConversationEvent(
 
     let senderAvatar = null;
     let peerAvatar = null;
+    let peerName = null;
     try {
-      ({ senderAvatar, peerAvatar } = await getConversationEventAvatars(userId, message));
+      ({ senderAvatar, peerAvatar, peerName } = await getConversationEventAvatars(userId, message));
     } catch (error) {
       console.warn("[USER AVATAR] MESSAGE ENRICH ERROR:", userId, error?.message ?? error);
     }
@@ -845,10 +845,23 @@ async function storeConversationEvent(
   // ========================================
 
   if (isPrivate) {
-    const existing = getUserConversationList(userId).find(item => String(item.groupId) === groupId);
+    const existing = getUserConversationList(userId).find(
+      item => String(item.groupId) === groupId && item.type === "user"
+    );
+
+    // Always name a one-to-one chat after its peer (threadId).
+    // Outgoing message.data.dName may refer to our own Zalo account.
+    groupName = resolvePrivatePeerName({
+      peerId: groupId,
+      peerName,
+      senderId: data?.uidFrom,
+      senderName,
+      isSelf: message.isSelf === true,
+      storedName: existing?.name,
+    });
     syncConversationGroups(userId, [{
       groupId,
-      name: existing?.name ?? groupName,
+      name: groupName,
       type: 'user',
       avatar: peerAvatar,
     }]);
