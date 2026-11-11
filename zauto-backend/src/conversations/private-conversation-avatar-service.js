@@ -1,12 +1,12 @@
 import { ThreadType } from "zca-js";
-import { getUserAvatars } from "../users/user-avatar-service.js";
+import { getUserAvatars, getCachedUserDisplayName } from "../users/user-avatar-service.js";
 import { getUserConversationList, syncConversationGroups } from "./conversation-store.js";
 
 // Repair older private indexes that stored the last sender's avatar.
 // Always resolve by the peer/thread ID, independently of message direction.
 export async function refreshPrivateConversationAvatars(
   userId,
-  { getAvatars = getUserAvatars } = {},
+  { getAvatars = getUserAvatars, getCachedName = getCachedUserDisplayName } = {},
 ) {
   const peers = getUserConversationList(userId)
     .filter(item => item.type === "user")
@@ -20,8 +20,16 @@ export async function refreshPrivateConversationAvatars(
       .map(item => [String(item.groupId), item]));
     const updates = peers.flatMap(groupId => {
       const avatar = avatars?.[groupId]?.toString().trim();
-      return avatar && avatar !== current.get(groupId)?.avatar
-        ? [{ groupId, type: "user", avatar }]
+      const peerName = getCachedName(userId, groupId);
+      const old = current.get(groupId);
+      const avatarChanged = avatar && avatar !== old?.avatar;
+      const nameChanged = typeof peerName === "string" &&
+        peerName.trim() && peerName.trim() !== old?.name;
+      return avatarChanged || nameChanged
+        ? [{ groupId, type: "user",
+          ...(avatarChanged ? { avatar } : {}),
+          ...(nameChanged ? { name: peerName.trim() } : {}),
+        }]
         : [];
     });
     if (updates.length > 0) syncConversationGroups(userId, updates);
@@ -35,7 +43,7 @@ export async function refreshPrivateConversationAvatars(
 export async function getConversationEventAvatars(
   userId,
   message,
-  { getAvatars = getUserAvatars } = {},
+  { getAvatars = getUserAvatars, getCachedName = getCachedUserDisplayName } = {},
 ) {
   const senderId = String(message?.data?.uidFrom ?? "").trim();
   const peerId = message?.type === ThreadType.User
@@ -47,5 +55,6 @@ export async function getConversationEventAvatars(
   return {
     senderAvatar: avatars?.[senderId] ?? null,
     peerAvatar: peerId ? avatars?.[peerId] ?? null : null,
+    ...(peerId ? { peerName: getCachedName(userId, peerId) } : {}),
   };
 }
