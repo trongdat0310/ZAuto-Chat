@@ -16,6 +16,14 @@ import {
 const avatarCache =
   new Map();
 
+// Names are cached from the SAME getUserInfo response as avatars.
+// A name belongs to the requested Zalo user ID, never to message.data.dName.
+const displayNameCache = new Map();
+
+export function getCachedUserDisplayName(accountId, zaloUserId) {
+  return displayNameCache.get(String(accountId))?.get(String(zaloUserId)) ?? null;
+}
+
 
 // ========================================
 // GET CACHE
@@ -169,21 +177,7 @@ getUserAvatars(
       );
 
 
-    // ========================================
-    // DEBUG TAM THOI
-    // DE XAC NHAN RESPONSE THUC TE
-    // ========================================
-
-    console.log(
-      "[USER AVATAR] RESPONSE:",
-      {
-        userId,
-        requested:
-          missingIds.length,
-        response,
-      }
-    );
-
+    // Do not log raw Zalo user profiles (private personal data).
 
     // ========================================
     // ZCA-JS TRA USER INFO
@@ -206,6 +200,12 @@ getUserAvatars(
       typeof profiles ===
         "object"
     ) {
+      const accountKey = String(userId);
+      let names = displayNameCache.get(accountKey);
+      if (!names) {
+        names = new Map();
+        displayNameCache.set(accountKey, names);
+      }
 
       for (
         const id
@@ -228,6 +228,16 @@ getUserAvatars(
           continue;
         }
 
+
+        // displayName is the name of this profile for this account.
+        // Do not use the sender's dName as the private conversation title.
+        const displayName = [
+          profile.displayName,
+          profile.zaloName,
+          profile.display_name,
+          profile.zalo_name,
+        ].find(value => typeof value === "string" && value.trim());
+        if (displayName) names.set(id, displayName.trim());
 
         const avatar =
           profile.avatar
