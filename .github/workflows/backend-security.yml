@@ -38,6 +38,10 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Run private chat name regression tests
         run: node --test src/conversations/private-conversation-name.test.js src/conversations/private-conversation-avatar-service.test.js
+      - name: Run full backend unit test suite in isolated CI workspace
+        run: npm test
+      - name: Run message-driven group discovery tests
+        run: npm run test:groups
       - name: Run authentication and security tests
         run: npm run test:security
       - name: Run payment tests
