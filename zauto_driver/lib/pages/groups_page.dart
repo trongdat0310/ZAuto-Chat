@@ -310,8 +310,10 @@ class _GroupsPageState extends State<GroupsPage> {
 
                       const SizedBox(height: 16),
 
-                      const Text(
-                        'Không tìm thấy nhóm',
+                      Text(
+                        searchText.isEmpty
+                            ? 'Chưa có nhóm hoạt động'
+                            : 'Không tìm thấy nhóm',
 
                         style: TextStyle(
                           fontSize: 18,
