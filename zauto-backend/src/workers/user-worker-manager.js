@@ -15,8 +15,8 @@ import {
 } from "../zalo/user-zalo-manager.js";
 
 import {
-  getUserGroups,
   getUserGroupName,
+  discoverUserGroup,
 } from "../zalo/user-groups.js";
 
 import {
@@ -1809,49 +1809,12 @@ export async function startUserWorker(
     worker.api =
       api;
 
-    // ========================================
-    // SYNC CONVERSATION INDEX
-    // ========================================
-
-    try {
-
-      const groups =
-        await getUserGroups(
-          key
-        );
-
-
-      syncConversationGroups(
-        key,
-        groups
-      );
-
-
-      console.log(
-        "[CONVERSATION] GROUPS SYNCED:",
-        key,
-        groups.length
-      );
-
-    } catch (error) {
-
-      console.error(
-        "[CONVERSATION] GROUP SYNC ERROR:",
-        key,
-        error
-      );
-    }
+    // Detect groups on incoming messages instead of bulk-fetching Zalo groups.
 
     worker.ownId =
       String(
         api.getOwnId()
       );
-
-    // Load group de warm cache
-    // groupId -> groupName.
-    await getUserGroups(
-      key
-    );
 
     // ========================================
     // LISTENER
@@ -1874,6 +1837,21 @@ export async function startUserWorker(
           worker,
           message
         );
+
+        // Do not enumerate Zalo groups. Discover a group from its first
+        // displayable message, without blocking the message listener on errors.
+        if (message?.type === ThreadType.Group &&
+            isDisplayableConversationEvent(message)) {
+          try {
+            discoverUserGroup(key, message);
+          } catch (error) {
+            console.warn(
+              "[USER GROUPS] Discovery error:",
+              key,
+              error?.message ?? error
+            );
+          }
+        }
 
         // ========================================
         // 1. LUON LUU CONVERSATION
