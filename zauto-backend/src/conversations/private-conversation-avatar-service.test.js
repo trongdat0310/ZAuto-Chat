@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { ThreadType } from "zca-js";
-import { syncConversationGroups, setUserConversationPinned, markUserConversationRead } from "./conversation-store.js";
+import { syncConversationGroups, setUserConversationPinned, markUserConversationRead, saveConversationMessage, getUserConversationMessages } from "./conversation-store.js";
 
 process.env.JWT_SECRET ??= "private-avatar-test";
 process.env.ZALO_SESSION_KEY ??= "00".repeat(32);
@@ -82,6 +82,18 @@ test("list repairs persisted private avatar while preserving name pin read state
 
 test("list repairs old incorrect private title while preserving history and unrelated groups", async t => {
   const userId = fixture(t);
+  syncConversationGroups(userId, [{ groupId: "peer", type: "user", name: "My own Zalo" }]);
+  saveConversationMessage(userId, {
+    message: {
+      type: ThreadType.User, threadId: "peer", isSelf: true,
+      data: {
+        uidFrom: "self", dName: "My own Zalo", msgId: "sent-1",
+        msgType: "chat.text", content: "Hello peer", ts: Date.now(),
+      },
+    },
+    groupName: "My own Zalo",
+    senderName: "My own Zalo",
+  });
   setUserConversationPinned(userId, "peer", true);
   const result = await refreshPrivateConversationAvatars(userId, {
     getAvatars: async (_, ids) => {
@@ -97,6 +109,7 @@ test("list repairs old incorrect private title while preserving history and unre
   assert.equal(peer.name, "Correct peer name");
   assert.equal(peer.avatar, "correct-peer.png");
   assert.equal(peer.pinned, true);
+  assert.equal(getUserConversationMessages(userId, "peer").length, 1);
   assert.equal(result.find(item => item.groupId === "group").name, "Group");
 });
 
