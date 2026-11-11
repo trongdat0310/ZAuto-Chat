@@ -34,6 +34,21 @@ test("group messages only request sender avatar", async () => {
   assert.deepEqual(result, { senderAvatar: "sender.png", peerAvatar: null });
 });
 
+test("outgoing private chat resolves title by peer ID rather than sender", async () => {
+  const result = await getConversationEventAvatars("account", {
+    type: ThreadType.User, threadId: "peer", isSelf: true,
+    data: { uidFrom: "self", dName: "My account" },
+  }, {
+    getAvatars: async () => ({ self: "self.png", peer: "peer.png" }),
+    getCachedName: (_, id) => {
+      assert.equal(id, "peer");
+      return "Correct peer title";
+    },
+  });
+  assert.equal(result.peerName, "Correct peer title");
+  assert.equal(result.peerAvatar, "peer.png");
+});
+
 function fixture(t) {
   const userId = `test-private-avatar-${process.pid}-${t.name.replace(/\W/g, "-")}`;
   t.after(() => fs.rmSync(new URL(`../../data/user-data/${userId}`, import.meta.url), {
@@ -63,6 +78,26 @@ test("list repairs persisted private avatar while preserving name pin read state
   assert.equal(peer.unreadCount, 0);
   assert.ok(peer.lastReadAt);
   assert.equal(result.find(item => item.groupId === "group").avatar, "group.png");
+});
+
+test("list repairs old incorrect private title while preserving history and unrelated groups", async t => {
+  const userId = fixture(t);
+  setUserConversationPinned(userId, "peer", true);
+  const result = await refreshPrivateConversationAvatars(userId, {
+    getAvatars: async (_, ids) => {
+      assert.deepEqual(ids, ["peer"]);
+      return { peer: "correct-peer.png" };
+    },
+    getCachedName: (_, id) => {
+      assert.equal(id, "peer");
+      return "Correct peer name";
+    },
+  });
+  const peer = result.find(item => item.groupId === "peer");
+  assert.equal(peer.name, "Correct peer name");
+  assert.equal(peer.avatar, "correct-peer.png");
+  assert.equal(peer.pinned, true);
+  assert.equal(result.find(item => item.groupId === "group").name, "Group");
 });
 
 for (const failure of ["missing profile", "lookup error"]) {
