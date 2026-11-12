@@ -272,3 +272,10 @@ export async function runConversationSendOnce(
 export function clearConversationSendIdempotencyCache() {
   sends.clear();
 }
+
+export function clearUserConversationSendCache(userId) {
+  const prefix = `${String(userId)}:`;
+  for (const key of sends.keys()) {
+    if (key.startsWith(prefix)) sends.delete(key);
+  }
+}
