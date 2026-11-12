@@ -713,7 +713,8 @@ function isDisplayableConversationEvent(
 
 async function storeConversationEvent(
   userId,
-  message
+  message,
+  sourceWorker = null
 ) {
 
   // ========================================
@@ -825,6 +826,11 @@ async function storeConversationEvent(
       console.warn("[USER AVATAR] MESSAGE ENRICH ERROR:", userId, error?.message ?? error);
     }
 
+  // An in-flight avatar request may finish after the Zalo account was
+  // unlinked. Never recreate deleted conversation files from an old worker.
+  if (sourceWorker && workers.get(String(userId)) !== sourceWorker) {
+    return null;
+  }
 
   // ========================================
   // LUU VAO CONVERSATION STORE
@@ -1838,10 +1844,12 @@ export async function startUserWorker(
           createRealtimeLatencyTrace();
 
 
+        if (workers.get(key) !== worker) return;
         await enrichStickerMessage(
           worker,
           message
         );
+        if (workers.get(key) !== worker) return;
 
         // Do not enumerate Zalo groups. Discover a group from its first
         // displayable message, without blocking the message listener on errors.
@@ -1885,7 +1893,8 @@ export async function startUserWorker(
 
         void storeConversationEvent(
           key,
-          message
+          message,
+          worker
         ).catch(
           error => {
 
@@ -1930,7 +1939,7 @@ export async function startUserWorker(
         return;
       }
       for (const message of oldMessages) {
-        void storeConversationEvent(key, message).catch(error => {
+        void storeConversationEvent(key, message, worker).catch(error => {
           console.warn("[PRIVATE HISTORY] STORE ERROR:", key, error?.message ?? error);
         });
       }
@@ -2335,7 +2344,8 @@ export async function startUserWorker(
 
                   await storeConversationEvent(
                     key,
-                    message
+                    message,
+                    worker
                   );
 
 
