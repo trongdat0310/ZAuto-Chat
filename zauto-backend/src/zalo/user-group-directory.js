@@ -10,6 +10,28 @@ function displayName(id) {
   return `Nhóm ${id}`;
 }
 
+function safeAvatar(value) {
+  if (typeof value !== 'string') return '';
+  const url = value.trim();
+  if (url.startsWith('//')) return `https:${url}`;
+  return /^https?:\/\//i.test(url) ? url : '';
+}
+
+function eventGroupAvatar(event) {
+  const data = event?.data ?? {};
+  const choices = [
+    event?.group?.fullAvt, event?.group?.avt,
+    event?.groupAvatar, event?.groupFullAvt,
+    data?.group?.fullAvt, data?.group?.avt,
+    data?.groupAvatar, data?.groupFullAvt,
+  ];
+  for (const value of choices) {
+    const avatar = safeAvatar(value);
+    if (avatar) return avatar;
+  }
+  return '';
+}
+
 function isGroupConversation(item) {
   if (!item || typeof item !== 'object') return false;
   const type = String(item.type ?? 'group').toLowerCase();
@@ -57,8 +79,10 @@ export function createUserGroupDirectory({
           name: typeof item.name === 'string' && item.name.trim()
             ? item.name.trim() : displayName(groupId),
           avatar: item.avatar ?? null,
-          totalMember: Number.isFinite(Number(item.totalMember))
-            ? Number(item.totalMember) : 0,
+          totalMember: item.totalMember != null &&
+            Number.isInteger(Number(item.totalMember)) &&
+            Number(item.totalMember) >= 0
+              ? Number(item.totalMember) : null,
         };
       })
       .filter(Boolean);
@@ -97,31 +121,66 @@ export function createUserGroupDirectory({
     const known = hydrate(String(userId));
     const existing = known.get(id);
     const fromEvent = eventGroupName(event);
+    const fromAvatar = eventGroupAvatar(event);
     const name = fromEvent || existing?.name || displayName(id);
-    if (existing && (!fromEvent || existing.name === fromEvent)) return existing;
+    const avatar = fromAvatar || existing?.avatar || null;
+    if (existing && name === existing.name && avatar === existing.avatar) {
+      return existing;
+    }
 
     // Only the authenticated listener may call this. Every user has
     // a separate persisted conversation index and enabled settings.
-    const group = {
+    persistGroups(String(userId), [{
       groupId: id,
       name,
       type: 'group',
-      ...(existing?.avatar ? { avatar: existing.avatar } : {}),
-    };
-    persistGroups(String(userId), [group]);
+      ...(avatar ? { avatar } : {}),
+    }]);
     const record = {
-      groupId: id, name,
-      avatar: existing?.avatar ?? null,
-      totalMember: existing?.totalMember ?? 0,
+      groupId: id, name, avatar,
+      totalMember: existing?.totalMember ?? null,
     };
     known.set(id, record);
     logger.log?.('[USER GROUPS] Discovered from message:', String(userId), id);
     return record;
   }
 
+  function applyUserGroupMetadata(userId, groupId, info) {
+    const id = safeId(groupId);
+    if (!id || !info || typeof info !== 'object') return null;
+    const known = hydrate(String(userId));
+    const existing = known.get(id);
+    // A profile lookup alone cannot add an undiscovered group.
+    if (!existing) return null;
+
+    const name = typeof info.name === 'string' && info.name.trim()
+      ? info.name.trim().slice(0, 180) : existing.name;
+    const avatar = safeAvatar(info.fullAvt) || safeAvatar(info.avt) ||
+      safeAvatar(info.avatar) || existing.avatar;
+    const totalMember = info.totalMember != null &&
+      Number.isInteger(Number(info.totalMember)) &&
+      Number(info.totalMember) >= 0
+        ? Number(info.totalMember) : existing.totalMember;
+    if (name === existing.name && avatar === existing.avatar &&
+        totalMember === existing.totalMember) return null;
+
+    persistGroups(String(userId), [{
+      groupId: id, type: 'group', name,
+      ...(avatar ? { avatar } : {}),
+      ...(totalMember != null ? { totalMember } : {}),
+    }]);
+    const updated = { groupId: id, name, avatar: avatar ?? null,
+      totalMember: totalMember ?? null };
+    known.set(id, updated);
+    return updated;
+  }
+
   function clearUserGroupCache(userId) {
     snapshots.delete(String(userId));
   }
 
-  return { getUserGroups, getUserGroupName, discoverUserGroup, clearUserGroupCache };
+  return {
+    getUserGroups, getUserGroupName, discoverUserGroup,
+    applyUserGroupMetadata, clearUserGroupCache,
+  };
 }
