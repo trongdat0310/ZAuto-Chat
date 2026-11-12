@@ -16,6 +16,12 @@ export function createActiveGroupMetadataLoader({
   const retryAfter = new Map();
   const inFlight = new Map();
   const queue = [];
+  const generations = new Map();
+
+  function isCurrent(job) {
+    return job.generation === (generations.get(job.userId) ?? 0);
+  }
+
   let active = 0;
 
   function pump() {
@@ -25,6 +31,10 @@ export function createActiveGroupMetadataLoader({
 
       void (async () => {
         try {
+          if (!isCurrent(job)) {
+            job.resolve(null);
+            return;
+          }
           // string = exactly one group, never a bulk request.
           const response = await job.api.getGroupInfo(job.groupId);
           const info = response?.gridInfoMap?.[job.groupId];
@@ -33,10 +43,18 @@ export function createActiveGroupMetadataLoader({
             throw new Error("GROUP_INFO_NOT_AVAILABLE");
           }
 
+          if (!isCurrent(job)) {
+            job.resolve(null);
+            return;
+          }
           const changed = applyMetadata(job.userId, job.groupId, info);
           retryAfter.set(job.key, now() + successTtlMs);
           job.resolve(changed ?? null);
         } catch (error) {
+          if (!isCurrent(job)) {
+            job.resolve(null);
+            return;
+          }
           retryAfter.set(job.key, now() + failureBackoffMs);
           logger.warn?.(
             "[USER GROUPS] Single-group metadata lookup failed:",
@@ -45,7 +63,9 @@ export function createActiveGroupMetadataLoader({
           // Metadata failure must never block receiving or saving messages.
           job.resolve(null);
         } finally {
-          inFlight.delete(job.key);
+          if (inFlight.get(job.key) === job.promise) {
+            inFlight.delete(job.key);
+          }
           active -= 1;
           pump();
         }
@@ -67,10 +87,28 @@ export function createActiveGroupMetadataLoader({
     let resolve;
     const promise = new Promise(done => { resolve = done; });
     inFlight.set(key, promise);
-    queue.push({ key, userId: account, groupId: id, api, resolve });
+    queue.push({ key, userId: account, groupId: id, api, resolve,
+      promise, generation: generations.get(account) ?? 0 });
     pump();
     return promise;
   }
 
-  return { load };
+  function cancelUser(userId) {
+    const account = String(userId);
+    generations.set(account, (generations.get(account) ?? 0) + 1);
+    // Pending requests may still return from Zalo, but their results are ignored.
+    for (let i = queue.length - 1; i >= 0; i--) {
+      if (queue[i].userId !== account) continue;
+      const [job] = queue.splice(i, 1);
+      job.resolve(null);
+    }
+    for (const key of [...retryAfter.keys()]) {
+      if (JSON.parse(key)[0] === account) retryAfter.delete(key);
+    }
+    for (const [key, value] of inFlight) {
+      if (JSON.parse(key)[0] === account) inFlight.delete(key);
+    }
+  }
+
+  return { load, cancelUser };
 }
