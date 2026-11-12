@@ -157,3 +157,32 @@ test("metadata cannot create unseen groups or edit a different account", async (
   assert.equal((await d.getUserGroups("b")).length, 0);
   assert.equal(h.writes(), 1);
 });
+
+test("stale realtime title and avatar cannot overwrite confirmed Zalo group profile", async () => {
+  const h = harness(), d = h.make();
+  d.discoverUserGroup("u", { threadId: "g",
+    groupName: "First message name", groupAvatar: "https://example.com/old.jpg" });
+  d.applyUserGroupMetadata("u", "g", {
+    groupId: "g", name: "Verified title", fullAvt: "https://example.com/verified.jpg",
+  });
+  const writes = h.writes();
+  d.discoverUserGroup("u", { threadId: "g",
+    groupName: "Stale title", groupAvatar: "https://example.com/stale.jpg",
+    data: { dName: "Sender name", avatar: "https://example.com/sender.jpg" },
+  });
+  const [group] = await d.getUserGroups("u");
+  assert.equal(group.name, "Verified title");
+  assert.equal(group.avatar, "https://example.com/verified.jpg");
+  assert.equal(h.writes(), writes);
+});
+
+test("event metadata can fill missing avatar without replacing existing group name", async () => {
+  const h = harness(), d = h.make();
+  d.discoverUserGroup("u", { threadId: "g",
+    groupName: "Original title" });
+  d.discoverUserGroup("u", { threadId: "g",
+    groupName: "Different title", groupAvatar: "https://example.com/group.png" });
+  const [group] = await d.getUserGroups("u");
+  assert.equal(group.name, "Original title");
+  assert.equal(group.avatar, "https://example.com/group.png");
+});
