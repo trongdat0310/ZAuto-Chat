@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { createSubscriptionService } from "./subscription-service.js";
 import { createChatAcceptService } from "../conversations/chat-accept-core.js";
-import { createAcceptanceProjection, mergeAcceptedHistory } from "./acceptance-history.js";
+import { createAcceptanceProjection, mergeAcceptedHistory, visibleHistorySinceZaloReset } from "./acceptance-history.js";
 import { runMeteredAcceptance, acceptTargetKey } from "./acceptance-runner.js";
 
 function fixture(t) {
@@ -131,4 +131,22 @@ test("unknown target, own message and recalled message cannot consume quota", as
   f.target.isSelf = false; f.target.status = "recalled";
   await assert.rejects(f.accept("user", input), { code: "ACCEPT_TARGET_UNAVAILABLE" });
   assert.equal(f.sends, 0); assert.equal(f.store.getUsageStatus("user", "chat_accept").used, 0);
+});
+
+test("unlink hides old Zalo accepted-trip content but does not change usage ledger", async t => {
+  const f = fixture(t);
+  await f.accept("user", input);
+  const before = mergeAcceptedHistory([], f.store.getAcceptedOperations("user"));
+  assert.equal(before.length, 1);
+  const cutoff = new Date(Date.now() + 1000).toISOString();
+  assert.deepEqual(visibleHistorySinceZaloReset(before, cutoff), []);
+  assert.equal(f.store.getUsageStatus("user", "chat_accept").used, 1);
+  assert.equal(f.store.getAcceptedOperations("user").length, 1);
+});
+
+test("Zalo relink history starts with accepted trips after the unlink cutoff", () => {
+  const oldItem = { id: "old", acceptedAt: "2026-10-01T12:00:00.000Z" };
+  const newItem = { id: "new", acceptedAt: "2026-11-13T12:00:00.000Z" };
+  assert.deepEqual(visibleHistorySinceZaloReset([oldItem, newItem], "2026-11-12T12:00:00.000Z"), [newItem]);
+  assert.deepEqual(visibleHistorySinceZaloReset([oldItem, newItem], null), [oldItem, newItem]);
 });
