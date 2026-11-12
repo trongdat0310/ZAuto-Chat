@@ -80,6 +80,74 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
     currentAcceptButtonPosition = widget.initialAcceptButtonPosition;
   }
 
+  Widget _themeOption({
+    required String value,
+    required String label,
+    required ColorScheme colors,
+  }) {
+    final isSelected = selectedTheme == value;
+    return Expanded(
+      child: Semantics(
+        button: true,
+        selected: isSelected,
+        label: 'Chế độ $label',
+        child: Material(
+          color: isSelected ? colors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
+          child: InkWell(
+            key: ValueKey('theme-option-$value'),
+            borderRadius: BorderRadius.circular(24),
+            onTap: () async {
+              if (selectedTheme == value) {
+                return;
+              }
+              setState(() {
+                selectedTheme = value;
+              });
+              await widget.onThemeChanged(value);
+            },
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight:
+                        isSelected ? FontWeight.w600 : FontWeight.w500,
+                    color: isSelected
+                        ? colors.onPrimary
+                        : colors.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _themePicker(ColorScheme colors) {
+    return Container(
+      key: const ValueKey('theme-picker'),
+      height: 44,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(26),
+      ),
+      child: Row(
+        children: [
+          _themeOption(value: 'light', label: 'Sáng', colors: colors),
+          _themeOption(value: 'dark', label: 'Tối', colors: colors),
+          _themeOption(value: 'system', label: 'Hệ thống', colors: colors),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -113,62 +181,39 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
             child: Column(
               children: [
                 // ========================================
-                // THEME
+                // THEME: label and compact three-way control on one row.
                 // ========================================
-
                 Padding(
                   padding: const EdgeInsets.all(18),
-
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Giao diện',
-                        style: AppTypography.settingsItemTitle,
-                      ),
-
-                      const SizedBox(height: 12),
-
-                      SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment<String>(
-                            value: 'light',
-
-                            label: Text('Sáng'),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      // Respect accessibility text sizes on narrow devices.
+                      if (constraints.maxWidth < 260 ||
+                          MediaQuery.textScalerOf(context).scale(17) > 24) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Text(
+                              'Giao diện',
+                              style: AppTypography.settingsItemTitle,
+                            ),
+                            const SizedBox(height: 12),
+                            _themePicker(colorScheme),
+                          ],
+                        );
+                      }
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Text(
+                            'Giao diện',
+                            style: AppTypography.settingsItemTitle,
                           ),
-
-                          ButtonSegment<String>(
-                            value: 'dark',
-
-                            label: Text('Tối'),
-                          ),
-
-                          ButtonSegment<String>(
-                            value: 'system',
-
-                            label: Text('Hệ thống'),
-                          ),
+                          const SizedBox(width: 8),
+                          Expanded(child: _themePicker(colorScheme)),
                         ],
-
-                        selected: {selectedTheme},
-
-                        showSelectedIcon: false,
-
-                        onSelectionChanged: (value) async {
-                          if (value.isEmpty) {
-                            return;
-                          }
-
-                          final selected = value.first;
-
-                          setState(() {
-                            selectedTheme = selected;
-                          });
-
-                          await widget.onThemeChanged(selected);
-                        },
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ),
 
