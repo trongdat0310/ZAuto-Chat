@@ -36,6 +36,9 @@ const operation = createZaloUnlinkOperation({
   markUnlinked: userId => updateUser(userId, {
     zaloLinked: false,
     zaloUserId: null,
+    // Past accepted-trip details remain only in the accounting ledger.
+    // The app must not display their Zalo content after a new account links.
+    zaloDataClearedAt: new Date().toISOString(),
   }),
   notify: userId => broadcastUserEvent(userId, "zalo_unlinked", {
     cleared: true,
