@@ -179,6 +179,21 @@ class _MessagesPageState extends State<MessagesPage>
           return;
         }
 
+        if (type == 'zalo_unlinked') {
+          // Another device may unlink this app account. Clear stale Zalo
+          // conversations and groups immediately, then reconcile with REST.
+          if (mounted) {
+            setState(() {
+              conversations = [];
+              acceptedTrips = [];
+              enabledGroupIds = {};
+              historySelectedGroupIds = {};
+            });
+          }
+          scheduleRealtimeRefresh();
+          return;
+        }
+
         if (type == 'realtime_disconnected') {
           if (mounted) {
             setState(() {
