@@ -259,6 +259,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       if (warning == null || !_canShowMembershipExpiry) {
         return;
       }
+      if (!mounted) {
+        return;
+      }
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(

@@ -154,8 +154,9 @@ class MembershipStatus {
   String displayName({DateTime? now}) {
     final when = _effectiveNow(now);
     final names = <String>{};
-    if (_main != null && _isActive(_main!, when)) {
-      names.add(_main!.name);
+    final main = _main;
+    if (main != null && _isActive(main, when)) {
+      names.add(main.name);
     }
     for (final addon in _addons) {
       if (_isActive(addon, when)) {
