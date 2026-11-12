@@ -1279,7 +1279,7 @@ class _AccountPageState extends State<AccountPage> {
           title: const Text('Liên kết lại Zalo'),
 
           content: const Text(
-            'Phiên Zalo hiện tại sẽ được xóa và bạn sẽ cần quét mã QR để liên kết lại.',
+            'Dữ liệu Zalo đã lưu (nhóm, tin nhắn, cuốc và bộ lọc) sẽ bị xóa. Tài khoản, gói sử dụng và thanh toán được giữ nguyên. Bạn cần quét QR để liên kết lại.',
           ),
 
           actions: [
@@ -1353,7 +1353,7 @@ class _AccountPageState extends State<AccountPage> {
           title: const Text('Ngắt liên kết Zalo?'),
 
           content: const Text(
-            'ZAUTO sẽ ngừng theo dõi các nhóm Zalo cho đến khi bạn liên kết lại.',
+            'Ngắt liên kết sẽ xóa dữ liệu nhóm, hội thoại, tin nhắn, cuốc, bộ lọc và cài đặt Zalo đã lưu trên zchatauto. Không thể khôi phục từ ứng dụng. Tài khoản, gói sử dụng và giao dịch thanh toán vẫn được giữ.',
           ),
 
           actions: [
