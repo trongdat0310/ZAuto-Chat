@@ -231,3 +231,9 @@ export function shouldSkipDuplicateUserMessage(
 
   return false;
 }
+
+export function clearUserMessageDedupeCache(userId) {
+  const key = String(userId);
+  recentMessagesByUser.delete(key);
+  lastCleanupByUser.delete(key);
+}
