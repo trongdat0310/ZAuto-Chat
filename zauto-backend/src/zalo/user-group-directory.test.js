@@ -32,7 +32,7 @@ test("groups are discovered only after a group message", async () => {
   const item = d.discoverUserGroup("u", { threadId: "g-1", data: { groupName: "Hà Nội" } });
   assert.equal(item.name, "Hà Nội");
   assert.deepEqual(await d.getUserGroups("u"), [
-    { groupId: "g-1", name: "Hà Nội", avatar: null, totalMember: 0, enabled: false },
+    { groupId: "g-1", name: "Hà Nội", avatar: null, totalMember: null, enabled: false },
   ]);
   assert.equal(h.writes(), 1);
 });
@@ -94,4 +94,66 @@ test("clearing process-local cache does not delete persisted conversations", asy
   d.discoverUserGroup("u", { threadId: "g" });
   d.clearUserGroupCache("u");
   assert.equal((await d.getUserGroups("u")).length, 1);
+});
+
+
+test("single-group Zalo details fix name, avatar and member count", async () => {
+  const h = harness(), d = h.make();
+  d.discoverUserGroup("u", { threadId: "g-1", data: { dName: "Người gửi", avatar: "https://wrong.sender.jpg" } });
+  const fixed = d.applyUserGroupMetadata("u", "g-1", {
+    groupId: "g-1", name: "Nhóm Lái Xe", fullAvt: "https://zalo.example/group-full.jpg",
+    avt: "https://zalo.example/small.jpg", totalMember: 42,
+  });
+  assert.equal(fixed.name, "Nhóm Lái Xe");
+  assert.equal(fixed.avatar, "https://zalo.example/group-full.jpg");
+  assert.equal(fixed.totalMember, 42);
+  assert.deepEqual((await d.getUserGroups("u"))[0], {
+    groupId: "g-1", name: "Nhóm Lái Xe",
+    avatar: "https://zalo.example/group-full.jpg", totalMember: 42, enabled: false,
+  });
+  assert.equal(h.writes(), 2);
+});
+
+test("realtime group messages cannot overwrite a resolved group avatar", () => {
+  const h = harness(), d = h.make();
+  d.discoverUserGroup("u", { threadId: "g", data: {} });
+  d.applyUserGroupMetadata("u", "g", {
+    name: "Tên chính thức", fullAvt: "https://zalo.example/avatar.jpg",
+  });
+  d.discoverUserGroup("u", { threadId: "g", data: { dName: "Tên người gửi", avatar: "https://wrong.user" } });
+  assert.equal(d.getUserGroupName("u", "g"), "Tên chính thức");
+  assert.equal(h.byUser.get("u")[0].avatar, "https://zalo.example/avatar.jpg");
+  assert.equal(h.writes(), 2);
+});
+
+test("group metadata respects existing pin and read state without changing enabled flags", async () => {
+  const h = harness(), d = h.make();
+  h.byUser.set("u", [{ groupId: "g", type: "group",
+    name: "Nhóm g", pinned: true, unreadCount: 8, lastContent: "Tin nhắn", hidden: true }]);
+  h.settings.set("u", { g: { enabled: true } });
+  d.applyUserGroupMetadata("u", "g", { name: "Tên đúng", avt: "//zalo.example/photo.jpg" });
+  const stored = h.byUser.get("u")[0];
+  assert.equal(stored.pinned, true);
+  assert.equal(stored.unreadCount, 8);
+  assert.equal(stored.lastContent, "Tin nhắn");
+  assert.equal(stored.hidden, true);
+  assert.equal((await d.getUserGroups("u"))[0].enabled, true);
+  assert.equal(stored.avatar, "https://zalo.example/photo.jpg");
+});
+
+test("invalid group avatars do not replace previously saved group photo", () => {
+  const h = harness(), d = h.make();
+  d.discoverUserGroup("u", {
+    threadId: "g", groupAvatar: "https://zalo.example/g.jpg",
+  });
+  assert.equal(d.applyUserGroupMetadata("u", "g", { avatar: "javascript:alert(1)" }), null);
+  assert.equal(h.byUser.get("u")[0].avatar, "https://zalo.example/g.jpg");
+});
+
+test("metadata cannot create unseen groups or edit a different account", async () => {
+  const h = harness(), d = h.make();
+  d.discoverUserGroup("a", { threadId: "g" });
+  assert.equal(d.applyUserGroupMetadata("b", "g", { name: "Other user group" }), null);
+  assert.equal((await d.getUserGroups("b")).length, 0);
+  assert.equal(h.writes(), 1);
 });
