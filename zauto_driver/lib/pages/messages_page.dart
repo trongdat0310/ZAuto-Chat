@@ -265,6 +265,7 @@ class _MessagesPageState extends State<MessagesPage>
 
         if (type != 'conversation_message' &&
             type != 'conversation_message_updated' &&
+            type != 'group_metadata_updated' &&
             type != 'new_trip' &&
             type != 'conversation_history_synced') {
           return;
