@@ -105,3 +105,47 @@ test("no Zalo API available does not change discovered data", async () => {
   assert.equal(await loader.load("user", "g", null), null);
   assert.equal(await loader.load("user", "", { getGroupInfo() {} }), null);
 });
+
+test("in-flight group lookup finishing after unlink cannot restore deleted metadata", async () => {
+  let finish, updates = 0;
+  const loader = make({ applyMetadata: () => { updates++; } });
+  const api = { getGroupInfo: () => new Promise(resolve => { finish = resolve; }) };
+  const pending = loader.load("user-a", "group-1", api);
+  loader.cancelUser("user-a");
+  finish(profile("group-1"));
+  assert.equal(await pending, null);
+  assert.equal(updates, 0);
+});
+
+test("cancel removes account-specific queued lookups but leaves other users untouched", async () => {
+  let finish;
+  const calls = [];
+  const loader = make({ concurrency: 1 });
+  const api = { getGroupInfo: id => {
+    calls.push(id);
+    if (id === "first") return new Promise(resolve => { finish = resolve; });
+    return Promise.resolve(profile(id));
+  } };
+  const running = loader.load("user-a", "first", api);
+  const cancelled = loader.load("user-a", "second", api);
+  const other = loader.load("user-b", "third", api);
+  loader.cancelUser("user-a");
+  assert.equal(await cancelled, null);
+  finish(profile("first"));
+  assert.equal(await running, null);
+  assert.ok(await other);
+  assert.deepEqual(calls, ["first", "third"]);
+});
+
+test("relink can fetch fresh group details after cache cancellation", async () => {
+  let count = 0;
+  const loader = make();
+  const api = { getGroupInfo: async id => {
+    count++;
+    return profile(id);
+  } };
+  await loader.load("user-a", "g", api);
+  loader.cancelUser("user-a");
+  await loader.load("user-a", "g", api);
+  assert.equal(count, 2);
+});
