@@ -31,3 +31,6 @@ export const discoverUserGroup = (userId, message) =>
 
 export const clearUserGroupCache = userId =>
   directory.clearUserGroupCache(userId);
+
+export const cancelUserGroupMetadata = userId =>
+  groupMetadataLoader.cancelUser(userId);
