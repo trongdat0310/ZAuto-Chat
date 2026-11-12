@@ -372,7 +372,7 @@ class _GroupsPageState extends State<GroupsPage> {
                                       width: 52,
                                       height: 52,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Center(
+                                      errorBuilder: (_, _, _) => Center(
                                         child: Text(
                                           firstLetter,
                                           style: TextStyle(
@@ -394,6 +394,7 @@ class _GroupsPageState extends State<GroupsPage> {
                                               : colorScheme.onSurfaceVariant,
                                         ),
                                       ),
+                                  ),
                             ),
                           ),
                         ),
