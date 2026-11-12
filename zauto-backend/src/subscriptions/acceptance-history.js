@@ -44,6 +44,18 @@ export function mergeAcceptedHistory(messages, operations, limit = 500) {
     .slice(0, Math.max(1, Math.min(limit, 500)));
 }
 
+// Hide Zalo-derived trip content from an earlier Zalo connection while
+// preserving the immutable quota and payment ledger for audit/reconciliation.
+export function visibleHistorySinceZaloReset(rows, clearedAt) {
+  if (!clearedAt) return rows;
+  const cutoff = Date.parse(clearedAt);
+  if (!Number.isFinite(cutoff)) return [];
+  return rows.filter(row => {
+    const timestamp = Date.parse(row.acceptedAt ?? row.receivedAt ?? "");
+    return Number.isFinite(timestamp) && timestamp > cutoff;
+  });
+}
+
 export function createAcceptanceProjection({ saveMessage, updateMessage, broadcast }) {
   return function project(userId, data) {
     if (!data.groupId || (!data.sourceMsgId && !data.sourceCliMsgId)) return null;
