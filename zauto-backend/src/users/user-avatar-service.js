@@ -287,3 +287,9 @@ getUserAvatars(
     )
   );
 }
+
+export function clearUserAvatarCache(userId) {
+  const key = String(userId);
+  avatarCache.delete(key);
+  displayNameCache.delete(key);
+}
