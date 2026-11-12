@@ -231,13 +231,14 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                     children: [
                       Row(
                         children: [
-                          const Text(
-                            'Cỡ chữ thông báo',
-
-                            style: AppTypography.settingsItemTitle,
+                          const Expanded(
+                            child: Text(
+                              'Cỡ chữ thông báo',
+                              style: AppTypography.settingsItemTitle,
+                            ),
                           ),
 
-                          const Spacer(),
+                          const SizedBox(width: 8),
 
                           Text(
                             notificationFontSize % 1 == 0
@@ -361,31 +362,26 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                 // ========================================
 
                 ListTile(
-                  title: const Text(
-                    'Thời gian hiện thông báo',
-                    style: AppTypography.settingsItemTitle,
-                  ),
-
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-
+                  title: Row(
                     children: [
+                      const Expanded(
+                        child: Text(
+                          'Thời gian hiện thông báo',
+                          style: AppTypography.settingsItemTitle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Text(
                         '${currentTripDisplaySeconds}s',
-
                         style: TextStyle(
                           color: colorScheme.primary,
-
                           fontSize: 16,
                         ),
                       ),
-
                       const SizedBox(width: 6),
-
                       const Icon(Icons.chevron_right),
                     ],
                   ),
-
                   onTap: openTripDurationPicker,
                 ),
 
@@ -437,33 +433,28 @@ class _InterfaceSettingsSheetState extends State<InterfaceSettingsSheet> {
                 // ACCEPT BUTTON POSITION
                 // ========================================
                 ListTile(
-                  title: const Text(
-                    'Vị trí nút nhận',
-                    style: AppTypography.settingsItemTitle,
-                  ),
-
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-
+                  title: Row(
                     children: [
+                      const Expanded(
+                        child: Text(
+                          'Vị trí nút nhận',
+                          style: AppTypography.settingsItemTitle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Text(
                         currentAcceptButtonPosition == 'left'
                             ? 'Bên trái'
                             : 'Bên phải',
-
                         style: TextStyle(
                           color: colorScheme.primary,
-
                           fontSize: 16,
                         ),
                       ),
-
                       const SizedBox(width: 6),
-
                       const Icon(Icons.chevron_right),
                     ],
                   ),
-
                   onTap: openAcceptButtonPositionPicker,
                 ),
               ],
