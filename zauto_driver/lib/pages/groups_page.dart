@@ -338,6 +338,8 @@ class _GroupsPageState extends State<GroupsPage> {
 
                   final name = group['name']?.toString() ?? 'Unknown Group';
 
+                  final avatar = group['avatar']?.toString().trim() ?? '';
+
                   // Ký tự đầu làm avatar khi chưa có ảnh.
                   final firstLetter = name.isNotEmpty
                       ? name[0].toUpperCase()
@@ -356,20 +358,42 @@ class _GroupsPageState extends State<GroupsPage> {
                         // ========================================
                         leading: CircleAvatar(
                           radius: 26,
-
                           backgroundColor: enabled
                               ? colorScheme.primaryContainer
                               : colorScheme.surfaceContainerHighest,
-
-                          child: Text(
-                            firstLetter,
-
-                            style: TextStyle(
-                              fontSize: 20,
-
-                              color: enabled
-                                  ? colorScheme.onPrimaryContainer
-                                  : colorScheme.onSurfaceVariant,
+                          child: ClipOval(
+                            child: SizedBox(
+                              width: 52,
+                              height: 52,
+                              child: avatar.startsWith('https://') ||
+                                      avatar.startsWith('http://')
+                                  ? Image.network(
+                                      avatar,
+                                      width: 52,
+                                      height: 52,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Center(
+                                        child: Text(
+                                          firstLetter,
+                                          style: TextStyle(
+                                            fontSize: 20,
+                                            color: enabled
+                                                ? colorScheme.onPrimaryContainer
+                                                : colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : Center(
+                                      child: Text(
+                                        firstLetter,
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          color: enabled
+                                              ? colorScheme.onPrimaryContainer
+                                              : colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
                             ),
                           ),
                         ),
