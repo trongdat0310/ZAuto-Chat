@@ -314,3 +314,7 @@ export function updateUserMessageSettings(
 
   return next;
 }
+
+export function clearUserMessageSettingsCache(userId) {
+  settingsCache.delete(String(userId));
+}
