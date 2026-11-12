@@ -17,6 +17,7 @@ import {
 import {
   getUserGroupName,
   discoverUserGroup,
+  refreshActiveGroupMetadata,
 } from "../zalo/user-groups.js";
 
 import {
@@ -796,25 +797,10 @@ async function storeConversationEvent(
   }
 
 
-  // ========================================
-  // TEN GROUP
-  // ========================================
-
-  let groupName =
-    null;
-
-
-  try {
-
-    if (!isPrivate) {
-      groupName = getUserGroupName(userId, groupId);
-    }
-
-  } catch {
-
-    // Khong lam fail listener
-    // neu lay ten group bi loi.
-  }
+  // Resolve the group title immediately before saving (after avatar lookup).
+  // Metadata may arrive while awaiting user avatar; do not overwrite it with
+  // a stale placeholder captured earlier.
+  let groupName = null;
 
 
   // ========================================
@@ -865,6 +851,12 @@ async function storeConversationEvent(
       type: 'user',
       avatar: peerAvatar,
     }]);
+  } else {
+    try {
+      groupName = getUserGroupName(userId, groupId);
+    } catch {
+      groupName = null;
+    }
   }
 
   const saved =
@@ -1856,7 +1848,27 @@ export async function startUserWorker(
         if (message?.type === ThreadType.Group &&
             isDisplayableConversationEvent(message)) {
           try {
-            discoverUserGroup(key, message);
+            const group = discoverUserGroup(key, message);
+            if (group?.groupId) {
+              // Metadata is fetched ONLY for a group that just sent a message.
+              // Do not await the Zalo API: saving the message must stay realtime.
+              void refreshActiveGroupMetadata(key, group.groupId, api)
+                .then(updated => {
+                  if (!updated) return;
+                  broadcastUserEvent(key, "group_metadata_updated", {
+                    groupId: group.groupId,
+                    name: updated.name,
+                    avatar: updated.avatar,
+                    totalMember: updated.totalMember,
+                  });
+                })
+                .catch(error => {
+                  console.warn(
+                    "[USER GROUPS] Metadata enrichment failed:",
+                    key, group.groupId, error?.message ?? error
+                  );
+                });
+            }
           } catch (error) {
             console.warn(
               "[USER GROUPS] Discovery error:",
