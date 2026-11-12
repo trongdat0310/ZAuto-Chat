@@ -433,6 +433,11 @@ export function cancelZaloLink(
   job.qrBase64 =
     null;
 
+  // The previous Zalo account's identity must not remain in QR-job memory.
+  job.scannedName = null;
+  job.zaloUserId = null;
+  job.error = null;
+
   job.abort =
     null;
 
