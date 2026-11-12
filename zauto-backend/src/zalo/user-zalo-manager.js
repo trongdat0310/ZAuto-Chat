@@ -10,6 +10,10 @@ import {
 const connections =
   new Map();
 
+// An old asynchronous Zalo login must never repopulate the cache after
+// explicit unlink or worker disposal.
+const connectionGenerations = new Map();
+
 
 // ========================================
 // CONNECT USER ZALO
@@ -21,6 +25,8 @@ export async function connectUserZalo(
   const key =
     String(userId);
 
+
+  const generation = connectionGenerations.get(key) ?? 0;
 
   const existing =
     connections.get(key);
@@ -73,6 +79,12 @@ export async function connectUserZalo(
         credentials
       );
 
+    if ((connectionGenerations.get(key) ?? 0) !== generation) {
+      const canceled = new Error("Zalo login was canceled.");
+      canceled.code = "ZALO_CONNECT_CANCELLED";
+      throw canceled;
+    }
+
 
     const ownId =
       String(
@@ -110,7 +122,8 @@ export async function connectUserZalo(
 
   } catch (error) {
 
-    connections.set(
+    if ((connectionGenerations.get(key) ?? 0) === generation) {
+      connections.set(
       key,
       {
         zalo: null,
@@ -127,6 +140,7 @@ export async function connectUserZalo(
           String(error),
       }
     );
+    }
 
 
     console.error(
@@ -208,6 +222,10 @@ export function clearUserZaloConnection(
   const key =
     String(userId);
 
+  connectionGenerations.set(
+    key,
+    (connectionGenerations.get(key) ?? 0) + 1
+  );
   const existed =
     connections.delete(key);
 
