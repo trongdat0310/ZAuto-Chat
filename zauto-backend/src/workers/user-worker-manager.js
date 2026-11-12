@@ -1817,6 +1817,12 @@ export async function startUserWorker(
         key
       );
 
+    if (workers.get(key) !== worker) {
+      // Unlinked while Zalo login was still pending.
+      try { await api.listener?.stop?.(); } catch { /* ignore */ }
+      return publicWorker(worker);
+    }
+
     worker.api =
       api;
 
@@ -2690,6 +2696,12 @@ export async function startUserWorker(
     // ========================================
 
     await api.listener.start();
+
+    if (workers.get(key) !== worker) {
+      // stopUserWorker may have run while listener.start() awaited.
+      try { await api.listener.stop?.(); } catch { /* ignore */ }
+      return publicWorker(worker);
+    }
 
     worker.status =
       "running";
