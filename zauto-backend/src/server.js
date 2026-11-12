@@ -128,7 +128,6 @@ import {
   startUserWorker,
   getUserWorkerStatus,
   startAllUserWorkers,
-  stopUserWorker,
   sendUserConversationPhoto,
   sendUserConversationPhotos,
 } from "./workers/user-worker-manager.js";
@@ -140,12 +139,9 @@ import {
 
 import {
   findUserById,
-  updateUser,
 } from "./users/user-store.js";
 
-import {
-  deleteUserZaloSession,
-} from "./zalo/user-zalo-store.js";
+import { unlinkUserZalo } from "./zalo/user-zalo-unlink-service.js";
 
 import {
   updateAccountName,
@@ -2462,110 +2458,33 @@ app.get(
 
 app.post(
   "/api/me/zalo/unlink",
-
   requireAuth,
-
   async (req, res) => {
-
     try {
-
-      const userId =
-        req.user.id;
-
-
-      console.log(
-        "[ZALO UNLINK] START:",
-        userId
-      );
-
-
-      // ========================================
-      // 1. STOP REALTIME WORKER
-      // ========================================
-
-      await stopUserWorker(
-        userId
-      );
-
-
-      // ========================================
-      // 2. DELETE ENCRYPTED ZALO SESSION
-      // ========================================
-
-      await Promise.resolve(
-        deleteUserZaloSession(
-          userId
-        )
-      );
-
-
-      // ========================================
-      // 3. UPDATE APP USER
-      // ========================================
-
-      const updatedUser =
-        updateUser(
-          userId,
-          {
-            zaloLinked:
-              false,
-
-            zaloUserId:
-              null,
-          }
-        );
-
-
-      console.log(
-        "[ZALO UNLINK] SUCCESS:",
-        userId
-      );
-
+      const { user, cleanup } = await unlinkUserZalo(req.user.id);
+      console.log("[ZALO UNLINK] COMPLETE:", user.id,
+        "removed=" + cleanup.deleted.length);
 
       res.json({
         success: true,
-
-        message:
-          "Da ngat lien ket Zalo.",
-
+        message: "Da ngat lien ket va xoa du lieu Zalo da luu.",
+        cleared: true,
         user: {
-          id:
-            updatedUser.id,
-
-          name:
-            updatedUser.name,
-
-          phone:
-            updatedUser.phone,
-
-          membership:
-            updatedUser.membership,
-
-          zaloLinked:
-            false,
-
-          zaloUserId:
-            null,
+          id: user.id,
+          name: user.name,
+          phone: user.phone,
+          membership: user.membership,
+          zaloLinked: false,
+          zaloUserId: null,
         },
       });
-
     } catch (error) {
-
-      console.error(
-        "[ZALO UNLINK] ERROR:",
-        error
-      );
-
-
-      res
-        .status(500)
-        .json({
-          success: false,
-
-          error:
-            error?.message ??
-            String(error),
-        });
+      console.error("[ZALO UNLINK] ERROR:", req.user.id,
+        error?.message ?? error);
+      res.status(500).json({
+        success: false,
+        error: "Khong the hoan tat go lien ket Zalo. Vui long thu lai.",
+      });
     }
   }
 );
