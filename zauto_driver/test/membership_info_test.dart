@@ -155,6 +155,114 @@ void main() {
         throwsFormatException);
   });
 
+  test('summary formats plan expiry using Vietnam dates', () {
+    final status = MembershipStatus.fromOverview(
+      _overview(main: _plan('monthly30')),
+      receivedAt: _receivedAt,
+    );
+    expect(status.displaySummary(now: _receivedAt),
+        '30 lượt/tháng - 30/11/2026');
+    expect(status.activeMain(now: _receivedAt)?.name, '30 lượt/tháng');
+  });
+
+  test('selects only the most recent active add-on', () {
+    final status = MembershipStatus.fromOverview(_overview(
+      main: _plan('monthly30'),
+      addons: [
+        _plan('extra10', startsAt: '2026-11-01T01:00:00Z'),
+        _plan('extra30', startsAt: '2026-11-01T08:00:00Z'),
+      ],
+    ), receivedAt: _receivedAt);
+    expect(status.latestActiveAddon(now: _receivedAt)?.name,
+        'Thêm 30 lượt/ngày');
+
+    final sameTime = MembershipStatus.fromOverview(_overview(
+      addons: [_plan('extra10'), _plan('extra30')],
+    ), receivedAt: _receivedAt);
+    expect(sameTime.latestActiveAddon(now: _receivedAt)?.name,
+        'Thêm 30 lượt/ngày');
+    expect(sameTime.displaySummary(now: _receivedAt),
+        'Thêm 30 lượt/ngày - 30/11/2026');
+  });
+
+  test('expired and future add-ons do not appear', () {
+    final status = MembershipStatus.fromOverview(_overview(
+      addons: [
+        _plan('extra10', endsAt: '2026-11-01T11:59:59Z'),
+        _plan('extra30', startsAt: '2026-11-02T00:00:00Z'),
+      ],
+    ), receivedAt: _receivedAt);
+    expect(status.latestActiveAddon(now: _receivedAt), isNull);
+    expect(status.displaySummary(now: _receivedAt), 'Miễn phí');
+  });
+
+  test('warns only if main plan has less than 72 hours remaining', () {
+    final status = MembershipStatus.fromOverview(_overview(
+      main: _plan('monthly30', endsAt: '2026-11-03T16:59:59.999Z'),
+      addons: [_plan('extra10')],
+    ), receivedAt: _receivedAt);
+    final warning = status.expiringMain(now: _receivedAt)!;
+    expect(warning.plan.name, '30 lượt/tháng');
+    expect(warning.vnDayKey, '2026-11-01');
+    expect(warning.remainingText, '2 ngày 4 giờ');
+    expect(status.expiringMain(now: _receivedAt.add(
+      const Duration(days: 3),
+    )), isNull);
+
+    final boundary = MembershipStatus.fromOverview(_overview(
+      main: _plan('monthly30', endsAt: '2026-11-04T12:00:00Z'),
+    ), receivedAt: _receivedAt);
+    expect(boundary.expiringMain(now: _receivedAt), isNull);
+    expect(boundary.expiringMain(now: _receivedAt.add(
+      const Duration(seconds: 1),
+    )), isNotNull);
+  });
+
+  test('expired, future and add-on-only plans never trigger the popup', () {
+    final expired = MembershipStatus.fromOverview(_overview(
+      main: _plan('monthly30', endsAt: '2026-11-01T11:59:59Z'),
+    ), receivedAt: _receivedAt);
+    final future = MembershipStatus.fromOverview(_overview(
+      main: _plan('monthly30', startsAt: '2026-11-02T12:00:00Z'),
+    ), receivedAt: _receivedAt);
+    final addOnOnly = MembershipStatus.fromOverview(_overview(
+      addons: [_plan('extra10')],
+    ), receivedAt: _receivedAt);
+    expect(expired.expiringMain(now: _receivedAt), isNull);
+    expect(future.expiringMain(now: _receivedAt), isNull);
+    expect(addOnOnly.expiringMain(now: _receivedAt), isNull);
+  });
+
+  testWidgets('shows latest add-on as one card below the main plan',
+      (tester) async {
+    await _open(tester, load: () async => _overview(
+      main: _plan('monthly30'),
+      addons: [_plan('extra10'), _plan('extra30'), _plan('extra10')],
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('membership-current-plan')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('membership-addon-plan')),
+        findsOneWidget);
+    expect(find.text('Gói bổ sung'), findsOneWidget);
+    expect(find.text('30 lượt/tháng - 30/11/2026'), findsOneWidget);
+    expect(find.text('Thêm 10 lượt/ngày - 30/11/2026'), findsOneWidget);
+    expect(find.textContaining('Thêm 30 lượt/ngày'), findsNothing);
+    await _dispose(tester);
+  });
+
+  testWidgets('standalone add-on is displayed with a free main plan',
+      (tester) async {
+    await _open(tester, load: () async => _overview(
+      addons: [_plan('extra10')],
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Miễn phí'), findsOneWidget);
+    expect(find.text('Gói bổ sung'), findsOneWidget);
+    expect(find.text('Thêm 10 lượt/ngày - 30/11/2026'), findsOneWidget);
+    await _dispose(tester);
+  });
+
   testWidgets('opens compact bottom sheet matching member information layout',
       (tester) async {
     await _open(tester, load: () async => _overview());
@@ -183,7 +291,7 @@ void main() {
     expect(find.text('Miễn phí'), findsNothing);
     pending.complete(_overview(main: _plan('monthly30')));
     await tester.pumpAndSettle();
-    expect(find.text('30 lượt/tháng'), findsOneWidget);
+    expect(find.text('30 lượt/tháng - 30/11/2026'), findsOneWidget);
     expect(parentStatus?.displayName(), '30 lượt/tháng');
     await _dispose(tester);
   });
@@ -201,7 +309,7 @@ void main() {
     expect(find.text('Miễn phí'), findsNothing);
     await tester.tap(find.text('Thử lại'));
     await tester.pumpAndSettle();
-    expect(find.text('15 lượt/ngày'), findsOneWidget);
+    expect(find.text('15 lượt/ngày - 30/11/2026'), findsOneWidget);
     await _dispose(tester);
   });
 
@@ -264,7 +372,7 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
-    expect(find.text('30 lượt/ngày'), findsOneWidget);
+    expect(find.text('30 lượt/ngày - 30/11/2026'), findsOneWidget);
     await _dispose(tester);
   });
 

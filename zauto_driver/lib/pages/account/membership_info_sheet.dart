@@ -149,12 +149,61 @@ class _MembershipInfoSheetState extends State<MembershipInfoSheet>
     }
   }
 
+  Widget _planCard({
+    required ColorScheme colors,
+    required String title,
+    required String value,
+    required Key cardKey,
+    required Key valueKey,
+  }) {
+    return Container(
+      key: cardKey,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        border: Border.all(color: colors.outlineVariant),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final valueWidget = Text(
+            value,
+            key: valueKey,
+            textAlign: TextAlign.end,
+            style: TextStyle(fontSize: 16, color: colors.primary),
+          );
+          if (constraints.maxWidth < 300 ||
+              MediaQuery.textScalerOf(context).scale(16) > 24) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(title, style: const TextStyle(fontSize: 16)),
+                const SizedBox(height: 8),
+                valueWidget,
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Text(title, style: const TextStyle(fontSize: 16)),
+              const SizedBox(width: 16),
+              Expanded(child: valueWidget),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final label = _loadError != null
         ? 'Chưa tải được'
-        : _status?.displayName() ?? 'Đang tải...';
+        : _status?.activeMain() == null
+            ? (_status == null ? 'Đang tải...' : 'Miễn phí')
+            : _status!.displaySummary();
+    final latestAddon =
+        _loadError == null ? _status?.latestActiveAddon() : null;
 
     return SafeArea(
       top: false,
@@ -171,42 +220,23 @@ class _MembershipInfoSheetState extends State<MembershipInfoSheet>
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 22),
-            Container(
-              key: const ValueKey('membership-current-plan'),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                border: Border.all(color: colors.outlineVariant),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final value = Text(
-                    label,
-                    key: const ValueKey('membership-plan-name'),
-                    textAlign: TextAlign.end,
-                    style: TextStyle(fontSize: 16, color: colors.primary),
-                  );
-                  if (constraints.maxWidth < 300 ||
-                      MediaQuery.textScalerOf(context).scale(16) > 24) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text('Gói hiện tại', style: TextStyle(fontSize: 16)),
-                        const SizedBox(height: 8),
-                        value,
-                      ],
-                    );
-                  }
-                  return Row(
-                    children: [
-                      const Text('Gói hiện tại', style: TextStyle(fontSize: 16)),
-                      const SizedBox(width: 16),
-                      Expanded(child: value),
-                    ],
-                  );
-                },
-              ),
+            _planCard(
+              colors: colors,
+              title: 'Gói hiện tại',
+              value: label,
+              cardKey: const ValueKey('membership-current-plan'),
+              valueKey: const ValueKey('membership-plan-name'),
             ),
+            if (latestAddon != null) ...[
+              const SizedBox(height: 12),
+              _planCard(
+                colors: colors,
+                title: 'Gói bổ sung',
+                value: '${latestAddon.name} - ${formatMembershipDateVN(latestAddon.endsAt)}',
+                cardKey: const ValueKey('membership-addon-plan'),
+                valueKey: const ValueKey('membership-addon-name'),
+              ),
+            ],
             if (_loading && _status == null) ...[
               const SizedBox(height: 12),
               const Center(

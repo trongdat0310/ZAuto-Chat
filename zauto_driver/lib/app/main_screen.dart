@@ -1,5 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../pages/account/membership_expiry_reminder.dart';
+import '../pages/account/membership_status.dart';
+import '../services/backend/subscription_api.dart';
 
 import '../controllers/settings_controller.dart';
 
@@ -41,12 +48,13 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   int currentIndex = 0;
 
   int filterInitialTab = 0;
 
   bool _exitDialogOpen = false;
+  bool _checkingMembershipExpiry = false;
 
   late final AppRealtimeService realtimeService;
 
@@ -184,6 +192,7 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
 
     realtimeService = AppRealtimeService(baseUrl: AppConfig.backendUrl);
+    WidgetsBinding.instance.addObserver(this);
 
     // ========================================
     // DOI HOME + MESSAGES SUBSCRIBE XONG
@@ -198,7 +207,80 @@ class _MainScreenState extends State<MainScreen> {
       if (widget.user['zaloLinked'] == true) {
         realtimeService.start();
       }
+      unawaited(_checkMembershipExpiry());
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_checkMembershipExpiry());
+    }
+  }
+
+  bool get _canShowMembershipExpiry {
+    if (!mounted) {
+      return false;
+    }
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    return (lifecycle == null || lifecycle == AppLifecycleState.resumed) &&
+        ModalRoute.of(context)?.isCurrent == true;
+  }
+
+  Future<void> _checkMembershipExpiry() async {
+    if (!mounted || _checkingMembershipExpiry) {
+      return;
+    }
+    final userId = widget.user['id']?.toString();
+    if (userId == null || userId.isEmpty) {
+      return;
+    }
+    _checkingMembershipExpiry = true;
+    try {
+      final overview = await createSubscriptionApi().overview().timeout(
+        const Duration(seconds: 15),
+      );
+      final status = MembershipStatus.fromOverview(overview);
+      if (status.expiringMain() == null ||
+          !_canShowMembershipExpiry ||
+          widget.user['id']?.toString() != userId) {
+        return;
+      }
+      final preferences = await SharedPreferences.getInstance();
+      if (!_canShowMembershipExpiry ||
+          widget.user['id']?.toString() != userId) {
+        return;
+      }
+      final warning = await MembershipExpiryReminder.claim(
+        status: status,
+        userId: userId,
+        preferences: preferences,
+      );
+      if (warning == null || !_canShowMembershipExpiry) {
+        return;
+      }
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Gói sử dụng sắp hết hạn'),
+          content: Text(
+            'Gói ${warning.plan.name} chỉ còn ${warning.remainingText}.\n'
+            'Ngày hết hạn: ${formatMembershipDateVN(warning.plan.endsAt)}.\n'
+            'Bạn có thể gia hạn gói để tiếp tục sử dụng.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Đã hiểu'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      debugPrint('MEMBERSHIP EXPIRY NOTICE ERROR: $error');
+    } finally {
+      _checkingMembershipExpiry = false;
+    }
   }
 
   Future<void> _confirmExit() async {
@@ -378,6 +460,7 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     realtimeService.dispose();
 
     super.dispose();

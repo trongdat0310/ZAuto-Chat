@@ -1651,7 +1651,7 @@ class _AccountPageState extends State<AccountPage> {
 
     final phone = user['phone']?.toString() ?? '';
 
-    final membership = _membershipStatus?.displayName() ??
+    final membership = _membershipStatus?.displaySummary() ??
         (_membershipLoading ? 'Đang tải...' : 'Chưa tải được thông tin gói');
 
     final zaloLinked = user['zaloLinked'] == true;
