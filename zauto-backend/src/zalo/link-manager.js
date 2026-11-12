@@ -144,6 +144,12 @@ export function startZaloLink(
           },
 
           (event) => {
+            // A cancelled QR request must never save a new Zalo session
+            // after the user explicitly unlinked the account.
+            if (job.status === "cancelled" || linkJobs.get(userId) !== job) {
+              try { event.actions?.abort?.(); } catch { /* ignore */ }
+              return;
+            }
 
             // ========================================
             // QR GENERATED
@@ -291,6 +297,10 @@ export function startZaloLink(
           }
         );
 
+
+      if (job.status === "cancelled" || linkJobs.get(userId) !== job) {
+        return;
+      }
 
       const zaloUserId =
         String(
