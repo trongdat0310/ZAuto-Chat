@@ -2170,7 +2170,9 @@ class _MessagesPageState extends State<MessagesPage>
           physics: const AlwaysScrollableScrollPhysics(),
 
           children: [
-            SizedBox(height: MediaQuery.of(context).size.height * 0.42),
+            // Match the empty-state icon height in the history tab. The
+            // conversation tabs already have an extra sync-status row above.
+            const SizedBox(height: 64),
 
             const Icon(Icons.chat_bubble_outline, size: 64),
 
