@@ -263,6 +263,27 @@ class _MessagesPageState extends State<MessagesPage>
           return;
         }
 
+        if (type == 'group_metadata_updated') {
+          final groupId = event['groupId']?.toString().trim() ?? '';
+          if (groupId.isNotEmpty && mounted) {
+            final matching = conversations.where(
+              (item) => item['groupId']?.toString() == groupId,
+            ).toList();
+            if (matching.isNotEmpty) {
+              setState(() {
+                for (final item in matching) {
+                  final name = event['name']?.toString().trim();
+                  final avatar = event['avatar']?.toString().trim();
+                  if (name != null && name.isNotEmpty) item['name'] = name;
+                  if (avatar != null && avatar.isNotEmpty) item['avatar'] = avatar;
+                }
+              });
+            }
+          }
+          scheduleRealtimeRefresh();
+          return;
+        }
+
         if (type != 'conversation_message' &&
             type != 'conversation_message_updated' &&
             type != 'group_metadata_updated' &&
