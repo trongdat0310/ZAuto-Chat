@@ -257,3 +257,7 @@ export function setUserGroupsEnabled(userId, groupIds = [], enabled = true) {
   writeUserGroupSettings(userId, settings);
   return ids.map(groupId => ({ groupId, enabled: enabled === true }));
 }
+
+export function clearUserGroupSettingsCache(userId) {
+  settingsCache.delete(String(userId));
+}
