@@ -17,7 +17,7 @@
     "payments:alert": "node scripts/payment-alert.js",
     "backup:alert": "node scripts/backup-alert.js",
     "test:backup": "node --test src/diagnostics/backup-monitor-core.test.js",
-    "test:groups": "node --test src/zalo/user-group-directory.test.js"
+    "test:groups": "node --test src/zalo/user-group-directory.test.js src/zalo/active-group-metadata-loader.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
