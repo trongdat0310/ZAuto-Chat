@@ -122,8 +122,14 @@ export function createUserGroupDirectory({
     const existing = known.get(id);
     const fromEvent = eventGroupName(event);
     const fromAvatar = eventGroupAvatar(event);
-    const name = fromEvent || existing?.name || displayName(id);
-    const avatar = fromAvatar || existing?.avatar || null;
+    // Message payloads can contain stale or sender-related metadata.
+    // Never replace an existing group title/avatar with message metadata.
+    // Verified getGroupInfo(groupId) may replace them via applyUserGroupMetadata.
+    const fallback = displayName(id);
+    const previousName = existing?.name?.trim() || '';
+    const name = previousName && previousName !== fallback && previousName !== 'Nhóm Zalo'
+      ? previousName : (fromEvent || previousName || fallback);
+    const avatar = existing?.avatar || fromAvatar || null;
     if (existing && name === existing.name && avatar === existing.avatar) {
       return existing;
     }
