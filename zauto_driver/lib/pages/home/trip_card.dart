@@ -10,6 +10,7 @@ class TripCard extends StatefulWidget {
   final VoidCallback onAccept;
 
   final VoidCallback onIgnore;
+  final VoidCallback onOpenMessage;
   final VoidCallback onSwipeReply;
   final VoidCallback onCancelReply;
   final Future<bool> Function(String text) onSendReply;
@@ -24,6 +25,7 @@ class TripCard extends StatefulWidget {
     required this.onAccept,
 
     required this.onIgnore,
+    required this.onOpenMessage,
     required this.onSwipeReply,
     required this.onCancelReply,
     required this.onSendReply,
@@ -280,7 +282,7 @@ class _TripCardState extends State<TripCard> {
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: null,
+        onTap: processing || replying ? null : widget.onOpenMessage,
         child: Padding(
         padding: const EdgeInsets.all(18),
 

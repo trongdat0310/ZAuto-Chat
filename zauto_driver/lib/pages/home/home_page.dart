@@ -15,6 +15,7 @@ import '../../widgets/quota_exhausted_dialog.dart';
 
 import '../chat/chat_page.dart';
 import 'trip_card.dart';
+import 'trip_message_target.dart';
 import 'home_notification.dart';
 import 'home_realtime.dart';
 
@@ -67,6 +68,7 @@ class _HomePageState extends State<HomePage>
   final SubscriptionGateway subscriptionApi = createSubscriptionApi();
   Map<String, dynamic>? quotaOverview;
   bool quotaLoading = false;
+  bool _openingTripMessage = false;
 
   Future<void> loadQuota() async {
     if (quotaLoading || !mounted) return;
@@ -891,6 +893,41 @@ class _HomePageState extends State<HomePage>
     _ensureTripCountdownTimer();
   }
 
+  /// Open the original Zalo message without accepting the trip or using quota.
+  Future<void> openTripMessage(Map<String, dynamic> trip) async {
+    if (!mounted || _openingTripMessage) {
+      return;
+    }
+
+    final target = TripMessageTarget.fromTrip(trip);
+    if (target == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không tìm thấy tin nhắn gốc của cuốc này.'),
+        ),
+      );
+      return;
+    }
+
+    _openingTripMessage = true;
+    try {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => ChatPage(
+            realtimeService: widget.realtimeService,
+            groupId: target.groupId,
+            groupName: target.groupName,
+            groupAvatar: null,
+            targetMsgId: target.msgId,
+            targetCliMsgId: target.cliMsgId,
+          ),
+        ),
+      );
+    } finally {
+      _openingTripMessage = false;
+    }
+  }
+
   Future<void> _openAcceptedMessage(
     Map<String, dynamic> trip,
     Map<String, dynamic> response,
@@ -1663,6 +1700,9 @@ class _HomePageState extends State<HomePage>
 
                       onIgnore: () {
                         ignoreTrip(activeTrips[index]);
+                      },
+                      onOpenMessage: () {
+                        unawaited(openTripMessage(activeTrips[index]));
                       },
                       onSwipeReply: () => startTripReply(activeTrips[index]),
       onCancelReply: () => cancelTripReply(activeTrips[index]),
