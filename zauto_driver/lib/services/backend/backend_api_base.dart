@@ -7,6 +7,10 @@ import 'package:http/http.dart' as http;
 import '../auth_service.dart';
 
 class BackendApiBase {
+  // Reuse one client for all authenticated API calls to avoid repeatedly
+  // opening TCP/TLS connections. Each request still builds its own auth header.
+  static final http.Client _sharedClient = http.Client();
+
   static const Duration requestTimeout =
       Duration(seconds: 12);
 
@@ -16,8 +20,13 @@ class BackendApiBase {
   final String baseUrl;
 
   final AuthService auth;
+  final http.Client _client;
 
-  BackendApiBase({required this.baseUrl, required this.auth});
+  BackendApiBase({
+    required this.baseUrl,
+    required this.auth,
+    http.Client? client,
+  }) : _client = client ?? _sharedClient;
 
   Future<Map<String, String>> authHeaders() async {
     return auth.authHeaders();
@@ -25,7 +34,7 @@ class BackendApiBase {
 
   Future<dynamic> getJson(Uri uri) async {
     final response = await _withNetworkHandling(
-      http
+      _client
           .get(
             uri,
             headers: await authHeaders(),
@@ -38,7 +47,7 @@ class BackendApiBase {
 
   Future<dynamic> postJson(Uri uri, {Object? body}) async {
     final response = await _withNetworkHandling(
-      http
+      _client
           .post(
             uri,
 
@@ -59,8 +68,8 @@ class BackendApiBase {
     http.MultipartRequest request,
   ) async {
     final streamed = await _withNetworkHandling(
-      request
-          .send()
+      _client
+          .send(request)
           .timeout(multipartRequestTimeout),
     );
 
@@ -73,7 +82,7 @@ class BackendApiBase {
 
   Future<dynamic> patchJson(Uri uri, {Object? body}) async {
     final response = await _withNetworkHandling(
-      http
+      _client
           .patch(
             uri,
 
@@ -102,8 +111,8 @@ class BackendApiBase {
     }
 
     final streamed = await _withNetworkHandling(
-      request
-          .send()
+      _client
+          .send(request)
           .timeout(requestTimeout),
     );
 
@@ -118,7 +127,7 @@ class BackendApiBase {
 
   Future<dynamic> putJson(Uri uri, {Object? body}) async {
     final response = await _withNetworkHandling(
-      http
+      _client
           .put(
             uri,
 
