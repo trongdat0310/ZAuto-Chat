@@ -163,8 +163,21 @@ void main() {
       plans: plans,
     )));
     await tester.pumpAndSettle();
-    expect(find.text('Cấp / đổi gói'), findsOneWidget);
-    expect(find.text('Thêm lượt hôm nay'), findsNothing);
+    // SubscriptionSummary can push the command buttons off the viewport.
+    // A lazy ListView does not necessarily build those children until scrolled.
+    final scrollable = find.descendant(
+      of: find.byType(SubscriptionAdminUserPage),
+      matching: find.byType(Scrollable),
+    );
+    expect(scrollable, findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Cấp / đổi gói'),
+      160,
+      scrollable: scrollable,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Cấp / đổi gói').hitTestable(), findsOneWidget);
+    expect(find.text('Thêm lượt hôm nay', skipOffstage: false), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
   testWidgets('assign add-on without main plan uses assign API and no months', (tester) async {
