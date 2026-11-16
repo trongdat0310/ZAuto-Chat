@@ -57,12 +57,32 @@ and refreshing membership). Measure latency on stable Wi-Fi before and
 after. The new client should keep TCP/TLS connections where supported;
 proxy/server keep-alive policies and network changes can affect outcomes.
 
+## Increment 2: Resource-scoped Messages refresh
+
+Previously each realtime change called three REST endpoints regardless of
+which resource changed. A `MessagesRefreshPlan` now scopes requests:
+
+| Realtime event | Data refreshed |
+|---|---|
+| `trip_accepted` | Accepted trips and conversation preview |
+| `group_notification_toggled` | Group notification membership |
+| `conversation_read/pinned/deleted`, `group_metadata_updated` | Conversations |
+| `conversation_message/updated`, `new_trip`, `conversation_history_synced` | Conversations and groups |
+| `authenticated`, `zalo_unlinked`, other/unknown | All three resources |
+
+The 350 ms debounce window **unions** all resource invalidations, not just
+the last one. If a refresh is already running, its pending-next-load queue
+also unions the resource scopes. Unrequested data is left unchanged, while
+a requested but empty result clears the corresponding data correctly.
+Optimistic pin, delete and notification state reconciliation remains in
+the existing load flow. User-initiated refreshes remain full refreshes.
+
+Test with `flutter test test/messages_refresh_plan_test.dart`, then switch
+between all three tabs while sending new messages and accepting a trip from
+another device. Observe that reconnect catches up missed events.
+
 ## Remaining Phase 3 work
 
-- Coalesce or scope the Messages page's three parallel REST loads after
-  realtime events. Current `loadData()` correctly coordinates concurrent
-  loads but still refreshes accepted trips, conversations and groups
-  together; preserve reconnect reconciliation and optimistic pending edits.
 - Avoid unnecessary work by tabs that are not visible, without dropping
   realtime updates and without surprising stale data on return.
 - Profile direct chat target seeking and cached avatar/media decoding.

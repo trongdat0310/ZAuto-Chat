@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../config/app_config.dart';
 import '../services/backend_service.dart';
 import 'chat/chat_page.dart';
+import 'messages_refresh_plan.dart';
 import '../services/app_realtime_service.dart';
 
 import 'dart:async';
@@ -60,6 +61,7 @@ class _MessagesPageState extends State<MessagesPage>
   StreamSubscription<Map<String, dynamic>>? realtimeSubscription;
 
   Timer? realtimeRefreshTimer;
+  int _realtimeRefreshSections = 0;
 
   bool realtimeStarted = false;
 
@@ -74,6 +76,7 @@ class _MessagesPageState extends State<MessagesPage>
   Future<void>? _loadFuture;
 
   bool _loadPending = false;
+  int _loadSections = 0;
 
   bool _pendingShowLoading = false;
 
@@ -160,7 +163,9 @@ class _MessagesPageState extends State<MessagesPage>
           // DE KHONG BO SOT THAY DOI.
           // ========================================
 
-          scheduleRealtimeRefresh();
+          scheduleRealtimeRefresh(
+            sections: MessagesRefreshPlan.forRealtimeEvent(type),
+          );
 
           return;
         }
@@ -190,7 +195,9 @@ class _MessagesPageState extends State<MessagesPage>
               historySelectedGroupIds = {};
             });
           }
-          scheduleRealtimeRefresh();
+          scheduleRealtimeRefresh(
+            sections: MessagesRefreshPlan.forRealtimeEvent(type),
+          );
           return;
         }
 
@@ -209,7 +216,9 @@ class _MessagesPageState extends State<MessagesPage>
         // ========================================
 
         if (type == 'trip_accepted') {
-          scheduleRealtimeRefresh();
+          scheduleRealtimeRefresh(
+            sections: MessagesRefreshPlan.forRealtimeEvent(type),
+          );
 
           return;
         }
@@ -239,7 +248,9 @@ class _MessagesPageState extends State<MessagesPage>
             });
           }
 
-          scheduleRealtimeRefresh();
+          scheduleRealtimeRefresh(
+            sections: MessagesRefreshPlan.forRealtimeEvent(type),
+          );
 
           return;
         }
@@ -257,7 +268,9 @@ class _MessagesPageState extends State<MessagesPage>
         if (type == 'conversation_read') {
           _applyRealtimeConversationRead(event);
 
-          scheduleRealtimeRefresh();
+          scheduleRealtimeRefresh(
+            sections: MessagesRefreshPlan.forRealtimeEvent(type),
+          );
 
           return;
         }
@@ -265,7 +278,9 @@ class _MessagesPageState extends State<MessagesPage>
         if (type == 'conversation_pinned') {
           _applyRealtimeConversationPinned(event);
 
-          scheduleRealtimeRefresh();
+          scheduleRealtimeRefresh(
+            sections: MessagesRefreshPlan.forRealtimeEvent(type),
+          );
 
           return;
         }
@@ -273,7 +288,9 @@ class _MessagesPageState extends State<MessagesPage>
         if (type == 'conversation_deleted') {
           _applyRealtimeConversationDeleted(event);
 
-          scheduleRealtimeRefresh();
+          scheduleRealtimeRefresh(
+            sections: MessagesRefreshPlan.forRealtimeEvent(type),
+          );
 
           return;
         }
@@ -295,7 +312,9 @@ class _MessagesPageState extends State<MessagesPage>
               });
             }
           }
-          scheduleRealtimeRefresh();
+          scheduleRealtimeRefresh(
+            sections: MessagesRefreshPlan.forRealtimeEvent(type),
+          );
           return;
         }
 
@@ -307,7 +326,9 @@ class _MessagesPageState extends State<MessagesPage>
           return;
         }
 
-        scheduleRealtimeRefresh();
+        scheduleRealtimeRefresh(
+            sections: MessagesRefreshPlan.forRealtimeEvent(type),
+          );
       },
 
       onError: (Object error) {
@@ -446,22 +467,23 @@ class _MessagesPageState extends State<MessagesPage>
     });
   }
 
-  void scheduleRealtimeRefresh() {
-    if (realtimeDisposed) {
-      return;
-    }
+  void scheduleRealtimeRefresh({int sections = MessagesRefreshPlan.all}) {
+    if (realtimeDisposed || sections == 0) return;
 
+    // Merge all invalidated resources throughout the debounce window.
+    _realtimeRefreshSections |= sections;
     realtimeRefreshTimer?.cancel();
-    realtimeRefreshTimer = null;
-
     realtimeRefreshTimer = Timer(const Duration(milliseconds: 350), () async {
       realtimeRefreshTimer = null;
+      final pending = _realtimeRefreshSections;
+      _realtimeRefreshSections = 0;
+      if (realtimeDisposed || !mounted || pending == 0) return;
 
-      if (realtimeDisposed || !mounted) {
-        return;
-      }
-
-      await loadData(showLoading: false, showError: false);
+      await loadData(
+        showLoading: false,
+        showError: false,
+        sections: pending,
+      );
     });
   }
 
@@ -469,8 +491,12 @@ class _MessagesPageState extends State<MessagesPage>
   // LOAD
   // ========================================
 
-  Future<void> loadData({bool showLoading = true, bool showError = true}) {
-    if (realtimeDisposed || !mounted) {
+  Future<void> loadData({
+    bool showLoading = true,
+    bool showError = true,
+    int sections = MessagesRefreshPlan.all,
+  }) {
+    if (realtimeDisposed || !mounted || sections == 0) {
       return Future.value();
     }
 
@@ -482,6 +508,7 @@ class _MessagesPageState extends State<MessagesPage>
     // ========================================
 
     _loadPending = true;
+    _loadSections |= sections;
 
     _pendingShowLoading = _pendingShowLoading || showLoading;
 
@@ -512,6 +539,7 @@ class _MessagesPageState extends State<MessagesPage>
         final showLoading = _pendingShowLoading;
 
         final showError = _pendingShowError;
+        final sections = _loadSections;
 
         // ========================================
         // CONSUME REQUEST HIEN TAI.
@@ -522,12 +550,17 @@ class _MessagesPageState extends State<MessagesPage>
         // ========================================
 
         _loadPending = false;
+        _loadSections = 0;
 
         _pendingShowLoading = false;
 
         _pendingShowError = false;
 
-        await _loadDataOnce(showLoading: showLoading, showError: showError);
+        await _loadDataOnce(
+          showLoading: showLoading,
+          showError: showError,
+          sections: sections,
+        );
       }
     } finally {
       _loadFuture = null;
@@ -537,6 +570,7 @@ class _MessagesPageState extends State<MessagesPage>
   Future<void> _loadDataOnce({
     required bool showLoading,
     required bool showError,
+    required int sections,
   }) async {
     if (realtimeDisposed || !mounted) {
       return;
@@ -563,12 +597,21 @@ class _MessagesPageState extends State<MessagesPage>
       // Giup MessagesPage load nhanh hon.
       // ========================================
 
-      final results = await Future.wait<List<Map<String, dynamic>>>([
-        backend.getAcceptedTrips(),
+      // Launch only the API requests relevant to these realtime events.
+      // A null result means "not requested"; an empty list means "clear".
+      Future<List<Map<String, dynamic>>?> fetchIfNeeded(
+        int section,
+        Future<List<Map<String, dynamic>>> Function() fetch,
+      ) {
+        return MessagesRefreshPlan.contains(sections, section)
+            ? fetch()
+            : Future<List<Map<String, dynamic>>?>.value();
+      }
 
-        backend.getConversations(),
-
-        backend.getGroups(),
+      final results = await Future.wait<List<Map<String, dynamic>>?>([
+        fetchIfNeeded(MessagesRefreshPlan.accepted, backend.getAcceptedTrips),
+        fetchIfNeeded(MessagesRefreshPlan.conversations, backend.getConversations),
+        fetchIfNeeded(MessagesRefreshPlan.groups, backend.getGroups),
       ]);
 
       if (realtimeDisposed || !mounted) {
@@ -588,7 +631,7 @@ class _MessagesPageState extends State<MessagesPage>
       // ========================================
 
       final reconciledConversations = conversationResult
-          .where((item) {
+          ?.where((item) {
             final groupId = item['groupId']?.toString().trim();
 
             if (groupId == null || groupId.isEmpty) {
@@ -623,43 +666,43 @@ class _MessagesPageState extends State<MessagesPage>
           .toList();
 
       final groupResult = results[2];
+      Set<String>? enabled;
+      if (groupResult != null) {
+        enabled = <String>{};
 
-      final enabled = <String>{};
-
-      for (final group in groupResult) {
-        if (group['enabled'] != true) {
-          continue;
+        for (final group in groupResult) {
+          if (group['enabled'] != true) continue;
+          final id = group['groupId']?.toString().trim();
+          if (id == null || id.isEmpty) continue;
+          enabled.add(id);
         }
-
-        final id = group['groupId']?.toString().trim();
-
-        if (id == null || id.isEmpty) {
-          continue;
-        }
-
-        enabled.add(id);
-      }
-
-      for (final entry in _pendingNotificationValues.entries) {
-        if (entry.value) {
-          enabled.add(entry.key);
-        } else {
-          enabled.remove(entry.key);
+        // Preserve optimistic notification changes while a request is pending.
+        for (final entry in _pendingNotificationValues.entries) {
+          if (entry.value) {
+            enabled.add(entry.key);
+          } else {
+            enabled.remove(entry.key);
+          }
         }
       }
 
       setState(() {
         loadError = null;
 
-        acceptedTrips = acceptedResult;
-
-        conversations = reconciledConversations;
-
-        _sortLocalConversations();
-
-        enabledGroupIds = enabled;
-
-        historySelectedGroupIds.removeWhere((id) => !enabled.contains(id));
+        if (acceptedResult != null) {
+          acceptedTrips = acceptedResult;
+        }
+        if (reconciledConversations != null) {
+          conversations = reconciledConversations;
+          _sortLocalConversations();
+        }
+        final refreshedGroups = enabled;
+        if (refreshedGroups != null) {
+          enabledGroupIds = refreshedGroups;
+          historySelectedGroupIds.removeWhere(
+            (id) => !refreshedGroups.contains(id),
+          );
+        }
 
         loading = false;
       });
@@ -2671,6 +2714,8 @@ class _MessagesPageState extends State<MessagesPage>
     realtimeStarted = false;
 
     _loadPending = false;
+    _loadSections = 0;
+    _realtimeRefreshSections = 0;
 
     _pendingShowLoading = false;
 
