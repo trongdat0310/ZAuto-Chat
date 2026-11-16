@@ -66,7 +66,7 @@ void main() {
       () async {
     final auth = _FakeAuthService();
     final client = MockClient(
-      (_) async => http.Response('{"error":"Phiên hết hạn"}', 401),
+      (_) async => http.Response('{"error":"SESSION_EXPIRED"}', 401),
     );
     addTearDown(client.close);
     final api = BackendApiBase(
