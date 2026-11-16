@@ -40,6 +40,8 @@ jobs:
         run: node --test src/conversations/private-conversation-name.test.js src/conversations/private-conversation-avatar-service.test.js
       - name: Run full backend unit test suite in isolated CI workspace
         run: npm test
+      - name: Run performance reporting and user-session cache regression tests
+        run: npm run test:performance
       - name: Run message-driven group discovery tests
         run: npm run test:groups
       - name: Check unlink and server syntax

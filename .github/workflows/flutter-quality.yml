@@ -1,0 +1,38 @@
+name: Flutter quality gates
+
+on:
+  push:
+    branches:
+      - refactor/architecture
+    paths:
+      - 'zauto_driver/**'
+      - '.github/workflows/flutter-quality.yml'
+  pull_request:
+    paths:
+      - 'zauto_driver/**'
+      - '.github/workflows/flutter-quality.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flutter-analyze-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: zauto_driver
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.0'
+          channel: stable
+          cache: true
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Static analysis
+        run: flutter analyze
+      - name: Widget and unit tests
+        run: flutter test

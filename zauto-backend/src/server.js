@@ -191,6 +191,7 @@ import {
 import {
   isRealtimeLatencyTraceEnabled,
 } from "./diagnostics/realtime-latency.js";
+import { startRuntimePerformanceMonitor } from "./diagnostics/runtime-performance.js";
 
 dotenv.config();
 
@@ -4839,6 +4840,9 @@ async function startServer() {
       : "DISABLED"
   );
 
+  // Disabled by default. Set ZAUTO_PERF_METRICS=1 on a staging backend
+  // to measure event loop, CPU and memory without logging message content.
+  startRuntimePerformanceMonitor();
 
   try {
 
