@@ -16,6 +16,7 @@ import '../../widgets/quota_exhausted_dialog.dart';
 import '../chat/chat_page.dart';
 import 'trip_card.dart';
 import 'trip_message_target.dart';
+import 'home_timer_controller.dart';
 import 'home_notification.dart';
 import 'home_realtime.dart';
 
@@ -63,8 +64,7 @@ class _HomePageState extends State<HomePage>
 
   final List<Map<String, dynamic>> activeTrips = [];
 
-  Timer? tripCountdownTimer;
-  Timer? quotaRefreshTimer;
+  final HomeTimerController _timers = HomeTimerController();
   final SubscriptionGateway subscriptionApi = createSubscriptionApi();
   Map<String, dynamic>? quotaOverview;
   bool quotaLoading = false;
@@ -134,7 +134,7 @@ class _HomePageState extends State<HomePage>
 
     loadHomeSummary();
     unawaited(loadQuota());
-    quotaRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) => unawaited(loadQuota()));
+    _timers.startQuotaRefresh(() => unawaited(loadQuota()));
 
     notificationHandler = HomeNotificationHandler(
       settingsController: widget.settingsController,
@@ -570,13 +570,11 @@ class _HomePageState extends State<HomePage>
   }
 
   void _ensureTripCountdownTimer() {
-    if (!mounted || tripCountdownTimer != null || !_hasCountdownTrips) {
+    if (!mounted || !_hasCountdownTrips) {
       return;
     }
 
-    tripCountdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      _tickTripCountdowns();
-    });
+    _timers.ensureCountdown(_tickTripCountdowns);
   }
 
   void _stopTripCountdownTimerIfIdle() {
@@ -584,10 +582,7 @@ class _HomePageState extends State<HomePage>
       return;
     }
 
-    quotaRefreshTimer?.cancel();
-    tripCountdownTimer?.cancel();
-
-    tripCountdownTimer = null;
+    _timers.stopCountdown();
   }
 
   int _remainingSecondsForTrip(
@@ -704,9 +699,7 @@ class _HomePageState extends State<HomePage>
 
   void _tickTripCountdowns() {
     if (!mounted) {
-      tripCountdownTimer?.cancel();
-
-      tripCountdownTimer = null;
+      _timers.stopCountdown();
 
       return;
     }
@@ -1112,9 +1105,7 @@ class _HomePageState extends State<HomePage>
 
     notificationHandler.dispose();
 
-    tripCountdownTimer?.cancel();
-
-    tripCountdownTimer = null;
+    _timers.dispose();
 
     super.dispose();
   }
@@ -1689,24 +1680,26 @@ class _HomePageState extends State<HomePage>
                   itemCount: activeTrips.length,
 
                   itemBuilder: (context, index) {
+                    final trip = activeTrips[index];
                     return TripCard(
-                      trip: activeTrips[index],
+                      key: ValueKey('trip-${trip['id']}'),
+                      trip: trip,
 
                       settingsController: widget.settingsController,
 
                       onAccept: () {
-                        acceptTrip(activeTrips[index]);
+                        acceptTrip(trip);
                       },
 
                       onIgnore: () {
-                        ignoreTrip(activeTrips[index]);
+                        ignoreTrip(trip);
                       },
                       onOpenMessage: () {
-                        unawaited(openTripMessage(activeTrips[index]));
+                        unawaited(openTripMessage(trip));
                       },
-                      onSwipeReply: () => startTripReply(activeTrips[index]),
-      onCancelReply: () => cancelTripReply(activeTrips[index]),
-      onSendReply: (text) => sendTripReply(activeTrips[index], text),
+                      onSwipeReply: () => startTripReply(trip),
+                      onCancelReply: () => cancelTripReply(trip),
+                      onSendReply: (text) => sendTripReply(trip, text),
                     );
                   },
                 ),

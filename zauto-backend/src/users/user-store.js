@@ -20,31 +20,47 @@ const usersPath =
 // READ USERS
 // ========================================
 
-function readUsers() {
-  if (!fs.existsSync(usersPath)) {
-    return [];
+// Keep a short-lived, read-only snapshot for repeated auth and WebSocket
+// lookups. All in-process writes replace this snapshot immediately.
+// External edits of users.json become visible within 500 ms.
+const userCacheTtlMs = 500;
+let cachedUsers = null;
+let cachedById = new Map();
+let cacheExpiresAt = 0;
+
+function updateSnapshot(users) {
+  const copy = structuredClone(users);
+  cachedUsers = copy;
+  cachedById = new Map(
+    copy.filter(user => user && user.id != null)
+      .map(user => [String(user.id), user])
+  );
+  cacheExpiresAt = Date.now() + userCacheTtlMs;
+}
+
+function snapshotUsers({ fresh = false } = {}) {
+  if (!fresh && cachedUsers !== null && Date.now() < cacheExpiresAt) {
+    return cachedUsers;
   }
 
-  try {
-    const data =
-      JSON.parse(
-        fs.readFileSync(
-          usersPath,
-          "utf-8"
-        )
-      );
-
-    return Array.isArray(data)
-      ? data
-      : [];
-
-  } catch (error) {
-    console.error(
-      "[USERS] Khong doc duoc users.json"
-    );
-
-    return [];
+  let users = [];
+  if (fs.existsSync(usersPath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(usersPath, "utf-8"));
+      if (Array.isArray(data)) users = data;
+    } catch (error) {
+      // Do not cache a bad file indefinitely: retry after the short TTL.
+      console.error("[USERS] Khong doc duoc users.json", error?.message);
+    }
   }
+  updateSnapshot(users);
+  return cachedUsers;
+}
+
+// Return independent objects, as the previous disk-based implementation did.
+// Callers must use updateUser() to persist mutations.
+function readUsers({ fresh = false } = {}) {
+  return structuredClone(snapshotUsers({ fresh }));
 }
 
 
@@ -62,6 +78,7 @@ function writeUsers(users) {
     ),
     "utf-8"
   );
+  updateSnapshot(users);
 }
 
 
@@ -72,12 +89,9 @@ function writeUsers(users) {
 export function findUserById(
   userId
 ) {
-  return (
-    readUsers().find(
-      user =>
-        user.id === userId
-    ) ?? null
-  );
+  snapshotUsers();
+  const user = cachedById.get(String(userId));
+  return user ? structuredClone(user) : null;
 }
 
 
@@ -109,7 +123,7 @@ export function createUser({
   email,
 }) {
   const users =
-    readUsers();
+    readUsers({ fresh: true });
 
   const now =
     new Date().toISOString();
@@ -161,7 +175,7 @@ export function updateUser(
   updates
 ) {
   const users =
-    readUsers();
+    readUsers({ fresh: true });
 
   const index =
     users.findIndex(
@@ -198,7 +212,7 @@ export function deleteUser(
   userId
 ) {
   const users =
-    readUsers();
+    readUsers({ fresh: true });
 
   const next =
     users.filter(

@@ -540,19 +540,16 @@ export function broadcastUserEvent(
 
   let sent = 0;
 
+  // Read the user once per event, not once per connected device.
+  // user-store refreshes its snapshot immediately on an in-process update,
+  // so rotating sessionVersion still invalidates existing connections.
+  const currentUser = findUserById(key);
 
-  for (
-    const socket
-    of sockets
-  ) {
-
+  for (const socket of sockets) {
     if (
-      socket.readyState ===
-        WebSocket.OPEN &&
-      socket.authenticated ===
-        true
+      socket.readyState === WebSocket.OPEN &&
+      socket.authenticated === true
     ) {
-      const currentUser = findUserById(key);
       if (!currentUser || !isSessionCurrent(currentUser, { sv: socket.sessionVersion })) {
         socket.close(4004, "Session expired");
         continue;
