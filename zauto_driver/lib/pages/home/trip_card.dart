@@ -7,6 +7,9 @@ class TripCard extends StatefulWidget {
 
   final SettingsController settingsController;
 
+  /// Optional shared tick signal; rebuilds only the countdown badge.
+  final Listenable? countdownRefresh;
+
   final VoidCallback onAccept;
 
   final VoidCallback onIgnore;
@@ -21,6 +24,7 @@ class TripCard extends StatefulWidget {
     required this.trip,
 
     required this.settingsController,
+    this.countdownRefresh,
 
     required this.onAccept,
 
@@ -88,6 +92,59 @@ class _TripCardState extends State<TripCard> {
         '${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
+  Widget _buildCountdownBadge(ColorScheme colorScheme) {
+    Widget buildBadge() {
+      // Read current mutable trip data when notified, not at parent build time.
+      final remainingSeconds = widget.trip['_remainingSeconds'] is int
+          ? widget.trip['_remainingSeconds'] as int
+          : widget.settingsController.settings.tripDisplaySeconds;
+      final isCountdownWarning = remainingSeconds <= 3;
+
+      return Container(
+        key: const ValueKey('trip-countdown-badge'),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isCountdownWarning
+              ? colorScheme.errorContainer
+              : colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isCountdownWarning
+                  ? Icons.warning_amber_rounded
+                  : Icons.timer_outlined,
+              size: 16,
+              color: isCountdownWarning
+                  ? colorScheme.error
+                  : colorScheme.primary,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              formatTripCountdown(remainingSeconds),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: isCountdownWarning
+                    ? colorScheme.error
+                    : colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final refresh = widget.countdownRefresh;
+    if (refresh == null) return buildBadge();
+    return ListenableBuilder(
+      listenable: refresh,
+      builder: (context, child) => buildBadge(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -99,12 +156,6 @@ class _TripCardState extends State<TripCard> {
     final senderName = widget.trip['senderName']?.toString() ?? 'Không rõ người gửi';
 
     final status = widget.trip['_uiStatus']?.toString() ?? 'new';
-
-    final remainingSeconds = widget.trip['_remainingSeconds'] is int
-        ? widget.trip['_remainingSeconds'] as int
-        : widget.settingsController.settings.tripDisplaySeconds;
-
-    final isCountdownWarning = remainingSeconds <= 3;
 
     final processing = status == 'accepting' || status == 'ignoring';
     final replying = widget.trip['_replying'] == true;
@@ -313,60 +364,9 @@ class _TripCardState extends State<TripCard> {
                 const Spacer(),
 
                 // ========================================
-                // COUNTDOWN
+                // COUNTDOWN: update just the badge on timer ticks, not Home.
                 // ========================================
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-
-                  decoration: BoxDecoration(
-                    // ========================================
-                    // <= 3 GIAY -> MAU CANH BAO
-                    // ========================================
-
-                    color: isCountdownWarning
-                        ? colorScheme.errorContainer
-                        : colorScheme.primaryContainer,
-
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-
-                    children: [
-                      Icon(
-                        isCountdownWarning
-                            ? Icons.warning_amber_rounded
-                            : Icons.timer_outlined,
-
-                        size: 16,
-
-                        color: isCountdownWarning
-                            ? colorScheme.error
-                            : colorScheme.primary,
-                      ),
-
-                      const SizedBox(width: 5),
-
-                      Text(
-                        formatTripCountdown(remainingSeconds),
-
-                        style: TextStyle(
-                          fontSize: 14,
-
-                          fontWeight: FontWeight.bold,
-
-                          color: isCountdownWarning
-                              ? colorScheme.error
-                              : colorScheme.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                _buildCountdownBadge(colorScheme),
               ],
             ),
 

@@ -65,6 +65,8 @@ class _HomePageState extends State<HomePage>
   final List<Map<String, dynamic>> activeTrips = [];
 
   final HomeTimerController _timers = HomeTimerController();
+  // The ticking display is separate from the Home page and quota counters.
+  final ValueNotifier<int> _countdownVersion = ValueNotifier<int>(0);
   final SubscriptionGateway subscriptionApi = createSubscriptionApi();
   Map<String, dynamic>? quotaOverview;
   bool quotaLoading = false;
@@ -710,33 +712,34 @@ class _HomePageState extends State<HomePage>
       return;
     }
 
-    setState(() {
-      for (final trip in activeTrips) {
-        final status = trip['_uiStatus']?.toString() ?? 'new';
+    var countdownChanged = false;
+    for (final trip in activeTrips) {
+      final status = trip['_uiStatus']?.toString() ?? 'new';
+      if (status != 'new' || trip['_replying'] == true) continue;
 
-        if (status != 'new' || trip['_replying'] == true) {
-          continue;
-        }
-
-        trip['_remainingSeconds'] =
-            _remainingSecondsForTrip(
-          trip,
-        );
+      final remaining = _remainingSecondsForTrip(trip);
+      if (trip['_remainingSeconds'] != remaining) {
+        trip['_remainingSeconds'] = remaining;
+        countdownChanged = true;
       }
+    }
 
-      activeTrips.removeWhere((trip) {
-        final status = trip['_uiStatus']?.toString() ?? 'new';
-
-        if (status != 'new') {
-          return false;
-        }
-
-        return _remainingSecondsForTrip(
-              trip,
-            ) <=
-            0;
-      });
+    // Only remove expired trips through setState: this changes the list
+    // structure. Ordinary seconds do not rebuild Home or its quota header.
+    final hasExpired = activeTrips.any((trip) {
+      return (trip['_uiStatus']?.toString() ?? 'new') == 'new' &&
+          _remainingSecondsForTrip(trip) <= 0;
     });
+    if (hasExpired) {
+      setState(() {
+        activeTrips.removeWhere((trip) {
+          return (trip['_uiStatus']?.toString() ?? 'new') == 'new' &&
+              _remainingSecondsForTrip(trip) <= 0;
+        });
+      });
+    } else if (countdownChanged) {
+      _countdownVersion.value += 1;
+    }
 
     _stopTripCountdownTimerIfIdle();
   }
@@ -1106,6 +1109,7 @@ class _HomePageState extends State<HomePage>
     notificationHandler.dispose();
 
     _timers.dispose();
+    _countdownVersion.dispose();
 
     super.dispose();
   }
@@ -1684,6 +1688,7 @@ class _HomePageState extends State<HomePage>
                     return TripCard(
                       key: ValueKey('trip-${trip['id']}'),
                       trip: trip,
+                      countdownRefresh: _countdownVersion,
 
                       settingsController: widget.settingsController,
 
