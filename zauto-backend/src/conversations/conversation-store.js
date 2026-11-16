@@ -2,6 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { performance } from "node:perf_hooks";
+import {
+  isConversationMessageFile,
+  serializeConversationJson,
+} from "./conversation-json-codec.js";
+import { createConversationIoMetrics } from "../diagnostics/conversation-io-metrics.js";
+
+const conversationIoMetrics = createConversationIoMetrics();
 
 
 const __filename =
@@ -137,21 +145,30 @@ function writeJsonAtomic(
     `${file}.${process.pid}.${Date.now()}.tmp`;
 
 
+  // Complete the atomic write before returning. No write-behind queue:
+  // callers may immediately read this file or use it for deduplication.
+  const startedAt = conversationIoMetrics.enabled
+    ? performance.now()
+    : null;
+  const serialized = serializeConversationJson(file, value);
   fs.writeFileSync(
     tempFile,
-    JSON.stringify(
-      value,
-      null,
-      2
-    ),
+    serialized,
     "utf8"
   );
-
 
   fs.renameSync(
     tempFile,
     file
   );
+
+  if (startedAt !== null) {
+    conversationIoMetrics.record({
+      kind: isConversationMessageFile(file) ? "messages" : "index",
+      durationMs: performance.now() - startedAt,
+      bytes: Buffer.byteLength(serialized),
+    });
+  }
 }
 
 

@@ -489,11 +489,10 @@ export function broadcastUserEvent(
     !sockets ||
     sockets.size === 0
   ) {
-    console.log(
-      "[WS] No realtime client:",
-      key
-    );
-
+    // No per-event logging in production. This is expected when offline.
+    if (process.env.ZAUTO_VERBOSE_WS_LOGS === "1") {
+      console.debug("[WS] No realtime client");
+    }
     return 0;
   }
 
@@ -563,9 +562,11 @@ export function broadcastUserEvent(
   }
 
 
-  console.log(
-    `[WS] USER ${key}: ${type} -> ${sent} client(s)`
-  );
+  // Per-message logging used to block the event loop under high traffic.
+  // Optional aggregate log avoids leaking app account identifiers.
+  if (process.env.ZAUTO_VERBOSE_WS_LOGS === "1") {
+    console.debug("[WS] event=" + type + " sent=" + sent);
+  }
 
 
   return sent;

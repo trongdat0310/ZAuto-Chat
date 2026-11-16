@@ -590,11 +590,11 @@ export function saveUserMessage(
 
 
   if (existed) {
-    console.log(
-      "[USER MESSAGES] DUPLICATE:",
-      userId,
-      dedupeKey
-    );
+    // Duplicate events may be replayed during sync. Avoid disk-backed
+    // console I/O for every duplicate and never print message identifiers.
+    if (process.env.ZAUTO_VERBOSE_TRIP_LOGS === "1") {
+      console.debug("[USER MESSAGES] DUPLICATE");
+    }
 
 
     return {
@@ -792,11 +792,10 @@ export function saveUserMessage(
   );
 
 
-  console.log(
-    "[USER MESSAGES] SAVED:",
-    userId,
-    message.id
-  );
+  // Avoid console writes and personally identifying diagnostics on hot path.
+  if (process.env.ZAUTO_VERBOSE_TRIP_LOGS === "1") {
+    console.debug("[USER MESSAGES] SAVED");
+  }
 
 
   return {

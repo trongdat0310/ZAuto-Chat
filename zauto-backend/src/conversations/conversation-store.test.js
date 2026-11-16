@@ -988,3 +988,77 @@ test(
   }
 );
 
+
+test("message history remains durable, compact and backward compatible", () => {
+  const userId = `test-conversation-compact-${process.pid}`;
+  const groupId = "group-compact";
+  cleanup(userId);
+  try {
+    syncConversationGroups(userId, [{ groupId, name: "Nhóm kiểm tra" }]);
+
+    const original = textMessage({
+      groupId,
+      msgId: "m1",
+      cliMsgId: "c1",
+      content: "Cuốc Hà Nội → Nội Bài 😄",
+      timestamp: 1_790_000_000_000,
+    });
+    const first = saveConversationMessage(userId, {
+      message: original,
+      groupName: "Nhóm kiểm tra",
+    });
+    assert.ok(first?.id);
+
+    const messageFile = path.join(
+      userDir(userId), "conversations", "messages", groupId + ".json"
+    );
+    const index = path.join(userDir(userId), "conversations", "index.json");
+    const raw = fs.readFileSync(messageFile, "utf8");
+    const stored = JSON.parse(raw);
+    assert.equal(raw, JSON.stringify(stored));
+    assert.equal(stored[0].content, original.data.content);
+    assert.equal(stored[0].msgId, "m1");
+    const prettyIndex = fs.readFileSync(index, "utf8");
+    assert.equal(prettyIndex, JSON.stringify(JSON.parse(prettyIndex), null, 2));
+
+    // Duplicates still identify the original entry and do not rewrite history.
+    const originalBytes = fs.readFileSync(messageFile, "utf8");
+    const repeated = saveConversationMessage(userId, {
+      message: original,
+      groupName: "Nhóm kiểm tra",
+    });
+    assert.equal(repeated.id, first.id);
+    assert.equal(fs.readFileSync(messageFile, "utf8"), originalBytes);
+
+    // Simulate a legacy pretty-printed file from a previous app version.
+    fs.writeFileSync(messageFile, JSON.stringify(stored, null, 2), "utf8");
+    assert.equal(
+      getUserConversationMessages(userId, groupId, { limit: 10 })[0].msgId,
+      "m1",
+    );
+
+    const newer = saveConversationMessage(userId, {
+      message: textMessage({
+        groupId,
+        msgId: "m2",
+        cliMsgId: "c2",
+        content: "Giao khách lúc 15:00",
+        timestamp: 1_790_000_001_000,
+      }),
+    });
+    assert.ok(newer.id);
+    const updatedRaw = fs.readFileSync(messageFile, "utf8");
+    assert.equal(updatedRaw, JSON.stringify(JSON.parse(updatedRaw)));
+    assert.deepEqual(
+      getUserConversationMessages(userId, groupId, { limit: 10 })
+        .map(item => item.msgId),
+      ["m1", "m2"],
+    );
+    assert.equal(
+      fs.readdirSync(path.dirname(messageFile)).some(x => x.endsWith(".tmp")),
+      false,
+    );
+  } finally {
+    cleanup(userId);
+  }
+});

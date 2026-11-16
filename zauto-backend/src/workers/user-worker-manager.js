@@ -71,6 +71,10 @@ import {
   createRealtimeLatencyTrace,
   markRealtimeLatencyTrace,
 } from "../diagnostics/realtime-latency.js";
+import {
+  logTripDecision,
+  needsStickerEnrichment,
+} from "./message-dispatch-policy.js";
 
 const workers =
   new Map();
@@ -1289,11 +1293,9 @@ async function processMessage(
         groupId
       )
     ) {
-      console.log(
-        "[USER WORKER] IGNORE GROUP:",
-        userId,
-        groupId
-      );
+      logTripDecision("group_disabled", {
+        traceId: latencyTrace?.traceId,
+      });
 
       return;
     }
@@ -1320,12 +1322,10 @@ async function processMessage(
 
 
     if (!filter.matched) {
-      console.log(
-        "[USER WORKER] FILTER REJECT:",
-        userId,
-        filter.reason,
-        filter.keyword ?? ""
-      );
+      logTripDecision("filter_rejected", {
+        reason: filter.reason,
+        traceId: latencyTrace?.traceId,
+      });
 
       return;
     }
@@ -1393,15 +1393,9 @@ async function processMessage(
 
       if (duplicate) {
 
-        console.log(
-          "[USER DEDUPE] SKIP:",
-          {
-            userId,
-            senderId,
-            groupId,
-            content,
-          }
-        );
+        logTripDecision("duplicate_skipped", {
+          traceId: latencyTrace?.traceId,
+        });
 
 
         return;
@@ -1547,48 +1541,11 @@ async function processMessage(
       realtimeMessage
     );
 
-    console.log("");
-    console.log(
-      "================================"
-    );
-
-    console.log(
-      "   USER MESSAGE ACCEPTED"
-    );
-
-    console.log(
-      "================================"
-    );
-
-    console.log(
-      "User:",
-      userId
-    );
-
-    console.log(
-      "Group:",
-      groupName
-    );
-
-    console.log(
-      "Sender:",
-      senderName ??
-      senderId
-    );
-
-    console.log(
-      "Content:",
-      content
-    );
-
-    console.log(
-      "Filter:",
-      filter.reason
-    );
-
-    console.log(
-      "================================"
-    );
+    // Avoid synchronous console I/O and raw message logging on the hot path.
+    logTripDecision("trip_created", {
+      reason: filter.reason,
+      traceId: latencyTrace?.traceId,
+    });
 
 
     // ========================================
@@ -1851,11 +1808,12 @@ export async function startUserWorker(
 
 
         if (workers.get(key) !== worker) return;
-        await enrichStickerMessage(
-          worker,
-          message
-        );
-        if (workers.get(key) !== worker) return;
+        // For text trips, skip an unnecessary async microtask. Sticker media
+        // still waits for enrichment before being saved or broadcast.
+        if (needsStickerEnrichment(message)) {
+          await enrichStickerMessage(worker, message);
+          if (workers.get(key) !== worker) return;
+        }
 
         // Do not enumerate Zalo groups. Discover a group from its first
         // displayable message, without blocking the message listener on errors.
