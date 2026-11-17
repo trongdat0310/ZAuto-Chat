@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import '../../services/backend/acceptance_api.dart';
@@ -33,6 +32,8 @@ import 'chat_messages_controller.dart';
 import 'chat_actions_controller.dart';
 import 'chat_media_controller.dart';
 import 'chat_reply_controller.dart';
+import 'chat_message_presentation.dart';
+import 'chat_mention_text_controller.dart';
 
 import 'voice_message_bubble.dart';
 import 'file_message_bubble.dart';
@@ -100,7 +101,7 @@ class _ChatPageState extends State<ChatPage> {
 
   final ScrollController scrollController = ScrollController();
 
-  final _MentionTextController messageController = _MentionTextController();
+  final ChatMentionTextController messageController = ChatMentionTextController();
 
   final ImagePicker imagePicker = ImagePicker();
 
@@ -161,26 +162,6 @@ class _ChatPageState extends State<ChatPage> {
         replyController.clearReply();
       }
     });
-  }
-
-  bool _isRecallExpired(Map<String, dynamic> message) {
-    final timestampMs = messageTimestampMs(message);
-
-    // Khong ro timestamp thi
-    // de backend quyet dinh.
-    if (timestampMs == null) {
-      return false;
-    }
-
-    final now = DateTime.now().millisecondsSinceEpoch;
-
-    final ageMs = now - timestampMs;
-
-    if (ageMs < 0) {
-      return false;
-    }
-
-    return ageMs >= const Duration(hours: 1).inMilliseconds;
   }
 
   final GlobalKey targetMessageKey = GlobalKey();
@@ -395,7 +376,7 @@ class _ChatPageState extends State<ChatPage> {
     // NHUNG BAM VAO THI THONG BAO NGAY.
     // ========================================
 
-    if (_isRecallExpired(message)) {
+    if (ChatMessagePresentation.isRecallExpired(message)) {
       _showTopNotice(
         'Bạn chỉ có thể thu hồi tin nhắn trong 1 giờ sau khi gửi.',
       );
@@ -553,7 +534,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _undoMessage(Map<String, dynamic> message) async {
-    if (_isRecallExpired(message)) {
+    if (ChatMessagePresentation.isRecallExpired(message)) {
       _showTopNotice(
         'Bạn chỉ có thể thu hồi tin nhắn trong 1 giờ sau khi gửi.',
       );
@@ -664,20 +645,6 @@ class _ChatPageState extends State<ChatPage> {
         ),
       ),
     );
-  }
-
-  List<Map<String, dynamic>> _messageMentions(Map<String, dynamic> message) {
-    final raw = message['rawData'];
-    if (raw is! Map) return const [];
-    dynamic value = raw['mentions'] ?? raw['mention'];
-    if (value == null && raw['propertyExt'] is String) {
-      try {
-        final decoded = jsonDecode(raw['propertyExt'] as String);
-        if (decoded is Map) value = decoded['mentions'] ?? decoded['mention'];
-      } catch (_) {}
-    }
-    if (value is! List) return const [];
-    return value.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
   }
 
   void _showMessageActions(Map<String, dynamic> message) {
@@ -2482,24 +2449,6 @@ class _ChatPageState extends State<ChatPage> {
   // TIME
   // ========================================
 
-  String formatTime(dynamic timestamp) {
-    final raw = int.tryParse(timestamp?.toString() ?? '');
-
-    if (raw == null || raw <= 0) {
-      return '';
-    }
-
-    final timestampMs = raw < 100000000000 ? raw * 1000 : raw;
-
-    final time = DateTime.fromMillisecondsSinceEpoch(timestampMs).toLocal();
-
-    final hour = time.hour.toString().padLeft(2, '0');
-
-    final minute = time.minute.toString().padLeft(2, '0');
-
-    return '$hour:$minute';
-  }
-
   List<PhotoViewerItem> _buildPhotoViewerItems(
     List<Map<String, dynamic>> sourceMessages,
   ) {
@@ -2861,7 +2810,7 @@ class _ChatPageState extends State<ChatPage> {
 
       media: media,
 
-      timeText: formatTime(timestampMessage['timestamp']),
+      timeText: ChatMessagePresentation.formatTime(timestampMessage['timestamp']),
 
       onReply: () {
         _startReply(message);
@@ -2910,7 +2859,7 @@ class _ChatPageState extends State<ChatPage> {
 
       media: media,
 
-      timeText: formatTime(message['timestamp']),
+      timeText: ChatMessagePresentation.formatTime(message['timestamp']),
 
       onReply: () {
         _startReply(message);
@@ -3070,18 +3019,10 @@ class _ChatPageState extends State<ChatPage> {
 
     final senderName = message['senderName']?.toString() ?? 'Thành viên';
 
-    String content;
-
-    if (status == 'recalled') {
-      content = 'Tin nhắn đã được thu hồi';
-    } else if (isPhoto) {
-      content = '[Hình ảnh]';
-    } else {
-      content =
-          message['content']?.toString() ??
-          message['preview']?.toString() ??
-          '[Tin nhắn]';
-    }
+    final content = ChatMessagePresentation.textContent(
+      message,
+      isPhoto: isPhoto,
+    );
 
     // ========================================
     // TARGET
@@ -3090,10 +3031,7 @@ class _ChatPageState extends State<ChatPage> {
     final isTarget = index == targetController.targetIndex;
 
     final stableMessageId =
-        message['id']?.toString() ??
-        message['msgId']?.toString() ??
-        message['cliMsgId']?.toString() ??
-        index.toString();
+        ChatMessagePresentation.stableId(message, index);
 
     // ========================================
     // QUOTE CUA ZALO
@@ -3128,9 +3066,9 @@ class _ChatPageState extends State<ChatPage> {
 
       content: content,
 
-      mentions: _messageMentions(message),
+      mentions: ChatMessagePresentation.mentions(message),
 
-      timeText: formatTime(message['timestamp']),
+      timeText: ChatMessagePresentation.formatTime(message['timestamp']),
 
       hasQuote: quote != null,
 
@@ -3404,31 +3342,3 @@ class _ChatPageState extends State<ChatPage> {
   }
 }
 
-class _MentionTextController extends TextEditingController {
-  String? mentionPrefix;
-
-  @override
-  TextSpan buildTextSpan({
-    required BuildContext context,
-    TextStyle? style,
-    required bool withComposing,
-  }) {
-    final prefix = mentionPrefix;
-    if (prefix == null || !text.startsWith(prefix)) {
-      return TextSpan(style: style, text: text);
-    }
-    return TextSpan(style: style, children: [
-      TextSpan(
-        text: prefix,
-        style: style?.copyWith(
-          color: Theme.of(context).colorScheme.primary,
-          fontWeight: FontWeight.w600,
-        ) ?? TextStyle(
-          color: Theme.of(context).colorScheme.primary,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      TextSpan(text: text.substring(prefix.length)),
-    ]);
-  }
-}
