@@ -31,8 +31,10 @@ abstract final class MessagesStateMerge {
       final pendingPin = pendingPinValues[id];
       if (pendingPin != null) {
         copy['pinned'] = pendingPin;
-        copy['pinnedAt'] =
-            pendingPin ? localById[id]?['pinnedAt'] : null;
+        final localConversation = localById[id];
+        copy['pinnedAt'] = pendingPin
+            ? (localConversation == null ? null : localConversation['pinnedAt'])
+            : null;
       }
       result.add(copy);
     }
