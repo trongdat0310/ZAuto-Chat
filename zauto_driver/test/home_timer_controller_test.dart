@@ -46,4 +46,49 @@ void main() {
     expect(timers.quotaRefreshRunning, isFalse);
     expect(timers.countdownRunning, isFalse);
   });
+  test('hidden Home stops periodic UI work and resume restarts it', () {
+    final timers = HomeTimerController();
+    addTearDown(timers.dispose);
+
+    void quotaTick() {}
+    void countdownTick() {}
+
+    timers.setVisibleWork(
+      visible: true,
+      hasCountdownTrips: true,
+      onQuotaRefresh: quotaTick,
+      onCountdownTick: countdownTick,
+    );
+    expect(timers.quotaRefreshRunning, isTrue);
+    expect(timers.countdownRunning, isTrue);
+
+    // The hidden tab keeps its trip data and realtime listener, not its timers.
+    timers.setVisibleWork(
+      visible: false,
+      hasCountdownTrips: true,
+      onQuotaRefresh: quotaTick,
+      onCountdownTick: countdownTick,
+    );
+    expect(timers.quotaRefreshRunning, isFalse);
+    expect(timers.countdownRunning, isFalse);
+
+    timers.setVisibleWork(
+      visible: true,
+      hasCountdownTrips: false,
+      onQuotaRefresh: quotaTick,
+      onCountdownTick: countdownTick,
+    );
+    expect(timers.quotaRefreshRunning, isTrue);
+    expect(timers.countdownRunning, isFalse);
+
+    timers.setVisibleWork(
+      visible: true,
+      hasCountdownTrips: true,
+      onQuotaRefresh: quotaTick,
+      onCountdownTick: countdownTick,
+    );
+    expect(timers.quotaRefreshRunning, isTrue);
+    expect(timers.countdownRunning, isTrue);
+  });
+
 }

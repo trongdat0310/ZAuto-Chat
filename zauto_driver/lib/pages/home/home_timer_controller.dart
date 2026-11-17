@@ -40,6 +40,29 @@ class HomeTimerController {
     _tripCountdown = null;
   }
 
+  /// Toggle periodic UI work without affecting realtime subscriptions.
+  /// Inactive tabs retain their trip state; the caller recomputes remaining
+  /// seconds from absolute deadlines when the tab is activated again.
+  void setVisibleWork({
+    required bool visible,
+    required bool hasCountdownTrips,
+    required void Function() onQuotaRefresh,
+    required void Function() onCountdownTick,
+  }) {
+    if (!visible) {
+      stopCountdown();
+      stopQuotaRefresh();
+      return;
+    }
+
+    startQuotaRefresh(onQuotaRefresh);
+    if (hasCountdownTrips) {
+      ensureCountdown(onCountdownTick);
+    } else {
+      stopCountdown();
+    }
+  }
+
   void dispose() {
     if (_disposed) return;
     _disposed = true;

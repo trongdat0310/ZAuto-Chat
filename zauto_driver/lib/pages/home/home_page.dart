@@ -138,7 +138,7 @@ class _HomePageState extends State<HomePage>
 
     loadHomeSummary();
     unawaited(loadQuota());
-    _timers.startQuotaRefresh(() => unawaited(loadQuota()));
+    _syncVisibleHomeTimers();
 
     notificationHandler = HomeNotificationHandler(
       settingsController: widget.settingsController,
@@ -255,11 +255,19 @@ class _HomePageState extends State<HomePage>
       state,
     );
 
-    if (
-      state !=
-      AppLifecycleState.resumed
-    ) {
+    if (state != AppLifecycleState.resumed) {
+      // Keep realtime listeners installed, but stop periodic UI work while
+      // Android pauses or hides this app.
+      _syncVisibleHomeTimers();
       return;
+    }
+
+    _syncVisibleHomeTimers();
+    if (_canRunVisibleHomeTimers) {
+      unawaited(loadQuota());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _canRunVisibleHomeTimers) _tickTripCountdowns();
+      });
     }
 
     // Neu stream tung dung vi lifecycle/he thong,
@@ -364,13 +372,27 @@ class _HomePageState extends State<HomePage>
   bool get _hasCountdownTrips =>
       HomeTripCountdown.hasCountdownTrips(activeTrips);
 
+  bool get _canRunVisibleHomeTimers {
+    final state = WidgetsBinding.instance.lifecycleState;
+    return widget.isActive &&
+        (state == null || state == AppLifecycleState.resumed);
+  }
+
+  void _syncVisibleHomeTimers() {
+    _timers.setVisibleWork(
+      visible: mounted && _canRunVisibleHomeTimers,
+      hasCountdownTrips: _hasCountdownTrips,
+      onQuotaRefresh: () => unawaited(loadQuota()),
+      onCountdownTick: _tickTripCountdowns,
+    );
+  }
+
   void _ensureTripCountdownTimer() {
-    if (!mounted || !_hasCountdownTrips) return;
-    _timers.ensureCountdown(_tickTripCountdowns);
+    if (mounted) _syncVisibleHomeTimers();
   }
 
   void _stopTripCountdownTimerIfIdle() {
-    if (!_hasCountdownTrips) _timers.stopCountdown();
+    if (mounted) _syncVisibleHomeTimers();
   }
 
   void _pauseTripCountdown(Map<String, dynamic> trip) {
@@ -390,7 +412,7 @@ class _HomePageState extends State<HomePage>
   }
 
   void _tickTripCountdowns() {
-    if (!mounted) {
+    if (!mounted || !_canRunVisibleHomeTimers) {
       _timers.stopCountdown();
       return;
     }
@@ -664,8 +686,18 @@ class _HomePageState extends State<HomePage>
   @override
   void didUpdateWidget(covariant HomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isActive && !oldWidget.isActive) {
-      loadHomeSummary();
+    if (widget.isActive == oldWidget.isActive) return;
+
+    // IndexedStack keeps Home mounted. Stop only timers, not realtime,
+    // so trips and their notifications are still received on other tabs.
+    _syncVisibleHomeTimers();
+
+    if (_canRunVisibleHomeTimers) {
+      unawaited(loadHomeSummary());
+      unawaited(loadQuota());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _canRunVisibleHomeTimers) _tickTripCountdowns();
+      });
     }
   }
 
