@@ -35,3 +35,27 @@ abstract final class MessagesRefreshPlan {
     }
   }
 }
+
+/// Coalesces realtime invalidations while Messages is hidden or debouncing.
+/// A scoped refresh is claimed only when the tab is visible, so returning
+/// to Messages cannot lose events that arrived while the tab was offstage.
+class MessagesDeferredRefresh {
+  int _pending = 0;
+
+  int get pendingSections => _pending;
+
+  void invalidate(int sections) {
+    _pending |= sections & MessagesRefreshPlan.all;
+  }
+
+  int takeWhenActive(bool isActive) {
+    if (!isActive) return 0;
+    final sections = _pending;
+    _pending = 0;
+    return sections;
+  }
+
+  void clear() {
+    _pending = 0;
+  }
+}

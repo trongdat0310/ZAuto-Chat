@@ -149,6 +149,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       zaloLinked
           ? MessagesPage(
               realtimeService: realtimeService,
+              isActive: currentIndex == 1,
 
               onOpenSettings: openSettingsFromMessages,
             )

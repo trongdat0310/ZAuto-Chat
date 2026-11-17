@@ -51,4 +51,34 @@ void main() {
         MessagesRefreshPlan.forRealtimeEvent('group_notification_toggled');
     expect(sections, MessagesRefreshPlan.all);
   });
+  test('hidden tab accumulates realtime scopes without consuming them', () {
+    final queue = MessagesDeferredRefresh();
+    queue.invalidate(MessagesRefreshPlan.conversations);
+    queue.invalidate(MessagesRefreshPlan.groups);
+
+    expect(queue.pendingSections,
+        MessagesRefreshPlan.conversations | MessagesRefreshPlan.groups);
+    expect(queue.takeWhenActive(false), 0);
+    expect(queue.pendingSections,
+        MessagesRefreshPlan.conversations | MessagesRefreshPlan.groups);
+
+    // Activation merges a second event before the pending work is claimed.
+    queue.invalidate(MessagesRefreshPlan.accepted);
+    expect(queue.takeWhenActive(true), MessagesRefreshPlan.all);
+    expect(queue.pendingSections, 0);
+    expect(queue.takeWhenActive(true), 0);
+  });
+
+  test('deferred refresh masks unsupported bits and can clear on dispose', () {
+    final queue = MessagesDeferredRefresh();
+    queue.invalidate(128 | MessagesRefreshPlan.accepted);
+    expect(queue.pendingSections, MessagesRefreshPlan.accepted);
+
+    queue.clear();
+    expect(queue.pendingSections, 0);
+    queue.invalidate(MessagesRefreshPlan.all);
+    expect(queue.takeWhenActive(true), MessagesRefreshPlan.all);
+    expect(queue.pendingSections, 0);
+  });
+
 }

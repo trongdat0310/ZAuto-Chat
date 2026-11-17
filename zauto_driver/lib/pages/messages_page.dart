@@ -12,6 +12,7 @@ import 'dart:async';
 class MessagesPage extends StatefulWidget {
   final VoidCallback onOpenSettings;
   final AppRealtimeService realtimeService;
+  final bool isActive;
 
   const MessagesPage({
     super.key,
@@ -19,6 +20,7 @@ class MessagesPage extends StatefulWidget {
     required this.realtimeService,
 
     required this.onOpenSettings,
+    this.isActive = true,
   });
 
   @override
@@ -62,7 +64,9 @@ class _MessagesPageState extends State<MessagesPage>
   StreamSubscription<Map<String, dynamic>>? realtimeSubscription;
 
   Timer? realtimeRefreshTimer;
-  int _realtimeRefreshSections = 0;
+  final MessagesDeferredRefresh _deferredRefresh = MessagesDeferredRefresh();
+  bool _initialLoadStarted = false;
+  DateTime? _lastFullRefreshAt;
 
   bool realtimeStarted = false;
 
@@ -113,8 +117,45 @@ class _MessagesPageState extends State<MessagesPage>
       });
     });
 
-    loadData();
+    if (widget.isActive) {
+      _initialLoadStarted = true;
+      unawaited(loadData());
+    } else {
+      // IndexedStack creates the hidden tab at startup. Postpone its three
+      // REST calls until the user first visits Messages.
+      _deferredRefresh.invalidate(MessagesRefreshPlan.all);
+    }
     startRealtime();
+  }
+
+  @override
+  void didUpdateWidget(covariant MessagesPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive == oldWidget.isActive) return;
+
+    if (!widget.isActive) {
+      // Do not cancel the realtime subscription; pending scopes are retained.
+      realtimeRefreshTimer?.cancel();
+      realtimeRefreshTimer = null;
+      return;
+    }
+
+    if (!_initialLoadStarted) {
+      _initialLoadStarted = true;
+      _deferredRefresh.clear();
+      unawaited(loadData());
+      return;
+    }
+
+    final pending = _deferredRefresh.pendingSections;
+    if (pending != 0) {
+      scheduleRealtimeRefresh(sections: pending);
+    } else if (_lastFullRefreshAt == null ||
+        DateTime.now().difference(_lastFullRefreshAt!) >=
+            const Duration(seconds: 45)) {
+      // A bounded catch-up refresh covers changes made outside realtime.
+      scheduleRealtimeRefresh();
+    }
   }
 
   void _handleTabChanged() {
@@ -461,14 +502,19 @@ class _MessagesPageState extends State<MessagesPage>
   void scheduleRealtimeRefresh({int sections = MessagesRefreshPlan.all}) {
     if (realtimeDisposed || sections == 0) return;
 
-    // Merge all invalidated resources throughout the debounce window.
-    _realtimeRefreshSections |= sections;
+    _deferredRefresh.invalidate(sections);
     realtimeRefreshTimer?.cancel();
+    realtimeRefreshTimer = null;
+
+    // While hidden, accumulate invalidations without starting HTTP requests.
+    if (!widget.isActive) return;
+
     realtimeRefreshTimer = Timer(const Duration(milliseconds: 350), () async {
       realtimeRefreshTimer = null;
-      final pending = _realtimeRefreshSections;
-      _realtimeRefreshSections = 0;
-      if (realtimeDisposed || !mounted || pending == 0) return;
+      if (realtimeDisposed || !mounted || !widget.isActive) return;
+
+      final pending = _deferredRefresh.takeWhenActive(widget.isActive);
+      if (pending == 0) return;
 
       await loadData(
         showLoading: false,
@@ -658,6 +704,9 @@ class _MessagesPageState extends State<MessagesPage>
 
         loading = false;
       });
+      if (sections == MessagesRefreshPlan.all) {
+        _lastFullRefreshAt = DateTime.now();
+      }
     } catch (error) {
       if (realtimeDisposed || !mounted) {
         return;
@@ -2637,7 +2686,7 @@ class _MessagesPageState extends State<MessagesPage>
 
     _loadPending = false;
     _loadSections = 0;
-    _realtimeRefreshSections = 0;
+    _deferredRefresh.clear();
 
     _pendingShowLoading = false;
 

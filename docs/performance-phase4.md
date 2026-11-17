@@ -39,6 +39,40 @@ conversation ordering to `messages_state_merge.dart`:
 **Validation:** `messages_state_merge_test.dart`,
 `messages_refresh_plan_test.dart`, and existing Flutter tests.
 
+## Chat: isolate stable presentation rules
+
+`chat_page.dart` now delegates UI-only metadata rules to
+`chat_message_presentation.dart`: recall timeout eligibility, timestamp
+formatting, Zalo mentions (including `propertyExt`), fallback text,
+and stable message keys. `chat_mention_text_controller.dart` owns the
+composer prefix highlight without altering the outgoing text. The existing
+realtime, paginated message search, acceptance and backend message
+controllers are not changed. Eight deterministic tests guard the refactor.
+
+## Inactive tabs: suspend presentation work, keep realtime
+
+The existing `IndexedStack` preserves pages when the user switches tabs.
+
+- **Home**: if `isActive` is false or the app is not resumed, stop the
+  30-second quota refresh and one-second countdown UI ticker. Keep the
+  realtime service, notifications and trip state alive. When Home becomes
+  visible, refresh quotas/summary and recalculate countdown seconds from
+  absolute expiry timestamps. Do not restart a paused countdown from a
+  stale number. `HomeTimerController.setVisibleWork` is unit-tested.
+- **Messages**: `isActive` is passed from MainScreen. On cold start, avoid
+  requesting history, conversations and groups until Messages is first
+  opened. Continue receiving realtime events in the background, but union
+  their REST invalidation scopes without starting a debounce timer or HTTP.
+  On activation, fetch the queued resources. After 45 seconds without a
+  complete refresh, a full reconciliation covers out-of-band edits.
+  Manual refresh, active-tab realtime updates and existing authentication
+  reconciliation are unchanged.
+
+This reduces avoidable background requests and countdown widget work. It
+**does not** disable listening for new trips or notifications. No percentage
+improvement is claimed without measuring actual network traffic and frame
+timings.
+
 ## Test commands
 
 ```powershell
@@ -48,6 +82,10 @@ flutter analyze
 flutter test test/home_trip_countdown_test.dart
 flutter test test/home_trip_reconciler_test.dart
 flutter test test/messages_state_merge_test.dart
+flutter test test/chat_message_presentation_test.dart
+flutter test test/chat_mention_text_controller_test.dart
+flutter test test/messages_refresh_plan_test.dart
+flutter test test/home_timer_controller_test.dart
 flutter test
 flutter run --profile
 ```
@@ -64,11 +102,10 @@ The data contracts currently use `Map<String, dynamic>` and the backend
 remains authoritative. Introducing typed DTOs and a full controller rewrite
 should be gradual, with compatibility tests for legacy payload fields.
 
-Remaining Phase 4 work: audit `chat_page.dart` boundaries and extract
-cohesive state/formatting rules where tests can demonstrate unchanged
-behavior; review inactive tab work and prevent redundant rebuilds while
-preserving realtime catch-up. Phase 5 includes staged load tests,
-production-like profile measurements and rollback gates.
+Remaining Phase 4 refactors should only be considered after the
+on-device regression confirms there is no stale chat, missed trip or
+background notification. Phase 5 includes staged load tests, production-like
+profile measurements (CPU/RAM, frames, p95/p99) and rollback gates.
 
 Do not change subscription counting, SePay reconciliation, stored message
 schemas, or existing acceptance deduplication as a side effect of refactoring.
