@@ -46,6 +46,8 @@ jobs:
         run: npm run test:load
       - name: Replay synthetic filter-dedupe-conversation pipeline
         run: npm run load:synthetic -- --users=3 --messages=60
+      - name: Replay burst workload (synthetic, 8 accounts x 200 trips)
+        run: npm run load:synthetic -- --users=8 --messages=200 --duplicates-every=5 --reject-every=7
       - name: Benchmark synthetic JSON serialization (non-gating timing)
         run: npm run benchmark:conversations
       - name: Run message-driven group discovery tests
