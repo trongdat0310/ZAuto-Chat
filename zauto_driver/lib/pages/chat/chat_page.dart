@@ -16,7 +16,6 @@ import '../../services/chat_state_service.dart';
 import '../../services/app_realtime_service.dart';
 import '../../services/media_download_service.dart';
 
-import 'chat_date_separator.dart';
 import 'chat_sender_avatar.dart';
 import 'chat_message_composer.dart';
 import 'chat_app_bar.dart';
