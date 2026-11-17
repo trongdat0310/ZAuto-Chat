@@ -17,6 +17,8 @@ import '../chat/chat_page.dart';
 import 'trip_card.dart';
 import 'trip_message_target.dart';
 import 'home_timer_controller.dart';
+import 'home_trip_countdown.dart';
+import 'home_trip_reconciler.dart';
 import 'home_notification.dart';
 import 'home_realtime.dart';
 
@@ -311,234 +313,30 @@ class _HomePageState extends State<HomePage>
   Future<void> _reconcileActiveTripsOnce() async {
     final displaySeconds =
         widget.settingsController.settings.tripDisplaySeconds;
-
-    final reconcileStartedAtMs =
-        DateTime.now()
-            .millisecondsSinceEpoch;
+    final reconcileStartedAtMs = DateTime.now().millisecondsSinceEpoch;
 
     try {
-      final pending =
-          await backend.getRecentPendingTrips(
-        displaySeconds:
-            displaySeconds,
+      final pending = await backend.getRecentPendingTrips(
+        displaySeconds: displaySeconds,
       );
-
-      if (!mounted) {
-        return;
-      }
-
-
-      final nowMs =
-          DateTime.now()
-              .millisecondsSinceEpoch;
-
-
-      final pendingById =
-          <String, Map<String, dynamic>>{};
-
-
-      for (
-        final incoming in pending
-      ) {
-        final id =
-            incoming['id']
-                ?.toString()
-                .trim() ??
-            '';
-
-        if (id.isEmpty) {
-          continue;
-        }
-
-        pendingById[id] =
-            incoming;
-      }
-
+      if (!mounted) return;
 
       setState(() {
-        // Cuoc local dang NEW nhung backend khong con
-        // pending/hoac da het cua so hien thi -> bo.
-        // Cuoc dang accepting/ignoring giu nguyen
-        // cho request local ket thuc.
-        activeTrips.removeWhere(
-          (trip) {
-            final status =
-                trip['_uiStatus']
-                    ?.toString() ??
-                'new';
-
-            if (
-              status ==
-                  'accepting' ||
-              status ==
-                  'ignoring' ||
-              status ==
-                  'accepted' ||
-              status ==
-                  'ignored'
-            ) {
-              return false;
-            }
-
-            final addedAtMs =
-                trip['_addedAtMs'];
-
-            if (
-              addedAtMs is int &&
-              addedAtMs >
-                  reconcileStartedAtMs
-            ) {
-              return false;
-            }
-
-            final id =
-                trip['id']
-                    ?.toString()
-                    .trim() ??
-                '';
-
-            return (
-              id.isEmpty ||
-              !pendingById.containsKey(
-                id,
-              )
-            );
-          },
+        HomeTripReconciler.apply(
+          activeTrips: activeTrips,
+          pending: pending,
+          displaySeconds: displaySeconds,
+          reconcileStartedAtMs: reconcileStartedAtMs,
+          nowMs: DateTime.now().millisecondsSinceEpoch,
         );
-
-
-        for (
-          final entry
-          in pendingById.entries
-        ) {
-          final id =
-              entry.key;
-
-          final incoming =
-              entry.value;
-
-          final remainingMs =
-              incoming['_reconcileRemainingMs'];
-
-          if (
-            remainingMs is! int ||
-            remainingMs <=
-                0
-          ) {
-            continue;
-          }
-
-
-          final existingIndex =
-              activeTrips.indexWhere(
-            (trip) =>
-                trip['id']
-                    ?.toString() ==
-                id,
-          );
-
-
-          if (
-            existingIndex >=
-            0
-          ) {
-            final existing =
-                activeTrips[
-                    existingIndex];
-
-            final status =
-                existing['_uiStatus']
-                    ?.toString() ??
-                'new';
-
-
-            // Khong pha state cua request dang chay.
-            if (
-              status ==
-                  'accepting' ||
-              status ==
-                  'ignoring' ||
-              status ==
-                  'accepted' ||
-              status ==
-                  'ignored'
-            ) {
-              continue;
-            }
-
-
-            existing.addAll(
-              incoming,
-            );
-
-            existing['_uiStatus'] =
-                'new';
-
-            existing['_expiresAtMs'] =
-                nowMs +
-                remainingMs;
-
-            existing['_pausedRemainingMs'] =
-                null;
-
-            existing['_remainingSeconds'] =
-                (
-                  (remainingMs + 999) ~/
-                  1000
-                ).clamp(
-                  0,
-                  displaySeconds,
-                ).toInt();
-
-            continue;
-          }
-
-
-          final restored =
-              Map<String, dynamic>.from(
-            incoming,
-          );
-
-          restored['_uiStatus'] =
-              'new';
-
-          restored['_addedAtMs'] =
-              nowMs;
-
-          restored['_expiresAtMs'] =
-              nowMs +
-              remainingMs;
-
-          restored['_pausedRemainingMs'] =
-              null;
-
-          restored['_remainingSeconds'] =
-              (
-                (remainingMs + 999) ~/
-                1000
-              ).clamp(
-                0,
-                displaySeconds,
-              ).toInt();
-
-
-          // Reconcile KHONG phat lai notification/audio.
-          // User co the da nhan push khi app background.
-          activeTrips.add(
-            restored,
-          );
-        }
       });
 
-
+      // Reconciliation restores visible cards only; it never replays sounds
+      // or notification side effects for messages fetched from the server.
       _ensureTripCountdownTimer();
-
       _stopTripCountdownTimerIfIdle();
-
     } catch (error) {
-      debugPrint(
-        'HOME TRIP RECONCILE ERROR: $error',
-      );
+      debugPrint('HOME TRIP RECONCILE ERROR: $error');
     }
   }
 
@@ -563,187 +361,61 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  bool get _hasCountdownTrips {
-    return activeTrips.any((trip) {
-      final status = trip['_uiStatus']?.toString() ?? 'new';
-
-      return status == 'new';
-    });
-  }
+  bool get _hasCountdownTrips =>
+      HomeTripCountdown.hasCountdownTrips(activeTrips);
 
   void _ensureTripCountdownTimer() {
-    if (!mounted || !_hasCountdownTrips) {
-      return;
-    }
-
+    if (!mounted || !_hasCountdownTrips) return;
     _timers.ensureCountdown(_tickTripCountdowns);
   }
 
   void _stopTripCountdownTimerIfIdle() {
-    if (_hasCountdownTrips) {
-      return;
-    }
-
-    _timers.stopCountdown();
+    if (!_hasCountdownTrips) _timers.stopCountdown();
   }
 
-  int _remainingSecondsForTrip(
-    Map<String, dynamic> trip,
-  ) {
-    final pausedMs =
-        trip['_pausedRemainingMs'];
-
-    if (pausedMs is int) {
-      return (
-        (pausedMs + 999) ~/
-        1000
-      ).clamp(
-        0,
-        widget.settingsController.settings.tripDisplaySeconds,
-      ).toInt();
-    }
-
-
-    final expiresAtMs =
-        trip['_expiresAtMs'];
-
-    if (expiresAtMs is! int) {
-      return trip['_remainingSeconds'] is int
-          ? trip['_remainingSeconds'] as int
-          : widget.settingsController.settings.tripDisplaySeconds;
-    }
-
-
-    final remainingMs =
-        expiresAtMs -
-        DateTime.now()
-            .millisecondsSinceEpoch;
-
-
-    if (remainingMs <= 0) {
-      return 0;
-    }
-
-
-    return (
-      (remainingMs + 999) ~/
-      1000
-    ).clamp(
-      0,
-      widget.settingsController.settings.tripDisplaySeconds,
-    ).toInt();
+  void _pauseTripCountdown(Map<String, dynamic> trip) {
+    HomeTripCountdown.pause(
+      trip,
+      displaySeconds: widget.settingsController.settings.tripDisplaySeconds,
+      nowMs: DateTime.now().millisecondsSinceEpoch,
+    );
   }
 
-
-  void _pauseTripCountdown(
-    Map<String, dynamic> trip,
-  ) {
-    final expiresAtMs =
-        trip['_expiresAtMs'];
-
-    if (expiresAtMs is int) {
-      final remainingMs =
-          expiresAtMs -
-          DateTime.now()
-              .millisecondsSinceEpoch;
-
-      trip['_pausedRemainingMs'] =
-          remainingMs > 0
-              ? remainingMs
-              : 0;
-    } else {
-      final remainingSeconds =
-          trip['_remainingSeconds'] is int
-              ? trip['_remainingSeconds'] as int
-              : widget.settingsController.settings.tripDisplaySeconds;
-
-      trip['_pausedRemainingMs'] =
-          remainingSeconds *
-          1000;
-    }
-
-    trip['_expiresAtMs'] =
-        null;
+  void _resumeTripCountdown(Map<String, dynamic> trip) {
+    HomeTripCountdown.resume(
+      trip,
+      displaySeconds: widget.settingsController.settings.tripDisplaySeconds,
+      nowMs: DateTime.now().millisecondsSinceEpoch,
+    );
   }
-
-
-  void _resumeTripCountdown(
-    Map<String, dynamic> trip,
-  ) {
-    final pausedMs =
-        trip['_pausedRemainingMs'];
-
-    final remainingMs =
-        pausedMs is int
-            ? pausedMs
-            : widget.settingsController.settings.tripDisplaySeconds *
-                1000;
-
-
-    trip['_pausedRemainingMs'] =
-        null;
-
-    trip['_expiresAtMs'] =
-        DateTime.now()
-                .millisecondsSinceEpoch +
-            remainingMs;
-
-    trip['_remainingSeconds'] =
-        (
-          (remainingMs + 999) ~/
-          1000
-        ).clamp(
-          0,
-          widget.settingsController.settings.tripDisplaySeconds,
-        ).toInt();
-  }
-
 
   void _tickTripCountdowns() {
     if (!mounted) {
       _timers.stopCountdown();
-
       return;
     }
 
     if (!_hasCountdownTrips) {
       _stopTripCountdownTimerIfIdle();
-
       return;
     }
 
-    var countdownChanged = false;
-    for (final trip in activeTrips) {
-      final status = trip['_uiStatus']?.toString() ?? 'new';
-      if (status != 'new' || trip['_replying'] == true) continue;
+    final tick = HomeTripCountdown.tick(
+      activeTrips,
+      displaySeconds: widget.settingsController.settings.tripDisplaySeconds,
+      nowMs: DateTime.now().millisecondsSinceEpoch,
+    );
 
-      final remaining = _remainingSecondsForTrip(trip);
-      if (trip['_remainingSeconds'] != remaining) {
-        trip['_remainingSeconds'] = remaining;
-        countdownChanged = true;
-      }
-    }
-
-    // Only remove expired trips through setState: this changes the list
-    // structure. Ordinary seconds do not rebuild Home or its quota header.
-    final hasExpired = activeTrips.any((trip) {
-      return (trip['_uiStatus']?.toString() ?? 'new') == 'new' &&
-          _remainingSecondsForTrip(trip) <= 0;
-    });
-    if (hasExpired) {
-      setState(() {
-        activeTrips.removeWhere((trip) {
-          return (trip['_uiStatus']?.toString() ?? 'new') == 'new' &&
-              _remainingSecondsForTrip(trip) <= 0;
-        });
-      });
-    } else if (countdownChanged) {
+    // Updating only the badge avoids rebuilding Home every second.
+    // A changed list still needs setState to remove expired trip cards.
+    if (tick.hasExpired) {
+      setState(() => activeTrips.removeWhere(tick.expiredTrips.contains));
+    } else if (tick.countdownChanged) {
       _countdownVersion.value += 1;
     }
 
     _stopTripCountdownTimerIfIdle();
   }
-
 
   void _applyRealtimeTripStatus(
     String messageId,
