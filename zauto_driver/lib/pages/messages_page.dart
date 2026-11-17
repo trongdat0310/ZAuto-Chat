@@ -4,6 +4,7 @@ import '../config/app_config.dart';
 import '../services/backend_service.dart';
 import 'chat/chat_page.dart';
 import 'messages_refresh_plan.dart';
+import 'messages_state_merge.dart';
 import '../services/app_realtime_service.dart';
 
 import 'dart:async';
@@ -369,16 +370,6 @@ class _MessagesPageState extends State<MessagesPage>
     return Map<String, dynamic>.from(rawData);
   }
 
-  Map<String, dynamic>? _findLocalConversation(String groupId) {
-    for (final conversation in conversations) {
-      if (conversation['groupId']?.toString().trim() == groupId.trim()) {
-        return conversation;
-      }
-    }
-
-    return null;
-  }
-
   void _applyRealtimeConversationRead(Map<String, dynamic> event) {
     final data = _eventDataMap(event);
 
@@ -630,61 +621,22 @@ class _MessagesPageState extends State<MessagesPage>
       // - lam conversation dang xoa hien lai
       // ========================================
 
-      final reconciledConversations = conversationResult
-          ?.where((item) {
-            final groupId = item['groupId']?.toString().trim();
-
-            if (groupId == null || groupId.isEmpty) {
-              return true;
-            }
-
-            return !_deletingGroupIds.contains(groupId);
-          })
-          .map((item) {
-            final copy = Map<String, dynamic>.from(item);
-
-            final groupId = copy['groupId']?.toString().trim();
-
-            if (groupId == null || groupId.isEmpty) {
-              return copy;
-            }
-
-            final pendingPin = _pendingPinValues[groupId];
-
-            if (pendingPin != null) {
-              copy['pinned'] = pendingPin;
-
-              final local = _findLocalConversation(groupId);
-
-              copy['pinnedAt'] = pendingPin
-                  ? (local == null ? null : local['pinnedAt'])
-                  : null;
-            }
-
-            return copy;
-          })
-          .toList();
+      final reconciledConversations = conversationResult == null
+          ? null
+          : MessagesStateMerge.conversations(
+              conversationResult,
+              local: conversations,
+              deletingGroupIds: _deletingGroupIds,
+              pendingPinValues: _pendingPinValues,
+            );
 
       final groupResult = results[2];
-      Set<String>? enabled;
-      if (groupResult != null) {
-        enabled = <String>{};
-
-        for (final group in groupResult) {
-          if (group['enabled'] != true) continue;
-          final id = group['groupId']?.toString().trim();
-          if (id == null || id.isEmpty) continue;
-          enabled.add(id);
-        }
-        // Preserve optimistic notification changes while a request is pending.
-        for (final entry in _pendingNotificationValues.entries) {
-          if (entry.value) {
-            enabled.add(entry.key);
-          } else {
-            enabled.remove(entry.key);
-          }
-        }
-      }
+      final enabled = groupResult == null
+          ? null
+          : MessagesStateMerge.enabledGroups(
+              groupResult,
+              pendingNotificationValues: _pendingNotificationValues,
+            );
 
       setState(() {
         loadError = null;
@@ -1252,37 +1204,7 @@ class _MessagesPageState extends State<MessagesPage>
   }
 
   void _sortLocalConversations() {
-    conversations.sort((a, b) {
-      final aPinned = a['pinned'] == true;
-
-      final bPinned = b['pinned'] == true;
-
-      if (aPinned != bPinned) {
-        return aPinned ? -1 : 1;
-      }
-
-      if (aPinned && bPinned) {
-        final aPinnedAt =
-            DateTime.tryParse(a['pinnedAt']?.toString() ?? '')
-                ?.millisecondsSinceEpoch ??
-            0;
-
-        final bPinnedAt =
-            DateTime.tryParse(b['pinnedAt']?.toString() ?? '')
-                ?.millisecondsSinceEpoch ??
-            0;
-
-        if (aPinnedAt != bPinnedAt) {
-          return bPinnedAt.compareTo(aPinnedAt);
-        }
-      }
-
-      final aTime = int.tryParse(a['lastMessageAt']?.toString() ?? '') ?? 0;
-
-      final bTime = int.tryParse(b['lastMessageAt']?.toString() ?? '') ?? 0;
-
-      return bTime.compareTo(aTime);
-    });
+    MessagesStateMerge.sortConversations(conversations);
   }
 
   // ========================================
