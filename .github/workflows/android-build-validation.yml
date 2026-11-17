@@ -1,0 +1,65 @@
+name: Android unsigned compile validation
+
+on:
+  push:
+    branches:
+      - refactor/architecture
+    paths:
+      - '.github/workflows/android-build-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: zauto_driver
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.0'
+          channel: stable
+          cache: true
+      - name: Confirm CI does not contain private signing material
+        shell: bash
+        run: |
+          test ! -e android/key.properties
+          test ! -e android/app/zautochat-upload.jks
+      - name: Install Flutter dependencies
+        run: flutter pub get
+      - name: Compile Android release mode (unsigned and NOT distributable)
+        run: flutter build apk --release --dart-define=BACKEND_URL=https://api.zchatauto.io.vn
+      - name: Validate compile output, package metadata, and absence of signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          test -s "$APK"
+          unzip -tqq "$APK"
+          AAPT=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)
+          if [ -z "$AAPT" ]; then
+            echo "::error::Android aapt not found for package validation"
+            exit 1
+          fi
+          "$AAPT" dump badging "$APK" | grep -q "package: name='com.example.zauto_driver'"
+          SIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
+          if [ -z "$SIGNER" ]; then
+            echo "::error::apksigner unavailable"
+            exit 1
+          fi
+          if "$SIGNER" verify "$APK" >/dev/null 2>&1; then
+            echo "::error::CI release compile unexpectedly signed; never distribute"
+            exit 1
+          fi
+          sha256sum "$APK"
+          echo "CI Android compile: PASS (UNSIGNED; do not distribute)"
+          echo "For distributable APK run tool/release_readiness.ps1 with private signing on Windows"
