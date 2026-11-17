@@ -20,7 +20,9 @@
     "test:groups": "node --test src/zalo/user-group-directory.test.js src/zalo/active-group-metadata-loader.test.js src/zalo/user-zalo-data-cleanup.test.js src/zalo/unlink-operation.test.js src/zalo/user-zalo-unlink-service.test.js",
     "test:performance": "node --test src/users/*.test.js src/diagnostics/latency-report.test.js src/diagnostics/runtime-performance.test.js src/workers/message-dispatch-policy.test.js src/diagnostics/conversation-io-metrics.test.js",
     "report:latency": "node scripts/latency-report.js",
-    "benchmark:conversations": "node scripts/benchmark-conversation-serialization.js"
+    "benchmark:conversations": "node scripts/benchmark-conversation-serialization.js",
+    "test:load": "node --test src/diagnostics/synthetic-replay.test.js",
+    "load:synthetic": "node scripts/synthetic-replay.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
